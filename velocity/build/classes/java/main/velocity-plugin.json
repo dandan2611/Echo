@@ -1,1 +1,0 @@
-{"id":"echo","name":"Echo","version":"1.0.0-SNAPSHOT","authors":["dandan2611"],"dependencies":[{"id":"connector","optional":false}],"main":"fr.codinbox.echo.velocity.EchoPlugin"}
