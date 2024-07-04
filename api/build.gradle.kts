@@ -30,8 +30,17 @@ java {
 
 publishing {
     publications {
-        create<MavenPublication>("mavenJava") {
+        create<MavenPublication>("maven") {
             from(components["java"])
+        }
+    }
+    repositories {
+        maven("https://nexus.codinbox.fr/repository/maven-releases/") {
+            name = "public-releases"
+            credentials {
+                username = System.getenv("MAVEN_USERNAME")
+                password = System.getenv("MAVEN_PASSWORD")
+            }
         }
     }
 }

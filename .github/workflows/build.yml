@@ -1,0 +1,32 @@
+name: Build
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'adopt'
+      - name: Build
+        uses: gradle/gradle-build-action@v2
+        with:
+          arguments: build
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-jars
+          path: api/build/libs/*.jar
+      - name: Upload Paper plugins artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: paper-jars
+          path: paper/build/libs/*-all.jar
+      - name: Upload Velocity plugins artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: velocity-jars
+          path: velocity/build/libs/*-all.jar
