@@ -10,3 +10,9 @@ repositories {
 
 dependencies {
 }
+
+subprojects {
+    repositories {
+        maven("https://nexus.codinbox.fr/repository/maven-public/")
+    }
+}
