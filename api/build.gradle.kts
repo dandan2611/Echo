@@ -1,6 +1,7 @@
 plugins {
     java
     `java-library`
+    `maven-publish`
 }
 
 group = "fr.codinbox.echo"
@@ -20,4 +21,17 @@ dependencies {
     api("com.fasterxml.jackson.core:jackson-annotations:2.17.1")
 
     api("it.unimi.dsi:fastutil:8.5.13")
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+        }
+    }
 }
