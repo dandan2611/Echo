@@ -17,7 +17,6 @@ dependencies {
     implementation(project(":core"))
     compileOnlyApi("fr.codinbox.connector:paper:6.0.0")
 
-
     paperweight.paperDevBundle("1.20.1-R0.1-SNAPSHOT")
 }
 

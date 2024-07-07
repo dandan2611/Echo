@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RBucket;
 import org.redisson.api.RMap;
+import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -30,7 +31,7 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull <K, V> Map<K, V> getMap(@NotNull String key) {
+    public @NotNull <K, V> RMapAsync<K, V> getMap(@NotNull String key) {
         final RMap<K, V> map = this.connection.getClient().getMap(key);
         return map;
     }

@@ -8,6 +8,7 @@ import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -43,9 +44,12 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
     }
 
     @Override
-    public @NotNull CompletableFuture<Map<UUID, Instant>> getConnectedUsers() {
-        return CompletableFuture.completedFuture(Echo.getClient().getCacheProvider()
-                .getMap(USER_MAP_KEY.formatted(this.getId())));
+    public @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsers() {
+        return this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture();
+    }
+
+    private @NotNull RMapAsync<UUID, Instant> getConnectedUsersMap() {
+        return Echo.getClient().getCacheProvider().getMap(USER_MAP_KEY.formatted(this.getId()));
     }
 
     @Override

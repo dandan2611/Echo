@@ -2,6 +2,8 @@ package fr.codinbox.echo.api.cache;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RMap;
+import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -27,7 +29,7 @@ public interface CacheProvider {
 
     @NotNull CompletableFuture<Boolean> hasObject(final @NotNull String key);
 
-    <K, V> @NotNull Map<K, V> getMap(final @NotNull String key);
+    <K, V> @NotNull RMapAsync<K, V> getMap(final @NotNull String key);
 
     @NotNull CompletableFuture<@NotNull Set<String>> getKeys(final @NotNull String pattern);
 

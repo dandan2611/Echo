@@ -10,6 +10,7 @@ import fr.codinbox.echo.api.user.User;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;

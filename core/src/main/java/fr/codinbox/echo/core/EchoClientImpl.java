@@ -29,6 +29,7 @@ import fr.codinbox.echo.core.server.ServerImpl;
 import fr.codinbox.echo.core.user.UserImpl;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -73,10 +74,10 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getConnectedUsers() {
-        return CompletableFuture.completedFuture(Map.copyOf(this.getUserMap()));
+        return this.getUserMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull Map<String, Instant> getUserMap() {
+    private @NotNull RMapAsync<String, Instant> getUserMap() {
         return this.cacheProvider.getMap(UserImpl.USER_MAP);
     }
 
@@ -91,17 +92,16 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull CompletableFuture<@Nullable User> getUserByUsername(@NotNull String username) {
-        final Map<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
-        try {
-            final UUID id = UUID.fromString(usernameToIdMap.get(username));
-            return this.getUserById(id);
-        } catch (IllegalArgumentException exception) {
-            usernameToIdMap.remove(username);
-            throw exception;
-        }
+        final RMapAsync<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
+
+        return usernameToIdMap.getAsync(username).toCompletableFuture().thenApply(idStr -> {
+            if (idStr == null)
+                return null;
+            return UUID.fromString(idStr);
+        }).thenCompose(this::getUserById);
     }
 
-    private @NotNull Map<String, String> getPlayerUsernameToIdMap() {
+    private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
         return this.cacheProvider.getMap(UserImpl.USERNAME_TO_ID_MAP);
     }
 
@@ -122,10 +122,10 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getServers() {
-        return CompletableFuture.completedFuture(Map.copyOf(this.getServerMap()));
+        return this.getServerMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull Map<String, Instant> getServerMap() {
+    private @NotNull RMapAsync<String, Instant> getServerMap() {
         return this.cacheProvider.getMap(ServerImpl.SERVER_MAP);
     }
 
@@ -137,10 +137,10 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getProxies() {
-        return CompletableFuture.completedFuture(Map.copyOf(this.getProxyMap()));
+        return this.getProxyMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull Map<String, Instant> getProxyMap() {
+    private @NotNull RMapAsync<String, Instant> getProxyMap() {
         return this.cacheProvider.getMap(ProxyImpl.PROXY_MAP);
     }
 
@@ -246,25 +246,21 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull CompletableFuture<@NotNull Instant> registerProxy(final @NotNull String id) {
         final Instant creationTime = Instant.now();
 
-        this.getProxyMap().put(id, creationTime);
-        return CompletableFuture.completedFuture(creationTime);
+        return this.getProxyMap().putAsync(id, creationTime).toCompletableFuture().thenApply(aVoid -> creationTime);
     }
 
     public @NotNull CompletableFuture<Void> unregisterProxy(final @NotNull String id) {
-        this.getProxyMap().remove(id);
-        return CompletableFuture.completedFuture(null);
+        return this.getProxyMap().removeAsync(id).toCompletableFuture().thenApply(aVoid -> null);
     }
 
     public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
         final Instant creationTime = Instant.now();
 
-        this.getServerMap().put(id, creationTime);
-        return CompletableFuture.completedFuture(creationTime);
+        return this.getServerMap().putAsync(id, creationTime).toCompletableFuture().thenApply(aVoid -> creationTime);
     }
 
     public @NotNull CompletableFuture<Void> unregisterServer(final @NotNull String id) {
-        this.getServerMap().remove(id);
-        return CompletableFuture.completedFuture(null);
+        return this.getServerMap().removeAsync(id).toCompletableFuture().thenApply(aVoid -> null);
     }
 
     @Override
@@ -315,6 +311,7 @@ public class EchoClientImpl implements EchoClient {
     @Override
     public @NotNull CompletableFuture<Void> destroyUser(@NotNull User user) {
         return user.cleanup()
-                .thenRun(() -> this.getUserMap().remove(user.getId().toString()));
+                .thenCompose(aVoid -> this.getUserMap().removeAsync(user.getId().toString()))
+                .thenApply(aVoid -> null);
     }
 }
