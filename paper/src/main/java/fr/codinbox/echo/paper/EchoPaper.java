@@ -5,8 +5,10 @@ import fr.codinbox.connector.commons.redis.RedisConnectorService;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.local.EchoResourceType;
+import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.paper.listener.JoinListener;
+import fr.codinbox.echo.paper.messaging.SendMessageHandler;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -38,6 +40,10 @@ public class EchoPaper extends JavaPlugin {
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();
             pluginManager.registerEvents(new JoinListener(), this);
+
+            // Message listeners
+            final MessagingProvider messagingProvider = client.getMessagingProvider();
+            messagingProvider.subscribe(client.getLocalTopic(), new SendMessageHandler());
         } catch (Exception e) {
             super.getLogger().log(Level.SEVERE, "Failed to initialize Echo client", e);
             super.getServer().shutdown();

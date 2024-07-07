@@ -21,6 +21,9 @@ dependencies {
     api("com.fasterxml.jackson.core:jackson-annotations:2.17.1")
 
     api("it.unimi.dsi:fastutil:8.5.13")
+
+    compileOnly("net.kyori:adventure-api:4.17.0")
+    compileOnly("net.kyori:adventure-text-serializer-json:4.17.0")
 }
 
 java {
