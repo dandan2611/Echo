@@ -38,7 +38,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "echo",
         name = "Echo",
-        version = "1.0.0-SNAPSHOT",
+        version = "1.0.1-SNAPSHOT",
         authors = {"dandan2611"},
         dependencies = {
                 @Dependency(id = "connector", optional = false)
