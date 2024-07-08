@@ -28,6 +28,10 @@ public interface EchoClient {
     @CheckReturnValue
     @NotNull CompletableFuture<@Nullable User> getUserByUsername(final @NotNull String username);
 
+    @NotNull CompletableFuture<Void> registerUserUsername(@NotNull UUID id, @NotNull String username);
+
+    @NotNull CompletableFuture<Void> unregisterUserUsername(@NotNull User user);
+
     @NotNull CacheProvider getCacheProvider();
 
     @NotNull MessagingProvider getMessagingProvider();

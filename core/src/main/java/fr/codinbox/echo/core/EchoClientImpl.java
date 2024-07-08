@@ -6,13 +6,11 @@ import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.exception.UnknownResourceException;
 import fr.codinbox.echo.api.exception.resource.UnknownServerException;
-import fr.codinbox.echo.api.id.Identifiable;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
-import fr.codinbox.echo.api.property.PropertyHolder;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
@@ -32,12 +30,8 @@ import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 public class EchoClientImpl implements EchoClient {
@@ -94,11 +88,25 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull CompletableFuture<@Nullable User> getUserByUsername(@NotNull String username) {
         final RMapAsync<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
 
-        return usernameToIdMap.getAsync(username).toCompletableFuture().thenApply(idStr -> {
+        return usernameToIdMap.getAsync(username.toLowerCase(Locale.ROOT)).toCompletableFuture().thenApply(idStr -> {
             if (idStr == null)
                 return null;
             return UUID.fromString(idStr);
         }).thenCompose(this::getUserById);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> registerUserUsername(@NotNull UUID id, @NotNull String username) {
+        return this.getPlayerUsernameToIdMap().putAsync(username.toLowerCase(Locale.ROOT), id.toString()).toCompletableFuture().thenApply(aVoid -> null);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> unregisterUserUsername(@NotNull User user) {
+        return user.getUsername().thenCompose(username -> {
+            if (username == null)
+                return CompletableFuture.completedFuture(null);
+            return this.getPlayerUsernameToIdMap().removeAsync(username.toLowerCase(Locale.ROOT)).toCompletableFuture();
+        }).thenApply(aVoid -> null);
     }
 
     private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
@@ -305,6 +313,7 @@ public class EchoClientImpl implements EchoClient {
         return user.setProperty(User.PROPERTY_USERNAME, username)
                 .thenCompose(aVoid -> user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId))
                 .thenCompose(aVoid -> user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now()))
+                .thenCompose(aVoid -> this.registerUserUsername(uuid, username))
                 .thenApply(aVoid -> user);
     }
 

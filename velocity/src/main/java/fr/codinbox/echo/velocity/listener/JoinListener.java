@@ -31,20 +31,15 @@ public class JoinListener {
         client.createUser(player.getUniqueId(), player.getUsername(), currentResourceId);
     }
 
-    @Subscribe
-    private void onServerSelect(final @NotNull PlayerChooseInitialServerEvent event) {
-        event.setInitialServer(this.proxy.getServer("server-1").orElseThrow());
-    }
-
     @Subscribe(order = PostOrder.LAST)
     private void onDisconnect(final @NotNull DisconnectEvent event) {
         final Player player = event.getPlayer();
         final EchoClient client = Echo.getClient();
 
-        client.getUserById(player.getUniqueId()).thenAccept(user -> {
+        client.getUserById(player.getUniqueId()).thenCompose(user -> {
             if (user == null)
-                return;
-            client.destroyUser(user);
+                return null;
+            return client.destroyUser(user);
         });
     }
 
