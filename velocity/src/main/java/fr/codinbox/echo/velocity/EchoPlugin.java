@@ -93,7 +93,7 @@ public class EchoPlugin {
         }
     }
 
-    @Subscribe(order = PostOrder.LATE)
+    @Subscribe(order = PostOrder.LATE, async = false)
     private void onProxyShutdown(final @NotNull ProxyShutdownEvent event) {
         final EchoClient client = Echo.getClient();
         client.shutdown();

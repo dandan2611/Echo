@@ -10,9 +10,7 @@ import fr.codinbox.echo.api.user.User;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.redisson.api.RMapAsync;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 
 public interface EchoClient {
 
-    @NotNull CompletableFuture<@NotNull Map<String, Instant>> getConnectedUsers();
+    @NotNull CompletableFuture<@NotNull Map<String, Long>> getConnectedUsers();
 
     @CheckReturnValue
     @NotNull CompletableFuture<@Nullable User> getUserById(final @NotNull UUID id);
@@ -38,11 +36,11 @@ public interface EchoClient {
 
     @NotNull MessageTarget.Builder newMessageTargetBuilder();
 
-    @NotNull CompletableFuture<@NotNull Map<String, Instant>> getServers();
+    @NotNull CompletableFuture<@NotNull Map<String, Long>> getServers();
 
     @NotNull CompletableFuture<@Nullable Server> getServerById(final @NotNull String id);
 
-    @NotNull CompletableFuture<@NotNull Map<String, Instant>> getProxies();
+    @NotNull CompletableFuture<@NotNull Map<String, Long>> getProxies();
 
     @NotNull CompletableFuture<@Nullable Proxy> getProxyById(final @NotNull String id);
 

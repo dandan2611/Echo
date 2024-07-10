@@ -5,6 +5,7 @@ import fr.codinbox.echo.api.property.PropertyHolder;
 import fr.codinbox.echo.api.utils.Cleanable;
 import fr.codinbox.echo.core.id.IdentifiableImpl;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Set;
@@ -64,7 +65,7 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
     }
 
     @Override
-    public @NotNull CompletableFuture<Instant> getCreationTime() {
+    public @NotNull CompletableFuture<@Nullable Long> getCreationTime() {
         return this.getProperty(CREATION_TIME_KEY);
     }
 
@@ -72,15 +73,15 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
     public @NotNull CompletableFuture<Void> cleanup() {
         CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
 
-        future.thenCombine(this.getProperties(), (aVoid, keys) -> {
+        future = future.thenCombine(this.getProperties(), (aVoid, keys) -> {
             CompletableFuture<Boolean> deleteFuture = CompletableFuture.completedFuture(null);
 
             for (String key : keys) {
                 deleteFuture = deleteFuture.thenCombine(this.deleteProperty(key), (aVoid1, aBoolean) -> null);
             }
 
-            return deleteFuture;
-        });
+            return deleteFuture.join();
+        }).thenApply(aVoid -> null);
 
         return future;
     }

@@ -67,11 +67,11 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getConnectedUsers() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getConnectedUsers() {
         return this.getUserMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<String, Instant> getUserMap() {
+    private @NotNull RMapAsync<String, Long> getUserMap() {
         return this.cacheProvider.getMap(UserImpl.USER_MAP);
     }
 
@@ -129,11 +129,11 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getServers() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getServers() {
         return this.getServerMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<String, Instant> getServerMap() {
+    private @NotNull RMapAsync<String, Long> getServerMap() {
         return this.cacheProvider.getMap(ServerImpl.SERVER_MAP);
     }
 
@@ -144,11 +144,11 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getProxies() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getProxies() {
         return this.getProxyMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<String, Instant> getProxyMap() {
+    private @NotNull RMapAsync<String, Long> getProxyMap() {
         return this.cacheProvider.getMap(ProxyImpl.PROXY_MAP);
     }
 
@@ -178,14 +178,14 @@ public class EchoClientImpl implements EchoClient {
             case PROXY -> {
                 final ProxyImpl proxy = new ProxyImpl(this.resourceId, address);
 
-                proxy.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now());
+                proxy.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created proxy %s".formatted(proxy.getId()));
             }
             case SERVER -> {
                 final ServerImpl server = new ServerImpl(this.resourceId, address);
 
-                server.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now());
+                server.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created server %s".formatted(server.getId()));
             }
@@ -241,18 +241,18 @@ public class EchoClientImpl implements EchoClient {
                 resourceId
         );
         impl.createLocalResource(resourceAddress);
-        impl.advertiseLocalResource();
-
         switch (resourceType) {
             case PROXY -> impl.registerProxy(resourceId).join();
             case SERVER -> impl.registerServer(resourceId).join();
         }
+        impl.advertiseLocalResource();
+
 
         return impl;
     }
 
-    public @NotNull CompletableFuture<@NotNull Instant> registerProxy(final @NotNull String id) {
-        final Instant creationTime = Instant.now();
+    public @NotNull CompletableFuture<@NotNull Long> registerProxy(final @NotNull String id) {
+        final long creationTime = Instant.now().toEpochMilli();
 
         return this.getProxyMap().putAsync(id, creationTime).toCompletableFuture().thenApply(aVoid -> creationTime);
     }
@@ -261,8 +261,8 @@ public class EchoClientImpl implements EchoClient {
         return this.getProxyMap().removeAsync(id).toCompletableFuture().thenApply(aVoid -> null);
     }
 
-    public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
-        final Instant creationTime = Instant.now();
+    public @NotNull CompletableFuture<@NotNull Long> registerServer(final @NotNull String id) {
+        final long creationTime = Instant.now().toEpochMilli();
 
         return this.getServerMap().putAsync(id, creationTime).toCompletableFuture().thenApply(aVoid -> creationTime);
     }
@@ -273,9 +273,9 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public void shutdown() {
-        CompletableFuture<? extends Cleanable> cleanableFuture = (switch (this.resourceType) {
-            case PROXY -> this.getProxyById(this.getCurrentResourceId().orElseThrow());
-            case SERVER -> this.getServerById(this.getCurrentResourceId().orElseThrow());
+        Cleanable cl = (switch (this.resourceType) {
+            case PROXY -> this.getProxyById(this.getCurrentResourceId().orElseThrow()).join();
+            case SERVER -> this.getServerById(this.getCurrentResourceId().orElseThrow()).join();
         });
 
         switch (this.resourceType) {
@@ -286,18 +286,14 @@ public class EchoClientImpl implements EchoClient {
             }
         }
 
-        cleanableFuture.thenAccept(cl -> {
-            NullableUtils.requireNonNull(
-                    cl,
-                    UnknownResourceException.class,
-                    "resource", this.getCurrentResourceId().orElse(null)
-            );
-            assert cl != null;
-            logger.info("Cleaning up local resource");
-            cl.cleanup();
-        });
-
-        cleanableFuture.join();
+        NullableUtils.requireNonNull(
+                cl,
+                UnknownResourceException.class,
+                "resource", this.getCurrentResourceId().orElse(null)
+        );
+        assert cl != null;
+        logger.info("Cleaning up local resource");
+        cl.cleanup().join();
     }
 
     @Override
@@ -312,7 +308,7 @@ public class EchoClientImpl implements EchoClient {
         final User user = new UserImpl(uuid);
         return user.setProperty(User.PROPERTY_USERNAME, username)
                 .thenCompose(aVoid -> user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId))
-                .thenCompose(aVoid -> user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now()))
+                .thenCompose(aVoid -> user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()))
                 .thenCompose(aVoid -> this.registerUserUsername(uuid, username))
                 .thenApply(aVoid -> user);
     }

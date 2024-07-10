@@ -11,7 +11,7 @@ import java.util.concurrent.CompletableFuture;
 public interface UserHolder {
 
     @CheckReturnValue
-    @NotNull CompletableFuture<Map<UUID, Instant>> getConnectedUsers();
+    @NotNull CompletableFuture<Map<String, Instant>> getConnectedUsers();
 
     @CheckReturnValue
     @NotNull CompletableFuture<Boolean> hasUser(final @NotNull UUID id);

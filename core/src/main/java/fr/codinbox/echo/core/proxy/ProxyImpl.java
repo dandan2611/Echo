@@ -44,17 +44,17 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsers() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getConnectedUsers() {
         return this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<UUID, Instant> getConnectedUsersMap() {
+    private @NotNull RMapAsync<String, Instant> getConnectedUsersMap() {
         return Echo.getClient().getCacheProvider().getMap(USER_MAP_KEY.formatted(this.getId()));
     }
 
     @Override
     public @NotNull CompletableFuture<Boolean> hasUser(@NotNull UUID id) {
-        return this.getConnectedUsers().thenApply(map -> map.containsKey(id));
+        return this.getConnectedUsers().thenApply(map -> map.containsKey(id.toString()));
     }
 
     @Override
