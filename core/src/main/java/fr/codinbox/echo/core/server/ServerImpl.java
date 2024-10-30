@@ -7,8 +7,10 @@ import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
+import fr.codinbox.echo.core.utils.MapUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RMap;
 import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
@@ -50,17 +52,18 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getConnectedUsers() {
-        return this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture();
+    public @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsersAsync() {
+        return this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture()
+                .thenApplyAsync(MapUtils::mapStringToUuidKey);
     }
 
-    private @NotNull RMapAsync<String, Instant> getConnectedUsersMap() {
+    private @NotNull RMap<String, Instant> getConnectedUsersMap() {
         return Echo.getClient().getCacheProvider().getMap(USER_MAP_KEY.formatted(this.getId()));
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> hasUser(final @NotNull UUID id) {
-        return this.getConnectedUsers().thenApply(map -> map.containsKey(id.toString()));
+    public @NotNull CompletableFuture<@NotNull Boolean> hasUserAsync(final @NotNull UUID id) {
+        return this.getConnectedUsersMap().containsKeyAsync(id.toString()).toCompletableFuture();
     }
 
     @Override
@@ -75,17 +78,16 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> registerUser(@NotNull User user) {
+    public @NotNull CompletableFuture<@NotNull Boolean> registerUserAsync(final @NotNull User user) {
         return this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now())
-                .toCompletableFuture()
-                .thenApply(aVoid -> null);
+                .toCompletableFuture();
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> unregisterUser(@NotNull User user) {
+    public @NotNull CompletableFuture<@NotNull Boolean> unregisterUserAsync(final @NotNull User user) {
         return this.getConnectedUsersMap().fastRemoveAsync(user.getId().toString())
                 .toCompletableFuture()
-                .thenApply(aVoid -> null);
+                .thenApply(l -> l >= 1);
     }
 
 }

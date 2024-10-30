@@ -72,7 +72,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getUserMap() {
-        return this.cacheProvider.getMap(UserImpl.USER_MAP);
+        return this.cacheProvider.getAsyncMap(UserImpl.USER_MAP);
     }
 
     @Override
@@ -110,7 +110,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
-        return this.cacheProvider.getMap(UserImpl.USERNAME_TO_ID_MAP);
+        return this.cacheProvider.getAsyncMap(UserImpl.USERNAME_TO_ID_MAP);
     }
 
     @Override
@@ -134,7 +134,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getServerMap() {
-        return this.cacheProvider.getMap(ServerImpl.SERVER_MAP);
+        return this.cacheProvider.getAsyncMap(ServerImpl.SERVER_MAP);
     }
 
     @Override
@@ -149,7 +149,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getProxyMap() {
-        return this.cacheProvider.getMap(ProxyImpl.PROXY_MAP);
+        return this.cacheProvider.getAsyncMap(ProxyImpl.PROXY_MAP);
     }
 
     @Override
@@ -334,6 +334,8 @@ public class EchoClientImpl implements EchoClient {
         return user.getCurrentServer().thenAccept(s -> {
             if (s != null)
                 s.unregisterUser(user);
-        }).thenCompose(aVoid -> server.registerUser(user)).thenCompose(aVoid -> user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId()));
+        })
+                .thenCompose(aVoid -> server.registerUserAsync(user))
+                .thenCompose(aVoid -> user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId()));
     }
 }

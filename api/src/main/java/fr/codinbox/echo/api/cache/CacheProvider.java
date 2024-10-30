@@ -6,7 +6,6 @@ import org.redisson.api.RMap;
 import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -29,7 +28,9 @@ public interface CacheProvider {
 
     @NotNull CompletableFuture<Boolean> hasObject(final @NotNull String key);
 
-    <K, V> @NotNull RMapAsync<K, V> getMap(final @NotNull String key);
+    <K, V> @NotNull RMap<K, V> getMap(final @NotNull String key);
+
+    <K, V> @NotNull RMapAsync<K, V> getAsyncMap(final @NotNull String key);
 
     @NotNull CompletableFuture<@NotNull Set<String>> getKeys(final @NotNull String pattern);
 

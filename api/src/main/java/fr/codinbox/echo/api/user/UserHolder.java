@@ -1,6 +1,8 @@
 package fr.codinbox.echo.api.user;
 
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.CheckReturnValue;
+import org.jetbrains.annotations.NonBlocking;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;
@@ -11,13 +13,35 @@ import java.util.concurrent.CompletableFuture;
 public interface UserHolder {
 
     @CheckReturnValue
-    @NotNull CompletableFuture<Map<String, Instant>> getConnectedUsers();
+    @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsersAsync();
 
     @CheckReturnValue
-    @NotNull CompletableFuture<Boolean> hasUser(final @NotNull UUID id);
+    @Blocking
+    default @NotNull Map<UUID, Instant> getConnectedUsers() {
+        return this.getConnectedUsersAsync().join();
+    }
 
-    @NotNull CompletableFuture<Void> registerUser(final @NotNull User user);
+    @CheckReturnValue
+    @NotNull CompletableFuture<@NotNull Boolean> hasUserAsync(final @NotNull UUID id);
 
-    @NotNull CompletableFuture<Void> unregisterUser(final @NotNull User user);
+    @CheckReturnValue
+    @Blocking
+    default boolean hasUser(final @NotNull UUID id) {
+        return this.hasUserAsync(id).join();
+    }
+
+    @NotNull CompletableFuture<@NotNull Boolean> registerUserAsync(final @NotNull User user);
+
+    @Blocking
+    default boolean registerUser(final @NotNull User user) {
+        return this.registerUserAsync(user).join();
+    }
+
+    @NotNull CompletableFuture<@NotNull Boolean> unregisterUserAsync(final @NotNull User user);
+
+    @Blocking
+    default boolean unregisterUser(final @NotNull User user) {
+        return this.unregisterUserAsync(user).join();
+    }
 
 }

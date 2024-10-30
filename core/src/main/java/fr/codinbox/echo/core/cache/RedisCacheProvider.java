@@ -31,7 +31,7 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull <K, V> RMapAsync<K, V> getMap(@NotNull String key) {
+    public @NotNull <K, V> RMapAsync<K, V> getAsyncMap(@NotNull String key) {
         final RMap<K, V> map = this.connection.getClient().getMap(key);
         return map;
     }
@@ -63,6 +63,11 @@ public class RedisCacheProvider implements CacheProvider {
     @Override
     public @NotNull CompletableFuture<Boolean> hasObject(@NotNull String key) {
         return this.getObject(key).thenApply(Objects::nonNull);
+    }
+
+    @Override
+    public @NotNull <K, V> RMap<K, V> getMap(@NotNull String key) {
+        return this.connection.getClient().getMap(key);
     }
 
     @Override
