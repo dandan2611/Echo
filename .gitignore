@@ -2,3 +2,4 @@
 /.gradle
 /build
 /test-servers
+.DS_Store
