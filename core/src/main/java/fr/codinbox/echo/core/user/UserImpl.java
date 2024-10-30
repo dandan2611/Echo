@@ -78,6 +78,7 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
                         if (r instanceof ServerSwitchRequest.Response res) {
                             if (res.getResponses().containsKey(this.getId()))
                                 future.complete(res.getResponses().get(this.getId()));
+                            return true;
                         }
                         throw new IllegalStateException("Unexpected response type");
                     });

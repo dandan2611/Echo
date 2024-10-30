@@ -317,6 +317,23 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull CompletableFuture<Void> destroyUser(@NotNull User user) {
         return user.cleanup()
                 .thenCompose(aVoid -> this.getUserMap().removeAsync(user.getId().toString()))
-                .thenApply(aVoid -> null);
+                .thenCompose(aVoid -> this.registerUserInServer(user, null))
+                .thenAccept(aVoid -> {});
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> registerUserInServer(@NotNull User user, @Nullable Server server) {
+        if (server == null) {
+            return user.getCurrentServer().thenAccept(s -> {
+                if (s == null)
+                    return;
+                s.unregisterUser(user);
+            });
+        }
+
+        return user.getCurrentServer().thenAccept(s -> {
+            if (s != null)
+                s.unregisterUser(user);
+        }).thenCompose(aVoid -> server.registerUser(user)).thenCompose(aVoid -> user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId()));
     }
 }

@@ -43,7 +43,9 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<Void> setProperty(@NotNull String key, @NotNull T value) {
+    public @NotNull <T> CompletableFuture<Void> setProperty(@NotNull String key, @Nullable T value) {
+        if (value == null)
+            return this.deleteProperty(key).thenApply(aBoolean -> null);
         return Echo.getClient().getCacheProvider().setObject(this.concat(key), value);
     }
 

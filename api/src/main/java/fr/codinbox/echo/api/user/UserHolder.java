@@ -16,4 +16,8 @@ public interface UserHolder {
     @CheckReturnValue
     @NotNull CompletableFuture<Boolean> hasUser(final @NotNull UUID id);
 
+    @NotNull CompletableFuture<Void> registerUser(final @NotNull User user);
+
+    @NotNull CompletableFuture<Void> unregisterUser(final @NotNull User user);
+
 }

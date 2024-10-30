@@ -17,7 +17,7 @@ public interface PropertyHolder {
     @NotNull CompletableFuture<Long> getPropertyTimeToLive(final @NotNull String key);
 
     @NotNull <T> CompletableFuture<Void> setProperty(final @NotNull String key,
-                                                 final @NotNull T value);
+                                                 final @Nullable T value);
 
     @NotNull CompletableFuture<Boolean> deleteProperty(final @NotNull String key);
 

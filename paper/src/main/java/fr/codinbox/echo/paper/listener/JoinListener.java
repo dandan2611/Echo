@@ -2,6 +2,7 @@ package fr.codinbox.echo.paper.listener;
 
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.user.User;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,7 +25,7 @@ public class JoinListener implements Listener {
         if (currentResourceId == null)
             return;
 
-        client.getUserById(player.getUniqueId()).thenAccept(user -> {
+        client.getUserById(player.getUniqueId()).thenAcceptAsync(user -> {
             if (user == null) { // Create the user if it doesn't exist
                 client.createUser(player.getUniqueId(), player.getName(), currentResourceId);
                 return;
@@ -36,6 +37,13 @@ public class JoinListener implements Listener {
                 user.setPreviousServerId(currentServerId);
 
             user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, currentResourceId);
+
+            final Server echoServer = client.getServerById(currentResourceId).join();
+
+            if (echoServer == null)
+                return;
+
+            client.registerUserInServer(user, echoServer);
         });
     }
 

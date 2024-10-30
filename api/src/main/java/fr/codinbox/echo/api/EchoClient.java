@@ -60,4 +60,6 @@ public interface EchoClient {
 
     @NotNull CompletableFuture<Void> destroyUser(final @NotNull User user);
 
+    @NotNull CompletableFuture<Void> registerUserInServer(final @NotNull User user, final @Nullable Server server);
+
 }

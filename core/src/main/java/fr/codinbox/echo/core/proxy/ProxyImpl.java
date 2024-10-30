@@ -5,6 +5,7 @@ import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Address;
+import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -71,6 +72,20 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
     @Override
     public @NotNull CompletableFuture<@NotNull Boolean> stillExists() {
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> registerUser(final @NotNull User user) {
+        return this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now())
+                .toCompletableFuture()
+                .thenApply(aVoid -> null);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> unregisterUser(final @NotNull User user) {
+        return this.getConnectedUsersMap().fastRemoveAsync(user.getId().toString())
+                .toCompletableFuture()
+                .thenApply(aVoid -> null);
     }
 
 }
