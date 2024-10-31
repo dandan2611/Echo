@@ -5,12 +5,18 @@ import fr.codinbox.echo.api.messaging.MessageRouter;
 import fr.codinbox.echo.api.property.PropertyHolder;
 import fr.codinbox.echo.api.user.UserHolder;
 import fr.codinbox.echo.api.utils.Cleanable;
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
 
 public interface Server extends Identifiable<String>, UserHolder, PropertyHolder, MessageRouter, Joinable, Cleanable {
 
-    @NotNull CompletableFuture<@NotNull Boolean> stillExists();
+    @NotNull CompletableFuture<@NotNull Boolean> stillExistsAsync();
+
+    @Blocking
+    default boolean stillExists() {
+        return this.stillExistsAsync().join();
+    }
 
 }

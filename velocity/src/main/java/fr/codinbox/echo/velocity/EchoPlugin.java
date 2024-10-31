@@ -8,10 +8,7 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
-import com.velocitypowered.api.plugin.PluginManager;
 import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.proxy.server.RegisteredServer;
-import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.connector.commons.redis.RedisConnectorService;
 import fr.codinbox.connector.velocity.Connector;
@@ -19,9 +16,6 @@ import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
-import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
-import fr.codinbox.echo.api.server.Address;
-import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
@@ -30,7 +24,6 @@ import fr.codinbox.echo.velocity.messaging.ServerSwitchRequestHandler;
 import fr.codinbox.echo.velocity.utils.ProxyUtils;
 import org.jetbrains.annotations.NotNull;
 
-import java.net.InetSocketAddress;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,12 +65,13 @@ public class EchoPlugin {
             messagingProvider.subscribe(client.getLocalTopic(), new ProxySwitchRequestHandler(this.logger, this.proxy));
 
             // Load existing servers
-            client.getServers().thenAccept(servers -> {
+            client.getServersAsync().thenAccept(servers -> {
                 for (String s : servers.keySet()) {
-                    client.getServerById(s).thenAccept(server -> {
-                        if (server != null) {
+                    client.getServerByIdAsync(s).thenAccept(serverOpt -> {
+                        serverOpt.ifPresent(server -> {
                             ProxyUtils.registerServer(this.proxy, this.logger, server.getId(), server.getAddress());
-                        }
+
+                        });
                     });
                 }
             });

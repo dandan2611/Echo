@@ -2,7 +2,6 @@ package fr.codinbox.echo.core.utils;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;

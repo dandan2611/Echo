@@ -4,17 +4,16 @@ import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
-import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageHandler;
-import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
-import fr.codinbox.echo.velocity.utils.ProxyUtils;
+import fr.codinbox.echo.api.server.Server;
 import net.kyori.adventure.text.serializer.json.JSONComponentSerializer;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,36 +35,39 @@ public class ServerSwitchRequestHandler implements MessageHandler {
     public void onReceive(@NotNull EchoMessage message) {
         if (message instanceof ServerSwitchRequest request) {
             final EchoClient client = Echo.getClient();
-            client.getServerById(request.getServerId())
-                    .thenCompose(server -> {
-                        if (server == null)
+            client.getServerByIdAsync(request.getServerId())
+                    .thenCompose(serverOpt -> {
+                        if (serverOpt.isEmpty())
                             return null;
+
+                        final Server server = serverOpt.get();
 
                         final RegisteredServer registeredServer = this.proxy.getServer(server.getId()).orElse(null);
                         if (registeredServer == null)
                             return null;
 
                         final Map<UUID, ServerSwitchRequest.PlayerResponse> connectResults = new HashMap<>();
-                        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
 
-                        for (final UUID userUuid : request.getUserUuids()) {
-                            final Player player = this.proxy.getPlayer(userUuid).orElse(null);
-                            if (player == null)
-                                continue;
+                        return CompletableFuture.allOf(
+                                Arrays.stream(request.getUserUuids())
+                                        .map(userUuid -> {
+                                            final Player player = this.proxy.getPlayer(userUuid).orElse(null);
+                                            if (player == null)
+                                                return CompletableFuture.completedFuture(null);
 
-                            future = future.thenCompose(aVoid -> player.createConnectionRequest(registeredServer).connect().thenApply(result -> {
-                                final ConnectionRequestBuilder.Status status = result.getStatus();
-                                final ServerSwitchRequest.PlayerResponse response = new ServerSwitchRequest.PlayerResponse(
-                                        result.isSuccessful(),
-                                        ServerSwitchRequest.ServerSwitchRequestStatus.valueOf(status.name()),
-                                        result.getReasonComponent().isPresent() ? JSONComponentSerializer.json().serialize(result.getReasonComponent().get()) : null
-                                );
-                                connectResults.put(player.getUniqueId(), response);
-                                return null;
-                            }));
-                        }
-
-                        return future.thenRun(() -> { // All requests has been processed
+                                            return player.createConnectionRequest(registeredServer).connect().thenApply(result -> {
+                                                final ConnectionRequestBuilder.Status status = result.getStatus();
+                                                final ServerSwitchRequest.PlayerResponse response = new ServerSwitchRequest.PlayerResponse(
+                                                        result.isSuccessful(),
+                                                        ServerSwitchRequest.ServerSwitchRequestStatus.valueOf(status.name()),
+                                                        result.getReasonComponent().isPresent() ? JSONComponentSerializer.json().serialize(result.getReasonComponent().get()) : null
+                                                );
+                                                connectResults.put(player.getUniqueId(), response);
+                                                return null;
+                                            });
+                                        })
+                                        .toArray(CompletableFuture[]::new)
+                        ).thenRun(() -> { // All requests has been processed
                             message.reply(new ServerSwitchRequest.Response(connectResults));
                         });
                     });

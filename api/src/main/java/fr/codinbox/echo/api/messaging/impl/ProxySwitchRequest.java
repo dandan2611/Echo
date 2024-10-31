@@ -1,8 +1,6 @@
 package fr.codinbox.echo.api.messaging.impl;
 
 import fr.codinbox.echo.api.messaging.EchoMessage;
-import fr.codinbox.echo.api.server.Address;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

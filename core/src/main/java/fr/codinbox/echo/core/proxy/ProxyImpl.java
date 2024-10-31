@@ -8,11 +8,9 @@ import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import fr.codinbox.echo.core.utils.MapUtils;
-import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RMap;
-import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -89,6 +87,11 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
         return this.getConnectedUsersMap().fastRemoveAsync(user.getId().toString())
                 .toCompletableFuture()
                 .thenApply(l -> l >= 1);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull Boolean> clearUsersAsync() {
+        return this.getConnectedUsersMap().clearAsync().toCompletableFuture();
     }
 
 }

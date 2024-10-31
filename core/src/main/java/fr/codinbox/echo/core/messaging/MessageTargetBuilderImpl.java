@@ -44,7 +44,7 @@ public class MessageTargetBuilderImpl implements MessageTarget.Builder {
 
     @Override
     public @NotNull CompletableFuture<MessageTarget.@NotNull Builder> withAllServers() {
-        return Echo.getClient().getServers().thenApply(servers -> this.withServers(servers.keySet()));
+        return Echo.getClient().getServersAsync().thenApply(servers -> this.withServers(servers.keySet()));
     }
 
     @Override
@@ -69,7 +69,7 @@ public class MessageTargetBuilderImpl implements MessageTarget.Builder {
 
     @Override
     public @NotNull CompletableFuture<MessageTarget.@NotNull Builder> withAllProxies() {
-        return Echo.getClient().getProxies().thenApply(proxies -> this.withProxies(proxies.keySet()));
+        return Echo.getClient().getProxiesAsync().thenApply(proxies -> this.withProxies(proxies.keySet()));
     }
 
     @Override

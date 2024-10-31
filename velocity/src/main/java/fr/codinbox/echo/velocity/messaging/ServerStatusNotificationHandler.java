@@ -6,11 +6,9 @@ import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageHandler;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
-import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.velocity.utils.ProxyUtils;
 import org.jetbrains.annotations.NotNull;
 
-import java.net.InetSocketAddress;
 import java.util.logging.Logger;
 
 public class ServerStatusNotificationHandler implements MessageHandler {

@@ -11,7 +11,6 @@ import fr.codinbox.echo.core.utils.MapUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RMap;
-import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Map;
@@ -73,7 +72,7 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Boolean> stillExists() {
+    public @NotNull CompletableFuture<@NotNull Boolean> stillExistsAsync() {
         return Echo.getClient().getCacheProvider().hasObject(SERVER_ADDRESS_KEY.formatted(this.getId()));
     }
 
@@ -88,6 +87,11 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
         return this.getConnectedUsersMap().fastRemoveAsync(user.getId().toString())
                 .toCompletableFuture()
                 .thenApply(l -> l >= 1);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull Boolean> clearUsersAsync() {
+        return this.getConnectedUsersMap().clearAsync().toCompletableFuture();
     }
 
 }

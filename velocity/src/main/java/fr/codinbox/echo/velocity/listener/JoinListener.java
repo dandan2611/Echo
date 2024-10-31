@@ -4,7 +4,6 @@ import com.velocitypowered.api.event.PostOrder;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
-import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import fr.codinbox.echo.api.Echo;
@@ -28,7 +27,7 @@ public class JoinListener {
         if (currentResourceId == null)
             return;
 
-        client.createUser(player.getUniqueId(), player.getUsername(), currentResourceId);
+        client.createUserAsync(player.getUniqueId(), player.getUsername(), currentResourceId);
     }
 
     @Subscribe(order = PostOrder.LAST)
@@ -36,10 +35,10 @@ public class JoinListener {
         final Player player = event.getPlayer();
         final EchoClient client = Echo.getClient();
 
-        client.getUserById(player.getUniqueId()).thenCompose(user -> {
-            if (user == null)
-                return null;
-            return client.destroyUser(user);
+        client.getUserByIdAsync(player.getUniqueId()).thenAccept(userOpt -> {
+            if (userOpt.isEmpty())
+                return;
+            client.destroyUserAsync(userOpt.get());
         });
     }
 

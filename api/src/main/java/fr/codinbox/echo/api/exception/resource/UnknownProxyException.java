@@ -9,4 +9,8 @@ public class UnknownProxyException extends UnknownResourceException {
         super("proxy", name);
     }
 
+    public UnknownProxyException() {
+        super("proxy", "");
+    }
+
 }

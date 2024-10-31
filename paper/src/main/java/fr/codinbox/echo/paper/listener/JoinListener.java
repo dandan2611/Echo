@@ -25,25 +25,28 @@ public class JoinListener implements Listener {
         if (currentResourceId == null)
             return;
 
-        client.getUserById(player.getUniqueId()).thenAcceptAsync(user -> {
-            if (user == null) { // Create the user if it doesn't exist
-                client.createUser(player.getUniqueId(), player.getName(), currentResourceId);
+        client.getUserByIdAsync(player.getUniqueId()).thenAcceptAsync(userOpt -> {
+            if (userOpt.isEmpty()) { // Create the user if it doesn't exist
+                client.createUserAsync(player.getUniqueId(), player.getName(), currentResourceId);
                 return;
 
             }
-            final String currentServerId = user.getCurrentServerId().join();
 
-            if (currentServerId != null)
-                user.setPreviousServerId(currentServerId);
+            final User user = userOpt.get();
 
-            user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, currentResourceId);
+            // Set user previous server ID in a non-blocking way
+            user.getCurrentServerIdAsync().thenAccept(currentServerIdOpt -> {
+                currentServerIdOpt.ifPresent(user::setPreviousServerId);
+            });
 
-            final Server echoServer = client.getServerById(currentResourceId).join();
+            user.setPropertyAsync(User.PROPERTY_CURRENT_SERVER_ID, currentResourceId);
 
-            if (echoServer == null)
+            final Optional<Server> echoServerOpt = client.getServerById(currentResourceId);
+
+            if (echoServerOpt.isEmpty())
                 return;
 
-            client.registerUserInServer(user, echoServer);
+            client.registerUserInServerAsync(user, echoServerOpt.get());
         });
     }
 
@@ -53,14 +56,15 @@ public class JoinListener implements Listener {
         final EchoClient client = Echo.getClient();
 
         // If there is no proxy, destroy the user by ourselves
-        client.getProxies().thenAccept(proxyMap -> {
-            if (proxyMap.isEmpty()) {
-                client.getUserById(player.getUniqueId()).thenCompose(user -> {
-                    if (user == null)
-                        return null;
-                    return client.destroyUser(user);
-                });
-            }
+        client.getProxiesAsync().thenAccept(proxyMap -> {
+            if (!proxyMap.isEmpty())
+                return;
+
+            client.getUserByIdAsync(player.getUniqueId()).thenAccept(userOpt -> {
+                if (userOpt.isEmpty())
+                    return;
+                client.destroyUser(userOpt.get());
+            });
         });
     }
 

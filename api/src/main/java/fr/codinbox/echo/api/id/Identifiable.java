@@ -1,16 +1,26 @@
 package fr.codinbox.echo.api.id;
 
-import org.jetbrains.annotations.CheckReturnValue;
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public interface Identifiable<T> {
 
     @NotNull T getId();
 
-    @CheckReturnValue
-    @NotNull CompletableFuture<@Nullable Long> getCreationTime();
+    @NotNull CompletableFuture<@NotNull Optional<Instant>> getCreationTimeAsync();
+
+    /**
+     * Get the creation time of this resource.
+     *
+     * @return the creation time of this resource, or {@link Optional#empty()} if the creation time is not available
+     */
+    @Blocking
+    default @NotNull Optional<Instant> getCreationTime() {
+        return this.getCreationTimeAsync().join();
+    }
 
 }

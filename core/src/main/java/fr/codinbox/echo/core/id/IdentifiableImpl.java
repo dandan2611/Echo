@@ -1,9 +1,11 @@
 package fr.codinbox.echo.core.id;
 
 import fr.codinbox.echo.api.id.Identifiable;
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public abstract class IdentifiableImpl<T> implements Identifiable<T> {
@@ -20,6 +22,11 @@ public abstract class IdentifiableImpl<T> implements Identifiable<T> {
     }
 
     @Override
-    public abstract @NotNull CompletableFuture<@Nullable Long> getCreationTime();
+    public abstract @NotNull CompletableFuture<@NotNull Optional<Instant>> getCreationTimeAsync();
+
+    @Blocking
+    public @NotNull Optional<Instant> getCreationTime() {
+        return this.getCreationTimeAsync().join();
+    }
 
 }

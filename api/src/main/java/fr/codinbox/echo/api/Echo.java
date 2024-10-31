@@ -4,7 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
 
-public class Echo {
+public final class Echo {
 
     private static EchoClient client;
 
