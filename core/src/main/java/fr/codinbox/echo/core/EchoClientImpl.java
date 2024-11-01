@@ -316,7 +316,8 @@ public class EchoClientImpl implements EchoClient {
                 user.setPropertyAsync(User.PROPERTY_USERNAME, username),
                 user.setPropertyAsync(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
                 user.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now()),
-                this.registerUserUsernameAsync(uuid, username)
+                this.registerUserUsernameAsync(uuid, username),
+                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now()).toCompletableFuture()
         ).thenApply(aVoid -> user);
     }
 
@@ -324,7 +325,8 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull CompletableFuture<Void> destroyUserAsync(final @NotNull User user) {
         return CompletableFuture.allOf(
                 this.unregisterUserUsernameAsync(user),
-                this.registerUserInServerAsync(user, null)
+                this.registerUserInServerAsync(user, null),
+                this.getUserMap().fastRemoveAsync(user.getId().toString()).toCompletableFuture()
         );
     }
 
