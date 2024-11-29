@@ -57,8 +57,12 @@ public class RedisMessagingProvider implements MessagingProvider {
     @Override
     public boolean handleReply(@NotNull EchoMessage message) {
         final Function<@NotNull EchoMessage, @NotNull Boolean> consumer = this.messageReplyConsumers.get(message.getMessageId());
-        if (consumer != null)
-            return consumer.apply(message);
+        try {
+            if (consumer != null)
+                return consumer.apply(message);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         // TODO: Remove reply after delay (handle multiple replies
         return true;
     }

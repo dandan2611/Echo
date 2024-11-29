@@ -11,7 +11,7 @@ public interface Identifiable<T> {
 
     @NotNull T getId();
 
-    @NotNull CompletableFuture<@NotNull Optional<Instant>> getCreationTimeAsync();
+    @NotNull CompletableFuture<@NotNull Optional<Long>> getCreationTimeAsync();
 
     /**
      * Get the creation time of this resource.
@@ -19,7 +19,7 @@ public interface Identifiable<T> {
      * @return the creation time of this resource, or {@link Optional#empty()} if the creation time is not available
      */
     @Blocking
-    default @NotNull Optional<Instant> getCreationTime() {
+    default @NotNull Optional<Long> getCreationTime() {
         return this.getCreationTimeAsync().join();
     }
 

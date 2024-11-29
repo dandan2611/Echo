@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "3.0.0"
+version = "4.0.0"
 
 repositories {
     mavenCentral()

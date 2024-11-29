@@ -67,12 +67,12 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getAllUsersAsync() {
+    public @NotNull CompletableFuture<@NotNull Map<UUID, Long>> getAllUsersAsync() {
         return this.getUserMap().readAllMapAsync().toCompletableFuture()
                 .thenApplyAsync(MapUtils::mapStringToUuidKey);
     }
 
-    private @NotNull RMapAsync<String, Instant> getUserMap() {
+    private @NotNull RMapAsync<String, Long> getUserMap() {
         return this.cacheProvider.getAsyncMap(UserImpl.USER_MAP);
     }
 
@@ -137,11 +137,11 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getServersAsync() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getServersAsync() {
         return this.getServerMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<String, Instant> getServerMap() {
+    private @NotNull RMapAsync<String, Long> getServerMap() {
         return this.cacheProvider.getAsyncMap(ServerImpl.SERVER_MAP);
     }
 
@@ -153,11 +153,11 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Instant>> getProxiesAsync() {
+    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getProxiesAsync() {
         return this.getProxyMap().readAllMapAsync().toCompletableFuture();
     }
 
-    private @NotNull RMapAsync<String, Instant> getProxyMap() {
+    private @NotNull RMapAsync<String, Long> getProxyMap() {
         return this.cacheProvider.getAsyncMap(ProxyImpl.PROXY_MAP);
     }
 
@@ -187,14 +187,14 @@ public class EchoClientImpl implements EchoClient {
             case PROXY -> {
                 final ProxyImpl proxy = new ProxyImpl(this.resourceId, address);
 
-                proxy.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now());
+                proxy.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created proxy %s".formatted(proxy.getId()));
             }
             case SERVER -> {
                 final ServerImpl server = new ServerImpl(this.resourceId, address);
 
-                server.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now());
+                server.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created server %s".formatted(server.getId()));
             }
@@ -257,10 +257,10 @@ public class EchoClientImpl implements EchoClient {
         return impl;
     }
 
-    public @NotNull CompletableFuture<@NotNull Instant> registerProxy(final @NotNull String id) {
+    public @NotNull CompletableFuture<@NotNull Long> registerProxy(final @NotNull String id) {
         final Instant creationTime = Instant.now();
-        return this.getProxyMap().fastPutAsync(id, creationTime).toCompletableFuture()
-                .thenApplyAsync(aVoid -> creationTime);
+        return this.getProxyMap().fastPutAsync(id, creationTime.toEpochMilli()).toCompletableFuture()
+                .thenApplyAsync(aVoid -> creationTime.toEpochMilli());
     }
 
     public @NotNull CompletableFuture<Void> unregisterProxy(final @NotNull String id) {
@@ -270,7 +270,7 @@ public class EchoClientImpl implements EchoClient {
 
     public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
         final Instant creationTime = Instant.now();
-        return this.getServerMap().putAsync(id, creationTime).toCompletableFuture()
+        return this.getServerMap().putAsync(id, creationTime.toEpochMilli()).toCompletableFuture()
                 .thenApply(aVoid -> creationTime);
     }
 
@@ -315,9 +315,9 @@ public class EchoClientImpl implements EchoClient {
         return CompletableFuture.allOf(
                 user.setPropertyAsync(User.PROPERTY_USERNAME, username),
                 user.setPropertyAsync(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
-                user.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now()),
+                user.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
                 this.registerUserUsernameAsync(uuid, username),
-                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now()).toCompletableFuture()
+                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli()).toCompletableFuture()
         ).thenApply(aVoid -> user);
     }
 
@@ -326,7 +326,8 @@ public class EchoClientImpl implements EchoClient {
         return CompletableFuture.allOf(
                 this.unregisterUserUsernameAsync(user),
                 this.registerUserInServerAsync(user, null),
-                this.getUserMap().fastRemoveAsync(user.getId().toString()).toCompletableFuture()
+                this.getUserMap().fastRemoveAsync(user.getId().toString()).toCompletableFuture(),
+                user.cleanup()
         );
     }
 

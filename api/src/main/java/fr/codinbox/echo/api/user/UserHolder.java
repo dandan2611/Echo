@@ -11,10 +11,10 @@ import java.util.concurrent.CompletableFuture;
 
 public interface UserHolder {
 
-    @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsersAsync();
+    @NotNull CompletableFuture<@NotNull Map<UUID, Long>> getConnectedUsersAsync();
 
     @Blocking
-    default @NotNull Map<UUID, Instant> getConnectedUsers() {
+    default @NotNull Map<UUID, Long> getConnectedUsers() {
         return this.getConnectedUsersAsync().join();
     }
 

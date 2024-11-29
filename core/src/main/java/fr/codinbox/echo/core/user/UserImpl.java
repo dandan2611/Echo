@@ -82,7 +82,8 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
                                 future.complete(res.getResponses().get(this.getId()));
                             return true;
                         }
-                        throw new IllegalStateException("Unexpected response type");
+                        // throw new IllegalStateException("Unexpected response type " + r.getClass().getName()); TODO: Fix
+                        return false;
                     });
                     return proxy.sendMessage(message);
                 });

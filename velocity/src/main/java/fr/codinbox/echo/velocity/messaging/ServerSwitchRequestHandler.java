@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ServerSwitchRequestHandler implements MessageHandler {
@@ -69,6 +70,9 @@ public class ServerSwitchRequestHandler implements MessageHandler {
                                         .toArray(CompletableFuture[]::new)
                         ).thenRun(() -> { // All requests has been processed
                             message.reply(new ServerSwitchRequest.Response(connectResults));
+                        }).exceptionally(e -> {
+                            this.logger.log(Level.SEVERE, "Error while switching players to server " + server.getId());
+                            return null;
                         });
                     });
         }

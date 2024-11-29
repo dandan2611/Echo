@@ -22,10 +22,10 @@ public abstract class IdentifiableImpl<T> implements Identifiable<T> {
     }
 
     @Override
-    public abstract @NotNull CompletableFuture<@NotNull Optional<Instant>> getCreationTimeAsync();
+    public abstract @NotNull CompletableFuture<@NotNull Optional<Long>> getCreationTimeAsync();
 
     @Blocking
-    public @NotNull Optional<Instant> getCreationTime() {
+    public @NotNull Optional<Long> getCreationTime() {
         return this.getCreationTimeAsync().join();
     }
 

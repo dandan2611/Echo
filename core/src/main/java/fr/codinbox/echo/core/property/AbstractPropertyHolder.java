@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> implements PropertyHolder, Cleanable {
 
-    public static final @NotNull PropertyKey<Instant> CREATION_TIME_KEY = new PropertyKey<>("creation_time");
+    public static final @NotNull PropertyKey<Long> CREATION_TIME_KEY = new PropertyKey<>("creation_time");
 
     private final @NotNull String keyPrefix;
 
@@ -37,7 +37,7 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
 
     @Override
     public @NotNull <T> CompletableFuture<@NotNull Optional<T>> getPropertyAsync(final @NotNull String key) {
-        return Echo.getClient().getCacheProvider().getObject(this.concat(key));
+        return Echo.getClient().getCacheProvider().<T>getObject(this.concat(key)).thenApplyAsync(Optional::ofNullable);
     }
 
     @Override
@@ -70,14 +70,14 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<Instant>> getCreationTimeAsync() {
+    public @NotNull CompletableFuture<@NotNull Optional<Long>> getCreationTimeAsync() {
         return this.getPropertyAsync(CREATION_TIME_KEY);
     }
 
     @Override
     public @NotNull CompletableFuture<Void> cleanup() {
-        return this.getPropertiesKeysAsync().thenAcceptAsync(properties -> {
-            CompletableFuture.allOf(
+        return this.getPropertiesKeysAsync().thenComposeAsync(properties -> {
+            return CompletableFuture.allOf(
                     properties.stream()
                             .map(this::deletePropertyAsync)
                             .toArray(CompletableFuture[]::new)

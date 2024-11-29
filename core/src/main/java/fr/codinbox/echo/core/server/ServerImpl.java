@@ -51,12 +51,12 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getConnectedUsersAsync() {
+    public @NotNull CompletableFuture<@NotNull Map<UUID, Long>> getConnectedUsersAsync() {
         return this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture()
                 .thenApplyAsync(MapUtils::mapStringToUuidKey);
     }
 
-    private @NotNull RMap<String, Instant> getConnectedUsersMap() {
+    private @NotNull RMap<String, Long> getConnectedUsersMap() {
         return Echo.getClient().getCacheProvider().getMap(USER_MAP_KEY.formatted(this.getId()));
     }
 
@@ -78,7 +78,7 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
 
     @Override
     public @NotNull CompletableFuture<@NotNull Boolean> registerUserAsync(final @NotNull User user) {
-        return this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now())
+        return this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now().toEpochMilli())
                 .toCompletableFuture();
     }
 

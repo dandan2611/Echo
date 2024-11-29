@@ -19,10 +19,10 @@ import java.util.concurrent.CompletableFuture;
 
 public interface EchoClient {
 
-    @NotNull CompletableFuture<@NotNull Map<UUID, Instant>> getAllUsersAsync();
+    @NotNull CompletableFuture<@NotNull Map<UUID, Long>> getAllUsersAsync();
 
     @Blocking
-    default @NotNull Map<UUID, Instant> getAllUsers() {
+    default @NotNull Map<UUID, Long> getAllUsers() {
         return this.getAllUsersAsync().join();
     }
 
@@ -60,10 +60,10 @@ public interface EchoClient {
 
     @NotNull MessageTarget.Builder newMessageTargetBuilder();
 
-    @NotNull CompletableFuture<@NotNull Map<String, Instant>> getServersAsync();
+    @NotNull CompletableFuture<@NotNull Map<String, Long>> getServersAsync();
 
     @Blocking
-    default @NotNull Map<String, Instant> getServers() {
+    default @NotNull Map<String, Long> getServers() {
         return this.getServersAsync().join();
     }
 
@@ -74,10 +74,10 @@ public interface EchoClient {
         return this.getServerByIdAsync(id).join();
     }
 
-    @NotNull CompletableFuture<@NotNull Map<String, Instant>> getProxiesAsync();
+    @NotNull CompletableFuture<@NotNull Map<String, Long>> getProxiesAsync();
 
     @Blocking
-    default @NotNull Map<String, Instant> getProxies() {
+    default @NotNull Map<String, Long> getProxies() {
         return this.getProxiesAsync().join();
     }
 

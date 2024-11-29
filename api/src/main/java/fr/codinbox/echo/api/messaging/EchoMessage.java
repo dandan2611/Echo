@@ -21,6 +21,13 @@ public abstract class EchoMessage {
 
     private @Nullable String replyTopic = null;
 
+    public EchoMessage() {
+        try {
+            this.replyTopic = Echo.getClient().getCurrentResourceId().orElse(null);
+        } catch (Exception ignored) {
+        }
+    }
+
     public <T extends EchoMessage> @NotNull CompletableFuture<Void> reply(final @NotNull T response) {
         if (this.getReplyTopic() == null) {
             throw new IllegalStateException("Cannot reply to a message that does not wait for a reply");
@@ -41,6 +48,7 @@ public abstract class EchoMessage {
         Objects.requireNonNull(response);
 
         response.setReplyTopic(replyTopic);
+        response.setMessageId(this.getMessageId());
         return Echo.getClient().getMessagingProvider().publish(topic, response);
     }
 
