@@ -145,6 +145,11 @@ public interface EchoClient {
      */
     @NotNull CompletableFuture<@NotNull Map<String, Long>> getServersAsync();
 
+    /**
+     * Gets all servers of the network.
+     *
+     * @return a map of all servers and their creation time
+     */
     @Blocking
     default @NotNull Map<String, Long> getServers() {
         return this.getServersAsync().join();
@@ -238,7 +243,7 @@ public interface EchoClient {
      * @param uuid the user identifier
      * @param username the username
      * @param proxyId the proxy identifier
-     * @return
+     * @return a future that completes with the created user
      */
     @NotNull CompletableFuture<@NotNull User> createUserAsync(final @NotNull UUID uuid,
                                                      final @NotNull String username,
