@@ -3,7 +3,7 @@ package fr.codinbox.echo.core;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
-import fr.codinbox.echo.api.cache.CacheProvider;
+import fr.codinbox.echo.api.cache.RedisCacheProvider;
 import fr.codinbox.echo.api.exception.UnknownResourceException;
 import fr.codinbox.echo.api.exception.resource.UnknownServerException;
 import fr.codinbox.echo.api.local.EchoResourceType;
@@ -17,7 +17,7 @@ import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.api.utils.Cleanable;
 import fr.codinbox.echo.api.utils.EnvUtils;
-import fr.codinbox.echo.core.cache.RedisCacheProvider;
+import fr.codinbox.echo.core.cache.RedisRedisCacheProvider;
 import fr.codinbox.echo.core.messaging.MessageTargetBuilderImpl;
 import fr.codinbox.echo.core.messaging.provider.RedisMessagingProvider;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
@@ -40,7 +40,7 @@ public class EchoClientImpl implements EchoClient {
 
     private final @NotNull Logger logger;
 
-    private final @NotNull CacheProvider cacheProvider;
+    private final @NotNull RedisCacheProvider redisCacheProvider;
     private final @NotNull MessagingProvider messagingProvider;
     private final @NotNull EchoResourceType resourceType;
     private final @NotNull String resourceId;
@@ -53,7 +53,7 @@ public class EchoClientImpl implements EchoClient {
 
         Echo.initClient(this);
 
-        this.cacheProvider = new RedisCacheProvider(connection);
+        this.redisCacheProvider = new RedisRedisCacheProvider(connection);
         this.messagingProvider = new RedisMessagingProvider(connection);
         this.resourceType = resourceType;
         this.resourceId = resourceId;
@@ -73,7 +73,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getUserMap() {
-        return this.cacheProvider.getAsyncMap(UserImpl.USER_MAP);
+        return this.redisCacheProvider.getAsyncMap(UserImpl.USER_MAP);
     }
 
     @Override
@@ -118,12 +118,12 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
-        return this.cacheProvider.getAsyncMap(UserImpl.USERNAME_TO_ID_MAP);
+        return this.redisCacheProvider.getAsyncMap(UserImpl.USERNAME_TO_ID_MAP);
     }
 
     @Override
-    public @NotNull CacheProvider getCacheProvider() {
-        return this.cacheProvider;
+    public @NotNull RedisCacheProvider getCacheProvider() {
+        return this.redisCacheProvider;
     }
 
     @Override
@@ -142,7 +142,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getServerMap() {
-        return this.cacheProvider.getAsyncMap(ServerImpl.SERVER_MAP);
+        return this.redisCacheProvider.getAsyncMap(ServerImpl.SERVER_MAP);
     }
 
     @Override
@@ -158,7 +158,7 @@ public class EchoClientImpl implements EchoClient {
     }
 
     private @NotNull RMapAsync<String, Long> getProxyMap() {
-        return this.cacheProvider.getAsyncMap(ProxyImpl.PROXY_MAP);
+        return this.redisCacheProvider.getAsyncMap(ProxyImpl.PROXY_MAP);
     }
 
     @Override

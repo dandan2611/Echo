@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-public interface CacheProvider {
+public interface RedisCacheProvider {
 
     <T> @NotNull CompletableFuture<@Nullable T> getObject(final @NotNull String key);
 

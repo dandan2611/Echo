@@ -1,7 +1,6 @@
 package fr.codinbox.echo.core.cache;
 
 import fr.codinbox.connector.commons.redis.RedisConnection;
-import fr.codinbox.echo.api.cache.CacheProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RBucket;
@@ -15,11 +14,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class RedisCacheProvider implements CacheProvider {
+public class RedisRedisCacheProvider implements fr.codinbox.echo.api.cache.RedisCacheProvider {
 
     private final @NotNull RedisConnection connection;
 
-    public RedisCacheProvider(final @NotNull RedisConnection connection) {
+    public RedisRedisCacheProvider(final @NotNull RedisConnection connection) {
         this.connection = connection;
     }
 
