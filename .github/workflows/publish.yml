@@ -1,22 +1,79 @@
 name: Publish
+
 on:
+  workflow_dispatch:
   release:
     types:
       - published
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'adopt'
+
+      - name: Build
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: build
+
       - name: Publish package
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@v3
         with:
           arguments: publish
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+
+      - name: Extract version
+        id: version
+        run: echo "version=$(grep '^version' build.gradle.kts | sed 's/.*"\(.*\)"/\1/')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "$TAG" | head -1)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG".."$TAG" --pretty=format:"- %s" 2>/dev/null || git log "$PREV_TAG"..HEAD --pretty=format:"- %s")
+          else
+            LOG=$(git log --pretty=format:"- %s" -10)
+          fi
+          {
+            echo "body<<EOFNOTES"
+            echo "## What's Changed"
+            echo ""
+            echo "$LOG"
+            echo "EOFNOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: ${{ steps.notes.outputs.tag }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            api/build/libs/api-*.jar
+            paper/build/libs/*-all.jar
+            velocity/build/libs/*-all.jar
+
+      - name: Upload artifacts to existing release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            api/build/libs/api-*.jar
+            paper/build/libs/*-all.jar
+            velocity/build/libs/*-all.jar
