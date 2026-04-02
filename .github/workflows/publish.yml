@@ -14,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -42,12 +44,18 @@ jobs:
         id: notes
         run: |
           TAG="v${{ steps.version.outputs.version }}"
+          # Use the tag if it exists, otherwise use HEAD
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            END_REF="$TAG"
+          else
+            END_REF="HEAD"
+          fi
           PREV_TAG=$(git tag --sort=-creatordate | grep -v "$TAG" | head -1)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if [ -n "$PREV_TAG" ]; then
-            LOG=$(git log "$PREV_TAG".."$TAG" --pretty=format:"- %s" 2>/dev/null || git log "$PREV_TAG"..HEAD --pretty=format:"- %s")
+            LOG=$(git log "$PREV_TAG".."$END_REF" --pretty=format:"- %s")
           else
-            LOG=$(git log --pretty=format:"- %s" -10)
+            LOG=$(git log --pretty=format:"- %s" "$END_REF")
           fi
           {
             echo "body<<EOFNOTES"
