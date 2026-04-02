@@ -99,4 +99,34 @@ public abstract class EchoMessage {
         return future;
     }
 
+    /**
+     * Sends this message to the given target.
+     *
+     * @param target the target to send to
+     * @return a future that completes when the message is sent
+     */
+    public @NotNull EchoFuture<Void> sendTo(final @NotNull MessageTarget target) {
+        return Echo.getClient().getMessagingProvider().publishAll(target.getTargets(), this);
+    }
+
+    /**
+     * Sends this message to a single server.
+     *
+     * @param serverId the server identifier
+     * @return a future that completes when the message is sent
+     */
+    public @NotNull EchoFuture<Void> sendToServer(final @NotNull String serverId) {
+        return this.sendTo(MessageTarget.server(serverId));
+    }
+
+    /**
+     * Sends this message to a single proxy.
+     *
+     * @param proxyId the proxy identifier
+     * @return a future that completes when the message is sent
+     */
+    public @NotNull EchoFuture<Void> sendToProxy(final @NotNull String proxyId) {
+        return this.sendTo(MessageTarget.proxy(proxyId));
+    }
+
 }
