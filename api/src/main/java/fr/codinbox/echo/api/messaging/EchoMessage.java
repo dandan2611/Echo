@@ -23,7 +23,7 @@ public abstract class EchoMessage {
 
     public EchoMessage() {
         try {
-            this.replyTopic = Echo.getClient().getCurrentResourceId().orElse(null);
+            this.replyTopic = Echo.getClient().getLocalTopic();
         } catch (Exception ignored) {
         }
     }

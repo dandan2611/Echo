@@ -38,14 +38,18 @@ public class ServerSwitchRequestHandler implements MessageHandler {
             final EchoClient client = Echo.getClient();
             client.getServerByIdAsync(request.getServerId())
                     .thenCompose(serverOpt -> {
-                        if (serverOpt.isEmpty())
-                            return null;
+                        if (serverOpt.isEmpty()) {
+                            message.reply(new ServerSwitchRequest.Response(new HashMap<>()));
+                            return CompletableFuture.completedFuture(null);
+                        }
 
                         final Server server = serverOpt.get();
 
                         final RegisteredServer registeredServer = this.proxy.getServer(server.getId()).orElse(null);
-                        if (registeredServer == null)
-                            return null;
+                        if (registeredServer == null) {
+                            message.reply(new ServerSwitchRequest.Response(new HashMap<>()));
+                            return CompletableFuture.completedFuture(null);
+                        }
 
                         final Map<UUID, ServerSwitchRequest.PlayerResponse> connectResults = new HashMap<>();
 
