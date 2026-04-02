@@ -161,10 +161,8 @@ new AlertMessage("Hello!").sendToProxy("proxy-eu");
 MessageTarget target = MessageTarget.servers("lobby-1", "lobby-2");
 new AlertMessage("Hello!").sendTo(target);
 
-// To everyone on the network
-MessageTarget.everyone().thenAccept(target -> 
-    new AlertMessage("Broadcast!").sendTo(target)
-);
+// To everyone on the network (instant, no network call)
+new AlertMessage("Broadcast!").sendTo(MessageTarget.everyone());
 ```
 
 #### Receiving messages

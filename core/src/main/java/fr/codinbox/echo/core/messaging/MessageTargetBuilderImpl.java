@@ -6,6 +6,7 @@ import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -67,6 +68,12 @@ public class MessageTargetBuilderImpl implements MessageTarget.Builder {
     @Override
     public @NotNull EchoFuture<MessageTarget.@NotNull Builder> withAllProxies() {
         return EchoFuture.of(Echo.getClient().getProxies().thenApply(proxies -> this.withProxies(proxies.keySet())));
+    }
+
+    @Override
+    public MessageTarget.@NotNull Builder withBroadcast() {
+        this.targets.add(MessageTarget.BROADCAST_TOPIC);
+        return this;
     }
 
     @Override

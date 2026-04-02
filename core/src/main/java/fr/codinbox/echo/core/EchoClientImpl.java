@@ -65,6 +65,7 @@ public class EchoClientImpl implements EchoClient {
         };
 
         this.messagingProvider.subscribe(topic, this::onMessageReceive);
+        this.messagingProvider.subscribe(MessageTarget.BROADCAST_TOPIC, this::onMessageReceive);
     }
 
     @Override

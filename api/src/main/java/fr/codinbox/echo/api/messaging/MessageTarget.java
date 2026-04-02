@@ -9,6 +9,11 @@ import java.util.Set;
 
 public final class MessageTarget {
 
+    /**
+     * The broadcast topic that all nodes subscribe to automatically.
+     */
+    public static final @NotNull String BROADCAST_TOPIC = "echo:broadcast";
+
     private final @NotNull Set<String> targets;
 
     public MessageTarget(@NotNull Set<String> targets) {
@@ -49,11 +54,11 @@ public final class MessageTarget {
 
     /**
      * Creates a target for all servers and proxies on the network.
+     * This is instant and does not require any network call, as it uses
+     * a dedicated broadcast topic that all nodes subscribe to automatically.
      */
-    public static @NotNull EchoFuture<@NotNull MessageTarget> everyone() {
-        return EchoFuture.of(Echo.getClient().newMessageTargetBuilder()
-                .withEveryone()
-                .thenApply(Builder::build));
+    public static @NotNull MessageTarget everyone() {
+        return new MessageTarget(Set.of(BROADCAST_TOPIC));
     }
 
     public interface Builder {
@@ -77,6 +82,12 @@ public final class MessageTarget {
         default @NotNull EchoFuture<@NotNull Builder> withEveryone() {
             return EchoFuture.of(this.withAllServers().thenCompose(Builder::withAllProxies));
         }
+
+        /**
+         * Adds the broadcast topic to the target list.
+         * This is instant and does not require any network call.
+         */
+        @NotNull Builder withBroadcast();
 
         @NotNull MessageTarget build();
 
