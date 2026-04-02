@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 @Setter
@@ -53,6 +54,49 @@ public abstract class EchoMessage {
 
     public void onReply(final @NotNull Function<@NotNull EchoMessage, @NotNull Boolean> consumer) {
         Echo.getClient().getMessagingProvider().waitForReply(this, consumer);
+    }
+
+    /**
+     * Registers a typed reply handler. Only replies matching the given type will be dispatched.
+     *
+     * @param type the expected reply type
+     * @param consumer the handler to invoke
+     * @param <T> the reply message type
+     */
+    public <T extends EchoMessage> void onReply(final @NotNull Class<T> type,
+                                                final @NotNull Consumer<@NotNull T> consumer) {
+        this.onReply(msg -> {
+            if (type.isInstance(msg)) {
+                consumer.accept(type.cast(msg));
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Returns a future that completes when a reply of the given type is received.
+     * Useful for request/response patterns.
+     *
+     * <pre>{@code
+     * request.awaitReply(ServerSwitchRequest.Response.class)
+     *        .thenAccept(resp -> handle(resp));
+     * }</pre>
+     *
+     * @param type the expected reply type
+     * @param <T> the reply message type
+     * @return a future that completes with the reply
+     */
+    public <T extends EchoMessage> @NotNull EchoFuture<T> awaitReply(final @NotNull Class<T> type) {
+        final EchoFuture<T> future = new EchoFuture<>();
+        this.onReply(msg -> {
+            if (type.isInstance(msg)) {
+                future.complete(type.cast(msg));
+                return true;
+            }
+            return false;
+        });
+        return future;
     }
 
 }
