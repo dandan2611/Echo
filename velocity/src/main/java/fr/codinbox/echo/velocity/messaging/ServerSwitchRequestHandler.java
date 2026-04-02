@@ -6,7 +6,6 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
-import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageHandler;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.server.Server;
@@ -21,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class ServerSwitchRequestHandler implements MessageHandler {
+public class ServerSwitchRequestHandler implements MessageHandler<ServerSwitchRequest> {
 
     private final @NotNull Logger logger;
     private final @NotNull ProxyServer proxy;
@@ -33,53 +32,51 @@ public class ServerSwitchRequestHandler implements MessageHandler {
     }
 
     @Override
-    public void onReceive(@NotNull EchoMessage message) {
-        if (message instanceof ServerSwitchRequest request) {
-            final EchoClient client = Echo.getClient();
-            client.getServerById(request.getServerId())
-                    .thenCompose(serverOpt -> {
-                        if (serverOpt.isEmpty()) {
-                            message.reply(new ServerSwitchRequest.Response(new HashMap<>()));
-                            return CompletableFuture.completedFuture(null);
-                        }
+    public void onReceive(@NotNull ServerSwitchRequest request) {
+        final EchoClient client = Echo.getClient();
+        client.getServerById(request.getServerId())
+                .thenCompose(serverOpt -> {
+                    if (serverOpt.isEmpty()) {
+                        request.reply(new ServerSwitchRequest.Response(new HashMap<>()));
+                        return CompletableFuture.completedFuture(null);
+                    }
 
-                        final Server server = serverOpt.get();
+                    final Server server = serverOpt.get();
 
-                        final RegisteredServer registeredServer = this.proxy.getServer(server.getId()).orElse(null);
-                        if (registeredServer == null) {
-                            message.reply(new ServerSwitchRequest.Response(new HashMap<>()));
-                            return CompletableFuture.completedFuture(null);
-                        }
+                    final RegisteredServer registeredServer = this.proxy.getServer(server.getId()).orElse(null);
+                    if (registeredServer == null) {
+                        request.reply(new ServerSwitchRequest.Response(new HashMap<>()));
+                        return CompletableFuture.completedFuture(null);
+                    }
 
-                        final Map<UUID, ServerSwitchRequest.PlayerResponse> connectResults = new HashMap<>();
+                    final Map<UUID, ServerSwitchRequest.PlayerResponse> connectResults = new HashMap<>();
 
-                        return CompletableFuture.allOf(
-                                Arrays.stream(request.getUserUuids())
-                                        .map(userUuid -> {
-                                            final Player player = this.proxy.getPlayer(userUuid).orElse(null);
-                                            if (player == null)
-                                                return CompletableFuture.completedFuture(null);
+                    return CompletableFuture.allOf(
+                            Arrays.stream(request.getUserUuids())
+                                    .map(userUuid -> {
+                                        final Player player = this.proxy.getPlayer(userUuid).orElse(null);
+                                        if (player == null)
+                                            return CompletableFuture.completedFuture(null);
 
-                                            return player.createConnectionRequest(registeredServer).connect().thenApply(result -> {
-                                                final ConnectionRequestBuilder.Status status = result.getStatus();
-                                                final ServerSwitchRequest.PlayerResponse response = new ServerSwitchRequest.PlayerResponse(
-                                                        result.isSuccessful(),
-                                                        ServerSwitchRequest.ServerSwitchRequestStatus.valueOf(status.name()),
-                                                        result.getReasonComponent().isPresent() ? JSONComponentSerializer.json().serialize(result.getReasonComponent().get()) : null
-                                                );
-                                                connectResults.put(player.getUniqueId(), response);
-                                                return null;
-                                            });
-                                        })
-                                        .toArray(CompletableFuture[]::new)
-                        ).thenRun(() -> {
-                            message.reply(new ServerSwitchRequest.Response(connectResults));
-                        }).exceptionally(e -> {
-                            this.logger.log(Level.SEVERE, "Error while switching players to server " + server.getId());
-                            return null;
-                        });
+                                        return player.createConnectionRequest(registeredServer).connect().thenApply(result -> {
+                                            final ConnectionRequestBuilder.Status status = result.getStatus();
+                                            final ServerSwitchRequest.PlayerResponse response = new ServerSwitchRequest.PlayerResponse(
+                                                    result.isSuccessful(),
+                                                    ServerSwitchRequest.ServerSwitchRequestStatus.valueOf(status.name()),
+                                                    result.getReasonComponent().isPresent() ? JSONComponentSerializer.json().serialize(result.getReasonComponent().get()) : null
+                                            );
+                                            connectResults.put(player.getUniqueId(), response);
+                                            return null;
+                                        });
+                                    })
+                                    .toArray(CompletableFuture[]::new)
+                    ).thenRun(() -> {
+                        request.reply(new ServerSwitchRequest.Response(connectResults));
+                    }).exceptionally(e -> {
+                        this.logger.log(Level.SEVERE, "Error while switching players to server " + server.getId());
+                        return null;
                     });
-        }
+                });
     }
 
 }

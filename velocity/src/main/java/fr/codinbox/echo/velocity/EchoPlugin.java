@@ -16,6 +16,9 @@ import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
+import fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest;
+import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
+import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
@@ -60,9 +63,9 @@ public class EchoPlugin {
 
             // Dynamic server registration
             final MessagingProvider messagingProvider = client.getMessagingProvider();
-            messagingProvider.subscribe(client.getLocalTopic(), new ServerStatusNotificationHandler(this.logger, this.proxy));
-            messagingProvider.subscribe(client.getLocalTopic(), new ServerSwitchRequestHandler(this.logger, this.proxy));
-            messagingProvider.subscribe(client.getLocalTopic(), new ProxySwitchRequestHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(client.getLocalTopic(), ServerStatusNotification.class, new ServerStatusNotificationHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(client.getLocalTopic(), ServerSwitchRequest.class, new ServerSwitchRequestHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(client.getLocalTopic(), ProxySwitchRequest.class, new ProxySwitchRequestHandler(this.logger, this.proxy));
 
             // Load existing servers
             client.getServers().thenAccept(servers -> {

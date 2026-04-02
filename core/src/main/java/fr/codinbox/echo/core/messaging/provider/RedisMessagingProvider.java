@@ -20,7 +20,7 @@ public class RedisMessagingProvider implements MessagingProvider {
     private final @NotNull RedisConnection connection;
 
     private final @NotNull Map<UUID, Function<@NotNull EchoMessage, @NotNull Boolean>> messageReplyConsumers;
-    private final @NotNull Map<String, List<MessageHandler>> messageHandlers;
+    private final @NotNull Map<String, List<MessageHandler<EchoMessage>>> messageHandlers;
     private final @NotNull List<String> localSubscriptions;
 
     public RedisMessagingProvider(final @NotNull RedisConnection connection) {
@@ -42,12 +42,12 @@ public class RedisMessagingProvider implements MessagingProvider {
     }
 
     @Override
-    public void subscribe(@NotNull String topic, @NotNull MessageHandler handler) {
+    public void subscribe(@NotNull String topic, @NotNull MessageHandler<EchoMessage> handler) {
         this.messageHandlers.computeIfAbsent(topic, t -> new ArrayList<>()).add(handler);
         if (this.localSubscriptions.contains(topic))
             return;
         this.connection.getClient().getTopic(topic).addListener(EchoMessage.class, (channel, msg) -> {
-            for (MessageHandler messageHandler : this.messageHandlers.get(topic)) {
+            for (MessageHandler<EchoMessage> messageHandler : this.messageHandlers.get(topic)) {
                 messageHandler.onReceive(msg);
             }
         });
