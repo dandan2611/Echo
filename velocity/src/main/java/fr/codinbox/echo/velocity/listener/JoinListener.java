@@ -27,7 +27,7 @@ public class JoinListener {
         if (currentResourceId == null)
             return;
 
-        client.createUserAsync(player.getUniqueId(), player.getUsername(), currentResourceId);
+        client.createUser(player.getUniqueId(), player.getUsername(), currentResourceId);
     }
 
     @Subscribe(order = PostOrder.LAST)
@@ -35,10 +35,10 @@ public class JoinListener {
         final Player player = event.getPlayer();
         final EchoClient client = Echo.getClient();
 
-        client.getUserByIdAsync(player.getUniqueId()).thenAccept(userOpt -> {
+        client.getUserById(player.getUniqueId()).thenAccept(userOpt -> {
             if (userOpt.isEmpty())
                 return;
-            client.destroyUserAsync(userOpt.get());
+            client.destroyUser(userOpt.get());
         });
     }
 

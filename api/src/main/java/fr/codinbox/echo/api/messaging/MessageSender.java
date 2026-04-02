@@ -1,8 +1,7 @@
 package fr.codinbox.echo.api.messaging;
 
+import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.concurrent.CompletableFuture;
 
 public interface MessageSender {
 
@@ -13,8 +12,7 @@ public interface MessageSender {
      * @param message the message
      * @return a future that completes when the message has been sent
      */
-    @NotNull
-    CompletableFuture<Void> publishMessage(final @NotNull MessageTarget target,
-                                            final @NotNull EchoMessage message);
+    @NotNull EchoFuture<Void> publishMessage(final @NotNull MessageTarget target,
+                                              final @NotNull EchoMessage message);
 
 }

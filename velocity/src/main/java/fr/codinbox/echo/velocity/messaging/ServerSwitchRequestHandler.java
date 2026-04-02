@@ -36,7 +36,7 @@ public class ServerSwitchRequestHandler implements MessageHandler {
     public void onReceive(@NotNull EchoMessage message) {
         if (message instanceof ServerSwitchRequest request) {
             final EchoClient client = Echo.getClient();
-            client.getServerByIdAsync(request.getServerId())
+            client.getServerById(request.getServerId())
                     .thenCompose(serverOpt -> {
                         if (serverOpt.isEmpty()) {
                             message.reply(new ServerSwitchRequest.Response(new HashMap<>()));
@@ -72,7 +72,7 @@ public class ServerSwitchRequestHandler implements MessageHandler {
                                             });
                                         })
                                         .toArray(CompletableFuture[]::new)
-                        ).thenRun(() -> { // All requests has been processed
+                        ).thenRun(() -> {
                             message.reply(new ServerSwitchRequest.Response(connectResults));
                         }).exceptionally(e -> {
                             this.logger.log(Level.SEVERE, "Error while switching players to server " + server.getId());

@@ -1,6 +1,7 @@
 package fr.codinbox.echo.api.user;
 
 import fr.codinbox.echo.api.Echo;
+import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.id.Identifiable;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.property.PropertyHolder;
@@ -8,7 +9,6 @@ import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.utils.Cleanable;
-import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -22,107 +22,52 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
     @NotNull PropertyKey<String> PROPERTY_CURRENT_SERVER_ID = new PropertyKey<>("current_server_id");
     @NotNull PropertyKey<String> PROPERTY_PREVIOUS_SERVER_ID = new PropertyKey<>("previous_server_id");
 
-    default @NotNull CompletableFuture<@NotNull Optional<String>> getUsernameAsync() {
-        return this.getPropertyAsync(User.PROPERTY_USERNAME);
+    default @NotNull EchoFuture<@NotNull Optional<String>> getUsername() {
+        return EchoFuture.of(this.getProperty(User.PROPERTY_USERNAME));
     }
 
-    @Blocking
-    default @NotNull Optional<String> getUsername() {
-        return this.getUsernameAsync().join();
+    default @NotNull EchoFuture<@NotNull Optional<String>> getCurrentProxyId() {
+        return EchoFuture.of(this.getProperty(User.PROPERTY_CURRENT_PROXY_ID));
     }
 
-    default @NotNull CompletableFuture<@NotNull Optional<String>> getCurrentProxyIdAsync() {
-        return this.getPropertyAsync(User.PROPERTY_CURRENT_PROXY_ID);
+    default @NotNull EchoFuture<Void> setCurrentProxyId(final @NotNull String proxyId) {
+        return this.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId);
     }
 
-    @Blocking
-    default @NotNull Optional<String> getCurrentProxyId() {
-        return this.getCurrentProxyIdAsync().join();
+    default @NotNull EchoFuture<@NotNull Optional<Proxy>> getCurrentProxy() {
+        return EchoFuture.of(this.getCurrentProxyId().thenCompose(
+                pIdOpt -> pIdOpt.map(s -> Echo.getClient().getProxyById(s))
+                .orElseGet(() -> EchoFuture.completed(Optional.empty()))
+        ));
     }
 
-    default @NotNull CompletableFuture<Void> setCurrentProxyIdAsync(final @NotNull String proxyId) {
-        return this.setPropertyAsync(User.PROPERTY_CURRENT_PROXY_ID, proxyId);
+    default @NotNull EchoFuture<@NotNull Optional<String>> getCurrentServerId() {
+        return EchoFuture.of(this.getProperty(PROPERTY_CURRENT_SERVER_ID));
     }
 
-    @Blocking
-    default void setCurrentProxyId(final @NotNull String proxyId) {
-        this.setCurrentProxyIdAsync(proxyId).join();
+    default @NotNull EchoFuture<Void> setCurrentServerId(final @NotNull String serverId) {
+        return this.setProperty(PROPERTY_CURRENT_SERVER_ID, serverId);
     }
 
-    default @NotNull CompletableFuture<@NotNull Optional<Proxy>> getCurrentProxyAsync() {
-        return this.getCurrentProxyIdAsync().thenCompose(
-                pIdOpt -> pIdOpt.map(s -> Echo.getClient().getProxyByIdAsync(s))
-                .orElseGet(() -> CompletableFuture.completedFuture(Optional.empty()))
-        );
+    default @NotNull EchoFuture<@NotNull Optional<Server>> getCurrentServer() {
+        return EchoFuture.of(this.getCurrentServerId().thenCompose(
+                serverIdOpt -> serverIdOpt.map(s -> Echo.getClient().getServerById(s))
+                .orElseGet(() -> EchoFuture.completed(Optional.empty()))
+        ));
     }
 
-    default @NotNull CompletableFuture<@NotNull Optional<String>> getCurrentServerIdAsync() {
-        return this.getPropertyAsync(PROPERTY_CURRENT_SERVER_ID);
+    default @NotNull EchoFuture<@NotNull Optional<String>> getPreviousServerId() {
+        return EchoFuture.of(this.getProperty(PROPERTY_PREVIOUS_SERVER_ID));
     }
 
-    @Blocking
-    default @NotNull Optional<String> getCurrentServerId() {
-        return this.getCurrentServerIdAsync().join();
+    default @NotNull EchoFuture<Void> setPreviousServerId(final @NotNull String serverId) {
+        return this.setProperty(PROPERTY_PREVIOUS_SERVER_ID, serverId);
     }
 
-    default @NotNull CompletableFuture<Void> setCurrentServerIdAsync(final @NotNull String serverId) {
-        return this.setPropertyAsync(PROPERTY_CURRENT_SERVER_ID, serverId);
-    }
+    @NotNull EchoFuture<Void> tryConnectToProxy(final @NotNull Proxy proxy);
 
-    @Blocking
-    default void setCurrentServerId(final @NotNull String serverId) {
-        this.setCurrentServerIdAsync(serverId).join();
-    }
+    @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull String id);
 
-    default @NotNull CompletableFuture<@NotNull Optional<Server>> getCurrentServerAsync() {
-        return this.getCurrentServerIdAsync().thenCompose(
-                serverIdOpt -> serverIdOpt.map(s -> Echo.getClient().getServerByIdAsync(s))
-                .orElseGet(() -> CompletableFuture.completedFuture(Optional.empty()))
-        );
-    }
-
-    @Blocking
-    default @NotNull Optional<Server> getCurrentServer() {
-        return this.getCurrentServerAsync().join();
-    }
-
-    default @NotNull CompletableFuture<@NotNull Optional<String>> getPreviousServerIdAsync() {
-        return this.getPropertyAsync(PROPERTY_PREVIOUS_SERVER_ID);
-    }
-
-    @Blocking
-    default @NotNull Optional<String> getPreviousServerId() {
-        return this.getPreviousServerIdAsync().join();
-    }
-
-    default @NotNull CompletableFuture<Void> setPreviousServerIdAsync(final @NotNull String serverId) {
-        return this.setPropertyAsync(PROPERTY_PREVIOUS_SERVER_ID, serverId);
-    }
-
-    @Blocking
-    default void setPreviousServerId(final @NotNull String serverId) {
-        this.setPreviousServerIdAsync(serverId).join();
-    }
-
-    @NotNull CompletableFuture<Void> tryConnectToProxyAsync(final @NotNull Proxy proxy);
-
-    @Blocking
-    default void tryConnectToProxy(final @NotNull Proxy proxy) {
-        this.tryConnectToProxyAsync(proxy).join();
-    }
-
-    @NotNull CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServerAsync(final @NotNull String id);
-
-    @Blocking
-    default @NotNull ServerSwitchRequest.@NotNull PlayerResponse tryConnectToServer(final @NotNull String id) {
-        return this.tryConnectToServerAsync(id).join();
-    }
-
-    @NotNull CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServerAsync(final @NotNull Server server);
-
-    @Blocking
-    default @NotNull ServerSwitchRequest.@NotNull PlayerResponse tryConnectToServer(final @NotNull Server server) {
-        return this.tryConnectToServerAsync(server).join();
-    }
+    @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull Server server);
 
 }

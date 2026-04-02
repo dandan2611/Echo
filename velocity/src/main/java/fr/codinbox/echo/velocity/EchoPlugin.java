@@ -59,18 +59,17 @@ public class EchoPlugin {
             final EchoClient client = EchoClientImpl.autoInit(echoConnection.get(), EchoResourceType.PROXY);
 
             // Dynamic server registration
-            final MessagingProvider messagingProvider = client.getMessagingProvider();;
+            final MessagingProvider messagingProvider = client.getMessagingProvider();
             messagingProvider.subscribe(client.getLocalTopic(), new ServerStatusNotificationHandler(this.logger, this.proxy));
             messagingProvider.subscribe(client.getLocalTopic(), new ServerSwitchRequestHandler(this.logger, this.proxy));
             messagingProvider.subscribe(client.getLocalTopic(), new ProxySwitchRequestHandler(this.logger, this.proxy));
 
             // Load existing servers
-            client.getServersAsync().thenAccept(servers -> {
+            client.getServers().thenAccept(servers -> {
                 for (String s : servers.keySet()) {
-                    client.getServerByIdAsync(s).thenAccept(serverOpt -> {
+                    client.getServerById(s).thenAccept(serverOpt -> {
                         serverOpt.ifPresent(server -> {
                             ProxyUtils.registerServer(this.proxy, this.logger, server.getId(), server.getAddress());
-
                         });
                     });
                 }

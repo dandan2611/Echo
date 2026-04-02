@@ -1,6 +1,7 @@
 package fr.codinbox.echo.core.property;
 
 import fr.codinbox.echo.api.Echo;
+import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.property.PropertyHolder;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.utils.Cleanable;
@@ -30,59 +31,59 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> im
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> setExpireAsync(final @NotNull String key,
-                                                              final @NotNull Instant instant) {
-        return Echo.getClient().getCacheProvider().expireObject(this.concat(key), instant);
+    public @NotNull EchoFuture<Boolean> setExpire(final @NotNull String key,
+                                                   final @NotNull Instant instant) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().expireObject(this.concat(key), instant));
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<@NotNull Optional<T>> getPropertyAsync(final @NotNull String key) {
-        return Echo.getClient().getCacheProvider().<T>getObject(this.concat(key)).thenApplyAsync(Optional::ofNullable);
+    public @NotNull <T> EchoFuture<@NotNull Optional<T>> getProperty(final @NotNull String key) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().<T>getObject(this.concat(key)).thenApplyAsync(Optional::ofNullable));
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Boolean> deletePropertyAsync(final @NotNull String key) {
-        return Echo.getClient().getCacheProvider().deleteObject(this.concat(key));
+    public @NotNull EchoFuture<@NotNull Boolean> deleteProperty(final @NotNull String key) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().deleteObject(this.concat(key)));
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<Void> setPropertyAsync(final @NotNull String key, final @Nullable T value) {
+    public @NotNull <T> EchoFuture<Void> setProperty(final @NotNull String key, final @Nullable T value) {
         if (value == null)
-            return this.deletePropertyAsync(key).thenApply(aBoolean -> null);
-        return Echo.getClient().getCacheProvider().setObject(this.concat(key), value);
+            return EchoFuture.of(this.deleteProperty(key).thenApply(aBoolean -> null));
+        return EchoFuture.of(Echo.getClient().getCacheProvider().setObject(this.concat(key), value));
     }
 
     @Override
-    public @NotNull CompletableFuture<Long> getPropertyTimeToLiveAsync(final @NotNull String key) {
-        return Echo.getClient().getCacheProvider().getObjectRemainingTimeToLive(this.concat(key));
+    public @NotNull EchoFuture<@NotNull Long> getPropertyTimeToLive(final @NotNull String key) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().getObjectRemainingTimeToLive(this.concat(key)));
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> hasPropertyAsync(final @NotNull String key) {
-        return Echo.getClient().getCacheProvider().hasObject(this.concat(key));
+    public @NotNull EchoFuture<@NotNull Boolean> hasProperty(final @NotNull String key) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().hasObject(this.concat(key)));
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Set<String>> getPropertiesKeysAsync() {
-        return Echo.getClient().getCacheProvider().getKeys(this.concat("*")).thenApply(keys -> keys.stream()
+    public @NotNull EchoFuture<@NotNull Set<String>> getPropertiesKeys() {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().getKeys(this.concat("*")).thenApply(keys -> keys.stream()
                 .map(key -> key.replaceFirst(this.keyPrefix + ":property:", ""))
-                .collect(Collectors.toSet()));
+                .collect(Collectors.toSet())));
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<Long>> getCreationTimeAsync() {
-        return this.getPropertyAsync(CREATION_TIME_KEY);
+    public @NotNull EchoFuture<@NotNull Optional<Long>> getCreationTime() {
+        return EchoFuture.of(this.getProperty(CREATION_TIME_KEY));
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> cleanup() {
-        return this.getPropertiesKeysAsync().thenComposeAsync(properties -> {
+    public @NotNull EchoFuture<Void> cleanup() {
+        return EchoFuture.of(this.getPropertiesKeys().thenComposeAsync(properties -> {
             return CompletableFuture.allOf(
                     properties.stream()
-                            .map(this::deletePropertyAsync)
+                            .map(this::deleteProperty)
                             .toArray(CompletableFuture[]::new)
             );
-        });
+        }));
     }
 
 }

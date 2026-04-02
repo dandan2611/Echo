@@ -25,28 +25,27 @@ public class JoinListener implements Listener {
         if (currentResourceId == null)
             return;
 
-        client.getUserByIdAsync(player.getUniqueId()).thenAcceptAsync(userOpt -> {
-            if (userOpt.isEmpty()) { // Create the user if it doesn't exist
-                client.createUserAsync(player.getUniqueId(), player.getName(), currentResourceId);
+        client.getUserById(player.getUniqueId()).thenAcceptAsync(userOpt -> {
+            if (userOpt.isEmpty()) {
+                client.createUser(player.getUniqueId(), player.getName(), currentResourceId);
                 return;
-
             }
 
             final User user = userOpt.get();
 
             // Set user previous server ID in a non-blocking way
-            user.getCurrentServerIdAsync().thenAccept(currentServerIdOpt -> {
-                currentServerIdOpt.ifPresent(user::setPreviousServerId);
+            user.getCurrentServerId().thenAccept(currentServerIdOpt -> {
+                currentServerIdOpt.ifPresent(s -> user.setPreviousServerId(s));
             });
 
-            user.setPropertyAsync(User.PROPERTY_CURRENT_SERVER_ID, currentResourceId);
+            user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, currentResourceId);
 
-            final Optional<Server> echoServerOpt = client.getServerById(currentResourceId);
+            final Optional<Server> echoServerOpt = client.getServerById(currentResourceId).await();
 
             if (echoServerOpt.isEmpty())
                 return;
 
-            client.registerUserInServerAsync(user, echoServerOpt.get());
+            client.registerUserInServer(user, echoServerOpt.get());
         });
     }
 
@@ -56,11 +55,11 @@ public class JoinListener implements Listener {
         final EchoClient client = Echo.getClient();
 
         // If there is no proxy, destroy the user by ourselves
-        client.getProxiesAsync().thenAccept(proxyMap -> {
+        client.getProxies().thenAccept(proxyMap -> {
             if (!proxyMap.isEmpty())
                 return;
 
-            client.getUserByIdAsync(player.getUniqueId()).thenAccept(userOpt -> {
+            client.getUserById(player.getUniqueId()).thenAccept(userOpt -> {
                 if (userOpt.isEmpty())
                     return;
                 client.destroyUser(userOpt.get());

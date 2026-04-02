@@ -1,10 +1,10 @@
 package fr.codinbox.echo.api.messaging;
 
+import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 public final class MessageTarget {
 
@@ -26,7 +26,7 @@ public final class MessageTarget {
 
         @NotNull Builder withServers(final @NotNull Collection<String> serverIds);
 
-        @NotNull CompletableFuture<@NotNull Builder> withAllServers();
+        @NotNull EchoFuture<@NotNull Builder> withAllServers();
 
         @NotNull Builder withProxy(final @NotNull String proxyId);
 
@@ -34,10 +34,10 @@ public final class MessageTarget {
 
         @NotNull Builder withProxies(final @NotNull Collection<String> proxyIds);
 
-        @NotNull CompletableFuture<@NotNull Builder> withAllProxies();
+        @NotNull EchoFuture<@NotNull Builder> withAllProxies();
 
-        default @NotNull CompletableFuture<@NotNull Builder> withEveryone() {
-            return this.withAllServers().thenCompose(Builder::withAllProxies);
+        default @NotNull EchoFuture<@NotNull Builder> withEveryone() {
+            return EchoFuture.of(this.withAllServers().thenCompose(Builder::withAllProxies));
         }
 
         @NotNull MessageTarget build();

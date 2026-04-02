@@ -2,6 +2,7 @@ package fr.codinbox.echo.api.messaging;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import fr.codinbox.echo.api.Echo;
+import fr.codinbox.echo.api.EchoFuture;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
@@ -9,7 +10,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 @Setter
@@ -28,7 +28,7 @@ public abstract class EchoMessage {
         }
     }
 
-    public <T extends EchoMessage> @NotNull CompletableFuture<Void> reply(final @NotNull T response) {
+    public <T extends EchoMessage> @NotNull EchoFuture<Void> reply(final @NotNull T response) {
         if (this.getReplyTopic() == null) {
             throw new IllegalStateException("Cannot reply to a message that does not wait for a reply");
         }
@@ -37,13 +37,12 @@ public abstract class EchoMessage {
                 this.getReplyTopic(),
                 response,
                 Echo.getClient().getCurrentResourceId().orElse(null)
-
         );
     }
 
-    public <T extends EchoMessage> @NotNull CompletableFuture<Void> reply(final @NotNull String topic,
-                                                                          final @NotNull T response,
-                                                                          final @Nullable String replyTopic) {
+    public <T extends EchoMessage> @NotNull EchoFuture<Void> reply(final @NotNull String topic,
+                                                                     final @NotNull T response,
+                                                                     final @Nullable String replyTopic) {
         Objects.requireNonNull(topic);
         Objects.requireNonNull(response);
 

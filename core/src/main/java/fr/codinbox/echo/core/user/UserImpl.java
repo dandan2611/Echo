@@ -1,6 +1,7 @@
 package fr.codinbox.echo.core.user;
 
 import fr.codinbox.echo.api.Echo;
+import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.exception.resource.UnknownProxyException;
 import fr.codinbox.echo.api.exception.user.UserHasNoProxyException;
 import fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest;
@@ -25,20 +26,20 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> tryConnectToProxyAsync(@NotNull Proxy proxy) {
+    public @NotNull EchoFuture<Void> tryConnectToProxy(@NotNull Proxy proxy) {
         return proxy.sendMessage(new ProxySwitchRequest(proxy.getId(), super.getId()));
     }
 
     @Override
-    public @NotNull CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServerAsync(final @NotNull String id) {
+    public @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull String id) {
         final CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> future = new CompletableFuture<>();
-        this.getCurrentProxyIdAsync()
+        this.getCurrentProxyId()
                 .thenCompose(currentProxyIdOpt -> {
                     if (currentProxyIdOpt.isEmpty())
                         throw new UserHasNoProxyException(this.getId());
 
                     final String proxyId = currentProxyIdOpt.get();
-                    return Echo.getClient().getProxyByIdAsync(proxyId);
+                    return Echo.getClient().getProxyById(proxyId);
                 })
                 .thenCompose(proxyOpt -> {
                     if (proxyOpt.isEmpty())
@@ -56,19 +57,19 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
                     });
                     return proxy.sendMessage(message);
                 });
-        return future;
+        return EchoFuture.of(future);
     }
 
     @Override
-    public @NotNull CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServerAsync(final @NotNull Server server) {
+    public @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull Server server) {
         final CompletableFuture<ServerSwitchRequest.@NotNull PlayerResponse> future = new CompletableFuture<>();
-        this.getCurrentProxyIdAsync()
+        this.getCurrentProxyId()
                 .thenCompose(currentProxyIdOpt -> {
                     if (currentProxyIdOpt.isEmpty())
                         throw new UserHasNoProxyException(this.getId());
 
                     final String proxyId = currentProxyIdOpt.get();
-                    return Echo.getClient().getProxyByIdAsync(proxyId);
+                    return Echo.getClient().getProxyById(proxyId);
                 })
                 .thenCompose(proxyOpt -> {
                     if (proxyOpt.isEmpty())
@@ -82,16 +83,15 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
                                 future.complete(res.getResponses().get(this.getId()));
                             return true;
                         }
-                        // throw new IllegalStateException("Unexpected response type " + r.getClass().getName()); TODO: Fix
                         return false;
                     });
                     return proxy.sendMessage(message);
                 });
-        return future;
+        return EchoFuture.of(future);
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> cleanup() {
+    public @NotNull EchoFuture<Void> cleanup() {
         return super.cleanup();
     }
 

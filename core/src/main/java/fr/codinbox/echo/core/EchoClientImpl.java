@@ -3,6 +3,7 @@ package fr.codinbox.echo.core;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.cache.RedisCacheProvider;
 import fr.codinbox.echo.api.exception.UnknownResourceException;
 import fr.codinbox.echo.api.exception.resource.UnknownServerException;
@@ -67,9 +68,9 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<UUID, Long>> getAllUsersAsync() {
-        return this.getUserMap().readAllMapAsync().toCompletableFuture()
-                .thenApplyAsync(MapUtils::mapStringToUuidKey);
+    public @NotNull EchoFuture<@NotNull Map<UUID, Long>> getAllUsers() {
+        return EchoFuture.of(this.getUserMap().readAllMapAsync().toCompletableFuture()
+                .thenApplyAsync(MapUtils::mapStringToUuidKey));
     }
 
     private @NotNull RMapAsync<String, Long> getUserMap() {
@@ -77,34 +78,34 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<User>> getUserByIdAsync(final @NotNull UUID id) {
+    public @NotNull EchoFuture<@NotNull Optional<User>> getUserById(final @NotNull UUID id) {
         final User user = new UserImpl(id);
         final CompletableFuture<Optional<User>> future = new CompletableFuture<>();
 
-        user.getUsernameAsync().thenAccept(username -> future.complete(username.map(u -> user)));
-        return future;
+        user.getUsername().thenAccept(username -> future.complete(username.map(u -> user)));
+        return EchoFuture.of(future);
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<User>> getUserByUsernameAsync(final @NotNull String username) {
+    public @NotNull EchoFuture<@NotNull Optional<User>> getUserByUsername(final @NotNull String username) {
         final RMapAsync<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
 
-        return usernameToIdMap.getAsync(username.toLowerCase(Locale.ROOT)).toCompletableFuture().thenApply(idStr -> {
+        return EchoFuture.of(usernameToIdMap.getAsync(username.toLowerCase(Locale.ROOT)).toCompletableFuture().thenApply(idStr -> {
             if (idStr == null)
                 return null;
             return UUID.fromString(idStr);
-        }).thenCompose(this::getUserByIdAsync);
+        }).thenCompose(this::getUserById));
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> registerUserUsernameAsync(@NotNull UUID id, @NotNull String username) {
-        return this.getPlayerUsernameToIdMap().putAsync(username.toLowerCase(Locale.ROOT), id.toString()).toCompletableFuture().thenApply(aVoid -> null);
+    public @NotNull EchoFuture<Void> registerUserUsername(@NotNull UUID id, @NotNull String username) {
+        return EchoFuture.of(this.getPlayerUsernameToIdMap().putAsync(username.toLowerCase(Locale.ROOT), id.toString()).toCompletableFuture().thenApply(aVoid -> null));
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> unregisterUserUsernameAsync(@NotNull User user) {
-        return CompletableFuture.allOf(
-                user.getUsernameAsync().thenComposeAsync(usernameOpt -> {
+    public @NotNull EchoFuture<Void> unregisterUserUsername(@NotNull User user) {
+        return EchoFuture.of(CompletableFuture.allOf(
+                user.getUsername().thenComposeAsync(usernameOpt -> {
                     if (usernameOpt.isEmpty())
                         return CompletableFuture.completedFuture(null);
 
@@ -114,7 +115,7 @@ public class EchoClientImpl implements EchoClient {
                             .removeAsync(username.toLowerCase(Locale.ROOT))
                             .toCompletableFuture();
                 })
-        );
+        ));
     }
 
     private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
@@ -137,8 +138,8 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getServersAsync() {
-        return this.getServerMap().readAllMapAsync().toCompletableFuture();
+    public @NotNull EchoFuture<@NotNull Map<String, Long>> getServers() {
+        return EchoFuture.of(this.getServerMap().readAllMapAsync().toCompletableFuture());
     }
 
     private @NotNull RMapAsync<String, Long> getServerMap() {
@@ -146,15 +147,15 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<Server>> getServerByIdAsync(final @NotNull String id) {
+    public @NotNull EchoFuture<@NotNull Optional<Server>> getServerById(final @NotNull String id) {
         final ServerImpl server = new ServerImpl(id, null);
-        return server.stillExistsAsync()
-                .thenApplyAsync(exists -> exists ? Optional.of(server) : Optional.empty());
+        return EchoFuture.of(server.stillExists()
+                .thenApplyAsync(exists -> exists ? Optional.of(server) : Optional.empty()));
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Map<String, Long>> getProxiesAsync() {
-        return this.getProxyMap().readAllMapAsync().toCompletableFuture();
+    public @NotNull EchoFuture<@NotNull Map<String, Long>> getProxies() {
+        return EchoFuture.of(this.getProxyMap().readAllMapAsync().toCompletableFuture());
     }
 
     private @NotNull RMapAsync<String, Long> getProxyMap() {
@@ -162,9 +163,9 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<@NotNull Optional<Proxy>> getProxyByIdAsync(@NotNull String id) {
+    public @NotNull EchoFuture<@NotNull Optional<Proxy>> getProxyById(@NotNull String id) {
         final ProxyImpl proxy = new ProxyImpl(id, null);
-        return proxy.stillExists().thenApply(exists -> exists ? Optional.of(proxy) : Optional.empty());
+        return EchoFuture.of(proxy.stillExists().thenApply(exists -> exists ? Optional.of(proxy) : Optional.empty()));
     }
 
     @Override
@@ -187,14 +188,14 @@ public class EchoClientImpl implements EchoClient {
             case PROXY -> {
                 final ProxyImpl proxy = new ProxyImpl(this.resourceId, address);
 
-                proxy.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
+                proxy.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created proxy %s".formatted(proxy.getId()));
             }
             case SERVER -> {
                 final ServerImpl server = new ServerImpl(this.resourceId, address);
 
-                server.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
+                server.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
 
                 this.logger.info("Created server %s".formatted(server.getId()));
             }
@@ -214,8 +215,8 @@ public class EchoClientImpl implements EchoClient {
         }
     }
 
-    private @NotNull CompletableFuture<Void> sendLocalServerStatus(final @NotNull ServerStatusNotification.Status status) {
-        return this.getServerByIdAsync(Objects.requireNonNull(this.getCurrentResourceId().orElse(null)))
+    private @NotNull EchoFuture<Void> sendLocalServerStatus(final @NotNull ServerStatusNotification.Status status) {
+        return EchoFuture.of(this.getServerById(Objects.requireNonNull(this.getCurrentResourceId().orElse(null)))
                 .thenApply(serverOpt -> {
                     if (serverOpt.isEmpty())
                         throw new UnknownServerException(this.getCurrentResourceId().orElseThrow());
@@ -224,7 +225,7 @@ public class EchoClientImpl implements EchoClient {
                         .withAllProxies(), (server, builder) -> {
                     final ServerStatusNotification notification = new ServerStatusNotification(server, status);
                     return server.publishMessage(builder.build(), notification);
-                }).thenAccept(aVoid -> {});
+                }).thenAccept(aVoid -> {}));
     }
 
     public static @NotNull EchoClientImpl autoInit(@NotNull RedisConnection connection,
@@ -281,14 +282,14 @@ public class EchoClientImpl implements EchoClient {
     @Override
     public void shutdown() {
         Optional<? extends Cleanable> clOpt = (switch (this.resourceType) {
-            case PROXY -> this.getProxyByIdAsync(this.getCurrentResourceId().orElseThrow()).join();
-            case SERVER -> this.getServerByIdAsync(this.getCurrentResourceId().orElseThrow()).join();
+            case PROXY -> this.getProxyById(this.getCurrentResourceId().orElseThrow()).await();
+            case SERVER -> this.getServerById(this.getCurrentResourceId().orElseThrow()).await();
         });
 
         switch (this.resourceType) {
             case PROXY -> this.unregisterProxy(this.getCurrentResourceId().orElseThrow());
             case SERVER -> {
-                this.sendLocalServerStatus(ServerStatusNotification.Status.UNREGISTERED).join();
+                this.sendLocalServerStatus(ServerStatusNotification.Status.UNREGISTERED).await();
                 this.unregisterServer(this.getCurrentResourceId().orElseThrow()).join();
             }
         }
@@ -298,8 +299,8 @@ public class EchoClientImpl implements EchoClient {
         }
 
         logger.info("Cleaning up local resource in current thread");
-        final Cleanable cl = clOpt.get();;
-        cl.cleanup().join();
+        final Cleanable cl = clOpt.get();
+        cl.cleanup().await();
     }
 
     @Override
@@ -308,42 +309,42 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull CompletableFuture<User> createUserAsync(final @NotNull UUID uuid,
-                                                            final @NotNull String username,
-                                                            final @NotNull String proxyId) {
+    public @NotNull EchoFuture<@NotNull User> createUser(final @NotNull UUID uuid,
+                                                          final @NotNull String username,
+                                                          final @NotNull String proxyId) {
         final User user = new UserImpl(uuid);
-        return CompletableFuture.allOf(
-                user.setPropertyAsync(User.PROPERTY_USERNAME, username),
-                user.setPropertyAsync(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
-                user.setPropertyAsync(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
-                this.registerUserUsernameAsync(uuid, username),
+        return EchoFuture.of(CompletableFuture.allOf(
+                user.setProperty(User.PROPERTY_USERNAME, username),
+                user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
+                user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
+                this.registerUserUsername(uuid, username),
                 this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli()).toCompletableFuture()
-        ).thenApply(aVoid -> user);
+        ).thenApply(aVoid -> user));
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> destroyUserAsync(final @NotNull User user) {
-        return CompletableFuture.allOf(
-                this.unregisterUserUsernameAsync(user),
-                this.registerUserInServerAsync(user, null),
+    public @NotNull EchoFuture<Void> destroyUser(final @NotNull User user) {
+        return EchoFuture.of(CompletableFuture.allOf(
+                this.unregisterUserUsername(user),
+                this.registerUserInServer(user, null),
                 this.getUserMap().fastRemoveAsync(user.getId().toString()).toCompletableFuture(),
                 user.cleanup()
-        );
+        ));
     }
 
     @Override
-    public @NotNull CompletableFuture<Void> registerUserInServerAsync(@NotNull User user, @Nullable Server server) {
-        CompletableFuture<Void> unregisterFuture = user.getCurrentServerAsync()
-                    .thenComposeAsync(sOpt -> sOpt.<java.util.concurrent.CompletionStage<Boolean>>map(value -> value.unregisterUserAsync(user)).orElseGet(() -> CompletableFuture.completedFuture(null)))
+    public @NotNull EchoFuture<Void> registerUserInServer(@NotNull User user, @Nullable Server server) {
+        CompletableFuture<Void> unregisterFuture = user.getCurrentServer()
+                    .thenComposeAsync(sOpt -> sOpt.<java.util.concurrent.CompletionStage<Boolean>>map(value -> value.unregisterUser(user)).orElseGet(() -> CompletableFuture.completedFuture(null)))
                     .thenRun(() -> {});
 
         if (server == null)
-            return unregisterFuture;
+            return EchoFuture.of(unregisterFuture);
 
-        return CompletableFuture.allOf(
+        return EchoFuture.of(CompletableFuture.allOf(
                 unregisterFuture,
-                server.registerUserAsync(user),
-                user.setPropertyAsync(User.PROPERTY_CURRENT_SERVER_ID, server.getId())
-        );
+                server.registerUser(user),
+                user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId())
+        ));
     }
 }

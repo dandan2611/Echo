@@ -30,7 +30,7 @@ public class ProxySwitchRequestHandler implements MessageHandler {
             final EchoClient client = Echo.getClient();
             final String proxyId = request.getProxyId();
 
-            client.getProxyByIdAsync(proxyId).thenAccept(proxyOpt -> {
+            client.getProxyById(proxyId).thenAccept(proxyOpt -> {
                 proxyOpt.ifPresent(proxy -> {
                     final Address address = proxy.getAddress();
 

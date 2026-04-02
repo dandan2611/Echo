@@ -1,20 +1,20 @@
 package fr.codinbox.echo.api.messaging;
 
+import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public interface MessagingProvider {
 
-    <T extends EchoMessage> @NotNull CompletableFuture<Void> publish(final @NotNull String topic,
-                                                                     final @NotNull T obj);
+    <T extends EchoMessage> @NotNull EchoFuture<Void> publish(final @NotNull String topic,
+                                                               final @NotNull T obj);
 
-    default <T extends EchoMessage> @NotNull CompletableFuture<Void> publishAll(final @NotNull Iterable<String> topics,
-                                                                                final @NotNull T obj) {
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+    default <T extends EchoMessage> @NotNull EchoFuture<Void> publishAll(final @NotNull Iterable<String> topics,
+                                                                          final @NotNull T obj) {
+        EchoFuture<Void> future = EchoFuture.completed(null);
         for (String topic : topics)
-            future = future.thenCompose(v -> this.publish(topic, obj));
+            future = EchoFuture.of(future.thenCompose(v -> this.publish(topic, obj)));
         return future;
     }
 

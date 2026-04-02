@@ -1,6 +1,7 @@
 package fr.codinbox.echo.core.messaging.provider;
 
 import fr.codinbox.connector.commons.redis.RedisConnection;
+import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageHandler;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
@@ -12,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public class RedisMessagingProvider implements MessagingProvider {
@@ -31,9 +31,9 @@ public class RedisMessagingProvider implements MessagingProvider {
     }
 
     @Override
-    public @NotNull <T extends EchoMessage> CompletableFuture<Void> publish(@NotNull String t, @NotNull T obj) {
+    public @NotNull <T extends EchoMessage> EchoFuture<Void> publish(@NotNull String t, @NotNull T obj) {
         final RTopic topic = this.connection.getClient().getTopic(t);
-        return topic.publishAsync(obj).toCompletableFuture().thenApply(v -> null);
+        return EchoFuture.of(topic.publishAsync(obj).toCompletableFuture().thenApply(v -> null));
     }
 
     @Override
@@ -63,7 +63,6 @@ public class RedisMessagingProvider implements MessagingProvider {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // TODO: Remove reply after delay (handle multiple replies
         return true;
     }
 
