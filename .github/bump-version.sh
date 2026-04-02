@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
     echo "Usage: $0 <major|minor|patch>"
     echo ""
-    echo "Bumps the project version in all build.gradle.kts files."
+    echo "Bumps the project version in all build.gradle.kts files and README.md."
     echo "Examples:"
     echo "  $0 major   # 5.1.0 -> 6.0.0"
     echo "  $0 minor   # 5.1.0 -> 5.2.0"
@@ -58,5 +58,10 @@ for file in "${BUILD_FILES[@]}"; do
         echo "Warning: $file not found, skipping"
     fi
 done
+
+README="$ROOT_DIR/README.md"
+if [[ -f "$README" ]]; then
+    sed -i'' -e "s/$CURRENT_VERSION/$NEW_VERSION/g" "$README"
+fi
 
 echo "$CURRENT_VERSION -> $NEW_VERSION"
