@@ -1,5 +1,6 @@
 package fr.codinbox.echo.api.messaging;
 
+import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,6 +17,43 @@ public final class MessageTarget {
 
     public @NotNull Set<String> getTargets() {
         return Set.copyOf(this.targets);
+    }
+
+    /**
+     * Creates a target for a single server.
+     */
+    public static @NotNull MessageTarget server(final @NotNull String serverId) {
+        return Echo.getClient().newMessageTargetBuilder().withServer(serverId).build();
+    }
+
+    /**
+     * Creates a target for multiple servers.
+     */
+    public static @NotNull MessageTarget servers(final @NotNull String... serverIds) {
+        return Echo.getClient().newMessageTargetBuilder().withServers(serverIds).build();
+    }
+
+    /**
+     * Creates a target for a single proxy.
+     */
+    public static @NotNull MessageTarget proxy(final @NotNull String proxyId) {
+        return Echo.getClient().newMessageTargetBuilder().withProxy(proxyId).build();
+    }
+
+    /**
+     * Creates a target for multiple proxies.
+     */
+    public static @NotNull MessageTarget proxies(final @NotNull String... proxyIds) {
+        return Echo.getClient().newMessageTargetBuilder().withProxies(proxyIds).build();
+    }
+
+    /**
+     * Creates a target for all servers and proxies on the network.
+     */
+    public static @NotNull EchoFuture<@NotNull MessageTarget> everyone() {
+        return EchoFuture.of(Echo.getClient().newMessageTargetBuilder()
+                .withEveryone()
+                .thenApply(Builder::build));
     }
 
     public interface Builder {
