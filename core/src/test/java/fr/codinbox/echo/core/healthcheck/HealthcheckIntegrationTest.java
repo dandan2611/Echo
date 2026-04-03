@@ -17,6 +17,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,6 +46,7 @@ class HealthcheckIntegrationTest {
 
     private static RedissonClient redissonClient;
     private static RedisConnection mockConnection;
+    private final List<EchoClientImpl> activeClients = new ArrayList<>();
 
     @BeforeAll
     static void setupRedisson() {
@@ -57,8 +60,22 @@ class HealthcheckIntegrationTest {
 
     @BeforeEach
     void reset() {
+        activeClients.clear();
         EchoTestUtils.resetEchoClient();
         redissonClient.getKeys().flushall();
+    }
+
+    @AfterEach
+    void shutdownClients() {
+        // Stop all scheduler threads to prevent interference with other test classes
+        for (EchoClientImpl client : activeClients) {
+            try {
+                client.shutdown();
+            } catch (Exception ignored) {
+            }
+        }
+        activeClients.clear();
+        EchoTestUtils.resetEchoClient();
     }
 
     @AfterAll
@@ -69,8 +86,10 @@ class HealthcheckIntegrationTest {
     }
 
     private EchoClientImpl createTestClient(EchoResourceType type, String id, boolean cleanupEnabled) {
-        return new EchoClientImpl(mockConnection, type, id,
+        EchoClientImpl client = new EchoClientImpl(mockConnection, type, id,
                 TEST_HEARTBEAT_TTL, TEST_HEARTBEAT_INTERVAL, TEST_SCAN_INTERVAL, cleanupEnabled);
+        activeClients.add(client);
+        return client;
     }
 
     /**
@@ -117,7 +136,7 @@ class HealthcheckIntegrationTest {
         assertThat(servers).containsKey("server-1");
         assertThat(servers).doesNotContainKey("server-2");
 
-        server1.shutdown();
+
     }
 
     /**
@@ -150,7 +169,7 @@ class HealthcheckIntegrationTest {
         assertThat(servers).containsKey("srv-a");
         assertThat(servers).doesNotContainKey("srv-b");
 
-        server1.shutdown();
+
     }
 
     /**
@@ -191,7 +210,7 @@ class HealthcheckIntegrationTest {
         Map<String, Long> servers = check.getServers().join();
         assertThat(servers).doesNotContainKey("dead-srv");
 
-        proxy1.shutdown();
+
     }
 
     /**
@@ -234,7 +253,7 @@ class HealthcheckIntegrationTest {
         Optional<User> userOpt = check.getUserById(userId).join();
         assertThat(userOpt).isEmpty();
 
-        serverClient.shutdown();
+
     }
 
     /**
@@ -296,7 +315,7 @@ class HealthcheckIntegrationTest {
         Optional<User> redirectedOpt = check.getUserById(redirectedId).join();
         assertThat(redirectedOpt).isPresent();
 
-        proxyClient.shutdown();
+
     }
 
     /**
@@ -339,6 +358,6 @@ class HealthcheckIntegrationTest {
         // Server should still be in the map
         assertThat(proxyClient.getServers().join()).containsKey("fp-srv");
 
-        proxyClient.shutdown();
+
     }
 }

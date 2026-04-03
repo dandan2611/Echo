@@ -40,7 +40,8 @@ class FullLifecycleE2ETest extends RedisIntegrationTestBase {
 
         // Register user in server
         Server server = client.getServerById("e2e-server").join().orElseThrow();
-        client.registerUserInServer(user, server).join();
+        server.registerUser(user).join();
+        user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId()).join();
 
         // Verify user is connected
         Map<UUID, Long> connectedUsers = server.getConnectedUsers().join();
