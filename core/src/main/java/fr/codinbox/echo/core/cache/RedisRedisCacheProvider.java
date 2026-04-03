@@ -3,6 +3,7 @@ package fr.codinbox.echo.core.cache;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RBatch;
 import org.redisson.api.RBucket;
 import org.redisson.api.RMap;
 import org.redisson.api.RMapAsync;
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -73,5 +75,12 @@ public class RedisRedisCacheProvider implements fr.codinbox.echo.api.cache.Redis
         return CompletableFuture.supplyAsync(() -> StreamSupport
                 .stream(this.connection.getClient().getKeys().getKeysByPattern(pattern).spliterator(), true)
                 .collect(Collectors.toSet()));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Void> executeBatch(@NotNull Consumer<RBatch> operations) {
+        final RBatch batch = this.connection.getClient().createBatch();
+        operations.accept(batch);
+        return batch.executeAsync().toCompletableFuture().thenApply(r -> null);
     }
 }

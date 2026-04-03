@@ -2,12 +2,14 @@ package fr.codinbox.echo.api.cache;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RBatch;
 import org.redisson.api.RMap;
 import org.redisson.api.RMapAsync;
 
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 public interface RedisCacheProvider {
 
@@ -33,5 +35,7 @@ public interface RedisCacheProvider {
     <K, V> @NotNull RMapAsync<K, V> getAsyncMap(final @NotNull String key);
 
     @NotNull CompletableFuture<@NotNull Set<String>> getKeys(final @NotNull String pattern);
+
+    @NotNull CompletableFuture<Void> executeBatch(final @NotNull Consumer<RBatch> operations);
 
 }
