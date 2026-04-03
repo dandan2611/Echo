@@ -217,6 +217,36 @@ Proxy targetProxy = client.getProxyById("proxy-us").await().orElseThrow();
 user.tryConnectToProxy(targetProxy).await();
 ```
 
+## Healthcheck
+
+Echo includes a built-in healthcheck system that detects crashed or unresponsive nodes and automatically cleans up their resources.
+
+### How it works
+
+1. **Heartbeat**: Every node periodically writes a Redis key (`heartbeat:<type>:<id>`) with a TTL. If the node crashes, the key expires automatically.
+2. **Scanner**: Nodes with cleanup enabled periodically scan all registered servers and proxies. If a heartbeat is missing, the resource is marked as **suspect**.
+3. **Double-check**: A suspected resource must be missing its heartbeat for two consecutive scans before cleanup is triggered. This avoids false positives from temporary network issues.
+4. **Distributed cleanup**: When a dead resource is confirmed, the detecting node acquires a Redis distributed lock before cleaning up, ensuring only one node performs the cleanup even in multi-proxy setups.
+
+### Cleanup actions
+
+When a dead resource is cleaned up:
+- It is removed from `servers:map` or `proxies:map`
+- If it's a server, a `ServerStatusNotification(UNREGISTERED)` is sent to all proxies
+- Its properties and address are deleted
+- Orphaned users (whose `current_server_id` or `current_proxy_id` still points to the dead resource) are destroyed. Users that were already redirected to another server are preserved.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ECHO_HEARTBEAT_TTL` | `30` | Heartbeat TTL in seconds |
+| `ECHO_HEARTBEAT_INTERVAL` | `10` | Heartbeat renewal interval in seconds |
+| `ECHO_SCAN_INTERVAL` | `15` | Dead resource scan interval in seconds |
+| `ECHO_HEALTHCHECK_CLEANUP_ENABLED` | `false` | Enable cleanup on servers (always active on proxies) |
+
+> **Note**: Proxies always perform cleanup. For server-only infrastructures (no proxy), set `ECHO_HEALTHCHECK_CLEANUP_ENABLED=true` on at least one server.
+
 ## Building
 
 ```bash
