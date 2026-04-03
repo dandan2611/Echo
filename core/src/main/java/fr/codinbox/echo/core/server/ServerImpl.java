@@ -26,6 +26,7 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
     public static final @NotNull String USER_MAP_KEY = "server:%s:users";
     public static final @NotNull String SERVER_KEY = "server:%s";
     public static final @NotNull String SERVER_ADDRESS_KEY = "server:%s:address";
+    public static final @NotNull String HEARTBEAT_KEY = "heartbeat:server:%s";
 
     public ServerImpl(final @NotNull String id, final @Nullable Address address) {
         super(id, SERVER_KEY.formatted(id));
@@ -74,7 +75,7 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> stillExists() {
-        return EchoFuture.of(Echo.getClient().getCacheProvider().hasObject(SERVER_ADDRESS_KEY.formatted(this.getId())));
+        return EchoFuture.of(Echo.getClient().getCacheProvider().hasObject(HEARTBEAT_KEY.formatted(this.getId())));
     }
 
     @Override

@@ -23,9 +23,10 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
 
     public static final @NotNull String PROXY_MAP = "proxies:map";
     public static final @NotNull String PROXY_TOPIC = "proxy:%s";
-    public static final @NotNull String USER_MAP_KEY = "server:%s:users";
+    public static final @NotNull String USER_MAP_KEY = "proxy:%s:users";
     public static final @NotNull String PROXY_KEY = "proxy:%s";
     public static final @NotNull String PROXY_ADDRESS_KEY = "proxy:%s:address";
+    public static final @NotNull String HEARTBEAT_KEY = "heartbeat:proxy:%s";
 
     public ProxyImpl(final @NotNull String id, final @Nullable Address address) {
         super(id, PROXY_KEY.formatted(id));
@@ -74,7 +75,7 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> stillExists() {
-        return EchoFuture.completed(true);
+        return EchoFuture.of(Echo.getClient().getCacheProvider().hasObject(HEARTBEAT_KEY.formatted(this.getId())));
     }
 
     @Override
