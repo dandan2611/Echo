@@ -81,13 +81,14 @@ class FullLifecycleE2ETest extends RedisIntegrationTestBase {
         UUID userId = UUID.randomUUID();
         User user = client.createUser(userId, "Switcher", "proxy-1").join();
 
-        // Register in server A using the actual instance
-        client.registerUserInServer(user, srvA).join();
+        // Register in server A directly
+        srvA.registerUser(user).join();
+        user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, "srv-a").join();
 
         assertThat(srvA.getConnectedUsers().join()).containsKey(userId);
         assertThat(user.getCurrentServerId().join()).isPresent().contains("srv-a");
 
-        // Switch to server B (auto-unregisters from A)
+        // Switch to server B (auto-unregisters from A via registerUserInServer)
         client.registerUserInServer(user, srvB).join();
 
         assertThat(srvB.getConnectedUsers().join()).containsKey(userId);

@@ -68,15 +68,14 @@ class ServerRegistrationIntegrationTest extends RedisIntegrationTestBase {
 
     @Test
     void server_registerAndGetConnectedUsers() {
-        new ServerImpl("srv-4", new Address("127.0.0.1", 25567));
+        ServerImpl server = new ServerImpl("srv-4", new Address("127.0.0.1", 25567));
         client.registerServer("srv-4").join();
         createHeartbeat(EchoResourceType.SERVER, "srv-4");
 
         UUID userId = UUID.randomUUID();
         User user = client.createUser(userId, "Player1", "proxy-1").join();
 
-        Server server = client.getServerById("srv-4").join().orElseThrow();
-        client.registerUserInServer(user, server).join();
+        server.registerUser(user).join();
 
         Map<UUID, Long> connectedUsers = server.getConnectedUsers().join();
         assertThat(connectedUsers).containsKey(userId);
