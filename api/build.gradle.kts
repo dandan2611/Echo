@@ -23,6 +23,18 @@ dependencies {
     api("it.unimi.dsi:fastutil:8.5.13")
 
     compileOnly("org.redisson:redisson:3.32.0")
+
+    testCompileOnly("org.projectlombok:lombok:1.18.32")
+    testAnnotationProcessor("org.projectlombok:lombok:1.18.32")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.assertj:assertj-core:3.25.3")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 java {

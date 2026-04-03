@@ -18,6 +18,9 @@ dependencies {
     compileOnlyApi("fr.codinbox.connector:paper:6.0.0")
 
     paperweight.paperDevBundle("1.20.1-R0.1-SNAPSHOT")
+
+    testImplementation(project(":core"))
+    testImplementation("fr.codinbox.connector:commons:6.0.0")
 }
 
 tasks {

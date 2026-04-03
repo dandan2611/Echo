@@ -1,8 +1,45 @@
 name: Build
 on:
   push:
+  pull_request:
 jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'adopt'
+      - name: Run unit tests
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: unitTest
+
+  integration-tests:
+    name: Integration & E2E Tests (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'adopt'
+      - name: Run integration tests
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: integrationTest
+      - name: Run E2E tests
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: e2eTest
+
   build:
+    name: Build
+    needs: [unit-tests, integration-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

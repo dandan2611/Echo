@@ -18,6 +18,10 @@ dependencies {
 
     compileOnly("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
     annotationProcessor("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
+
+    testImplementation("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
+    testImplementation(project(":core"))
+    testImplementation("fr.codinbox.connector:commons:6.0.0")
 }
 
 tasks {
