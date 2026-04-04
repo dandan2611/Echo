@@ -163,7 +163,7 @@ public class ServerSwitchRequest extends EchoMessage {
         CONNECTION_CANCELLED,
         /**
          * The target server disconnected the player during the connection.
-         * A reason may be available via {@link PlayerResponse#getSerializedReason()}.
+         * A reason may be available via {@code PlayerResponse.getSerializedReason()}.
          */
         SERVER_DISCONNECTED
     }

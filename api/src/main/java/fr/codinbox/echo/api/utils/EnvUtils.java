@@ -11,14 +11,14 @@ import org.jetbrains.annotations.Nullable;
  * <p>Echo is configured entirely through environment variables. This class provides
  * typed accessors with sensible defaults for each configuration option.</p>
  *
- * <h3>Required variables</h3>
+ * <h2>Required variables</h2>
  * <ul>
  *     <li>{@code ECHO_RESOURCE_TYPE} - The node type: {@code SERVER} or {@code PROXY}</li>
  *     <li>{@code ECHO_RESOURCE_ID} - Unique identifier for this node (e.g. {@code "lobby-1"})</li>
  *     <li>{@code ECHO_RESOURCE_ADDRESS} - The node's address in {@code host:port} format</li>
  * </ul>
  *
- * <h3>Healthcheck variables (optional)</h3>
+ * <h2>Healthcheck variables (optional)</h2>
  * <ul>
  *     <li>{@code ECHO_HEARTBEAT_TTL} - Heartbeat TTL in seconds (default: 30)</li>
  *     <li>{@code ECHO_HEARTBEAT_INTERVAL} - Heartbeat renewal interval in seconds (default: 10)</li>

@@ -71,7 +71,7 @@ public interface MessagingProvider {
     /**
      * Registers a raw reply handler for a message.
      *
-     * <p>When a reply with the same {@link EchoMessage#getMessageId() messageId} is received,
+     * <p>When a reply with the same {@code messageId} is received,
      * the consumer is invoked. It should return {@code true} to accept the reply (and stop
      * listening) or {@code false} to keep waiting for another reply.</p>
      *
