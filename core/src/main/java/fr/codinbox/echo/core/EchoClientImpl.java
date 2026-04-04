@@ -379,11 +379,10 @@ public class EchoClientImpl implements EchoClient {
         if (server == null)
             return EchoFuture.of(unregisterFuture);
 
-        return EchoFuture.of(CompletableFuture.allOf(
-                unregisterFuture,
+        return EchoFuture.of(unregisterFuture.thenCompose(v -> CompletableFuture.allOf(
                 server.registerUser(user),
                 user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId())
-        ));
+        )));
     }
 
     // --- Healthcheck ---
