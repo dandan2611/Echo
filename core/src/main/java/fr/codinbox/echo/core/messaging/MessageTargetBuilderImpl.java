@@ -1,11 +1,8 @@
 package fr.codinbox.echo.core.messaging;
 
-import fr.codinbox.echo.api.Echo;
-import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -41,8 +38,9 @@ public class MessageTargetBuilderImpl implements MessageTarget.Builder {
     }
 
     @Override
-    public @NotNull EchoFuture<MessageTarget.@NotNull Builder> withAllServers() {
-        return EchoFuture.of(Echo.getClient().getServers().thenApply(servers -> this.withServers(servers.keySet())));
+    public MessageTarget.@NotNull Builder withAllServers() {
+        this.targets.add(MessageTarget.SERVERS_TOPIC);
+        return this;
     }
 
     @Override
@@ -66,8 +64,9 @@ public class MessageTargetBuilderImpl implements MessageTarget.Builder {
     }
 
     @Override
-    public @NotNull EchoFuture<MessageTarget.@NotNull Builder> withAllProxies() {
-        return EchoFuture.of(Echo.getClient().getProxies().thenApply(proxies -> this.withProxies(proxies.keySet())));
+    public MessageTarget.@NotNull Builder withAllProxies() {
+        this.targets.add(MessageTarget.PROXIES_TOPIC);
+        return this;
     }
 
     @Override

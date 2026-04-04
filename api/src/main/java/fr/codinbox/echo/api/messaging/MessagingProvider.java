@@ -3,13 +3,15 @@ package fr.codinbox.echo.api.messaging;
 import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
- * Low-level interface for the Echo pub/sub messaging system.
+ * Technology-agnostic interface for the Echo pub/sub messaging system.
  *
  * <p>Provides methods to publish messages to topics, subscribe to topics with handlers,
- * and manage request/response reply correlation.</p>
+ * and manage request/response reply correlation. Implementations may be backed by
+ * Redis, RabbitMQ, or any other suitable messaging system.</p>
  *
  * <p>For most use cases, prefer the convenience methods on {@link EchoMessage}
  * ({@link EchoMessage#sendTo(MessageTarget)}, {@link EchoMessage#sendToServer(String)}, etc.)
@@ -19,18 +21,41 @@ import java.util.function.Function;
  * MessagingProvider messaging = client.getMessagingProvider();
  *
  * // Subscribe to a topic with typed handling
- * messaging.subscribe("my-alerts", AlertMessage.class, alert -> {
+ * Subscription sub = messaging.subscribe("my-alerts", AlertMessage.class, alert -> {
  *     System.out.println("Alert: " + alert.getText());
  * });
  *
  * // Publish a message to a topic
  * messaging.publish("my-alerts", new AlertMessage("Hello!"));
+ *
+ * // Cancel subscription when done
+ * sub.cancel().join();
  * }</pre>
  *
  * @see EchoMessage
+ * @see Subscription
  * @see fr.codinbox.echo.api.EchoClient#getMessagingProvider()
  */
 public interface MessagingProvider {
+
+    /**
+     * Initializes the messaging provider.
+     *
+     * <p>Called once during startup. Implementations should establish connections
+     * and prepare resources.</p>
+     *
+     * @return a future that completes when initialization is done
+     */
+    @NotNull CompletableFuture<Void> init();
+
+    /**
+     * Shuts down the messaging provider, releasing all resources.
+     *
+     * <p>This method is idempotent — calling it multiple times has no additional effect.</p>
+     *
+     * @return a future that completes when shutdown is done
+     */
+    @NotNull CompletableFuture<Void> shutdown();
 
     /**
      * Publishes a message to a single topic.
@@ -91,15 +116,19 @@ public interface MessagingProvider {
      * {@link #subscribe(String, Class, MessageHandler)} instead.</p>
      *
      * <pre>{@code
-     * messaging.subscribe("my-topic", message -> {
+     * Subscription sub = messaging.subscribe("my-topic", message -> {
      *     System.out.println("Received message: " + message.getMessageId());
      * });
+     *
+     * // Later, cancel the subscription
+     * sub.cancel().join();
      * }</pre>
      *
      * @param topic   the topic to subscribe to
      * @param handler the handler to invoke for each received message
+     * @return a subscription handle that can be used to cancel the subscription
      */
-    void subscribe(final @NotNull String topic, final @NotNull MessageHandler<EchoMessage> handler);
+    @NotNull Subscription subscribe(final @NotNull String topic, final @NotNull MessageHandler<EchoMessage> handler);
 
     /**
      * Subscribes to a topic with a typed message handler.
@@ -123,11 +152,12 @@ public interface MessagingProvider {
      * @param type    the message type class to filter for
      * @param handler the typed handler to invoke for matching messages
      * @param <T>     the message type
+     * @return a subscription handle that can be used to cancel the subscription
      */
-    default <T extends EchoMessage> void subscribe(final @NotNull String topic,
-                                                   final @NotNull Class<T> type,
-                                                   final @NotNull MessageHandler<T> handler) {
-        this.subscribe(topic, message -> {
+    default <T extends EchoMessage> @NotNull Subscription subscribe(final @NotNull String topic,
+                                                                     final @NotNull Class<T> type,
+                                                                     final @NotNull MessageHandler<T> handler) {
+        return this.subscribe(topic, message -> {
             if (type.isInstance(message)) {
                 handler.onReceive(type.cast(message));
             }

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "5.3.0"
+version = "6.1.0"
 
 repositories {
     mavenCentral()
@@ -22,7 +22,6 @@ dependencies {
 
     api("it.unimi.dsi:fastutil:8.5.13")
 
-    compileOnly("org.redisson:redisson:3.32.0")
 
     testCompileOnly("org.projectlombok:lombok:1.18.32")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.32")

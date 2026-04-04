@@ -1,7 +1,6 @@
 package fr.codinbox.echo.api.messaging;
 
 import fr.codinbox.echo.api.Echo;
-import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -43,6 +42,18 @@ public final class MessageTarget {
      * Messages published to this topic are received by every node in the network.
      */
     public static final @NotNull String BROADCAST_TOPIC = "echo:broadcast";
+
+    /**
+     * The global topic that all server nodes subscribe to automatically.
+     * Messages published to this topic are received by every server in the network.
+     */
+    public static final @NotNull String SERVERS_TOPIC = "echo:servers";
+
+    /**
+     * The global topic that all proxy nodes subscribe to automatically.
+     * Messages published to this topic are received by every proxy in the network.
+     */
+    public static final @NotNull String PROXIES_TOPIC = "echo:proxies";
 
     private final @NotNull Set<String> targets;
 
@@ -145,6 +156,38 @@ public final class MessageTarget {
     }
 
     /**
+     * Creates a target that reaches every server on the network.
+     *
+     * <p>This uses the {@link #SERVERS_TOPIC} and does not require any network call.
+     * All server nodes automatically subscribe to this topic.</p>
+     *
+     * <pre>{@code
+     * new AlertMessage("Server broadcast!").sendTo(MessageTarget.allServers());
+     * }</pre>
+     *
+     * @return a message target for all servers
+     */
+    public static @NotNull MessageTarget allServers() {
+        return new MessageTarget(Set.of(SERVERS_TOPIC));
+    }
+
+    /**
+     * Creates a target that reaches every proxy on the network.
+     *
+     * <p>This uses the {@link #PROXIES_TOPIC} and does not require any network call.
+     * All proxy nodes automatically subscribe to this topic.</p>
+     *
+     * <pre>{@code
+     * new AlertMessage("Proxy broadcast!").sendTo(MessageTarget.allProxies());
+     * }</pre>
+     *
+     * @return a message target for all proxies
+     */
+    public static @NotNull MessageTarget allProxies() {
+        return new MessageTarget(Set.of(PROXIES_TOPIC));
+    }
+
+    /**
      * Builder for constructing complex {@link MessageTarget} instances.
      *
      * <p>Obtain a builder via {@link fr.codinbox.echo.api.EchoClient#newMessageTargetBuilder()}:</p>
@@ -156,9 +199,9 @@ public final class MessageTarget {
      *     .withProxy("proxy-eu")
      *     .build();
      *
-     * // Include all servers asynchronously
+     * // Include all servers (no network call needed)
      * MessageTarget allServers = client.newMessageTargetBuilder()
-     *     .withAllServers().await()
+     *     .withAllServers()
      *     .build();
      * }</pre>
      */
@@ -189,19 +232,20 @@ public final class MessageTarget {
         @NotNull Builder withServers(final @NotNull Collection<String> serverIds);
 
         /**
-         * Adds all currently registered servers to the target.
+         * Adds all servers to the target using the global servers topic.
          *
-         * <p>This requires a network call to query the server list.</p>
+         * <p>This does not require any network call — it uses the {@link #SERVERS_TOPIC}
+         * that all server nodes subscribe to automatically.</p>
          *
          * <pre>{@code
          * MessageTarget target = client.newMessageTargetBuilder()
-         *     .withAllServers().await()
+         *     .withAllServers()
          *     .build();
          * }</pre>
          *
-         * @return a future that completes with this builder (for chaining)
+         * @return this builder for chaining
          */
-        @NotNull EchoFuture<@NotNull Builder> withAllServers();
+        @NotNull Builder withAllServers();
 
         /**
          * Adds a single proxy to the target.
@@ -228,30 +272,31 @@ public final class MessageTarget {
         @NotNull Builder withProxies(final @NotNull Collection<String> proxyIds);
 
         /**
-         * Adds all currently registered proxies to the target.
+         * Adds all proxies to the target using the global proxies topic.
          *
-         * <p>This requires a network call to query the proxy list.</p>
+         * <p>This does not require any network call — it uses the {@link #PROXIES_TOPIC}
+         * that all proxy nodes subscribe to automatically.</p>
          *
          * <pre>{@code
          * MessageTarget target = client.newMessageTargetBuilder()
-         *     .withAllProxies().await()
+         *     .withAllProxies()
          *     .build();
          * }</pre>
          *
-         * @return a future that completes with this builder (for chaining)
+         * @return this builder for chaining
          */
-        @NotNull EchoFuture<@NotNull Builder> withAllProxies();
+        @NotNull Builder withAllProxies();
 
         /**
          * Adds all servers and all proxies to the target.
          *
-         * <p>This requires network calls to query both server and proxy lists.
-         * For instant broadcast without network calls, use {@link #withBroadcast()} instead.</p>
+         * <p>This does not require any network call — it uses the global topics
+         * that all nodes subscribe to automatically.</p>
          *
-         * @return a future that completes with this builder (for chaining)
+         * @return this builder for chaining
          */
-        default @NotNull EchoFuture<@NotNull Builder> withEveryone() {
-            return EchoFuture.of(this.withAllServers().thenCompose(Builder::withAllProxies));
+        default @NotNull Builder withEveryone() {
+            return this.withAllServers().withAllProxies();
         }
 
         /**

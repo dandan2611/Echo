@@ -1,12 +1,12 @@
 package fr.codinbox.echo.core.integration;
 
-import fr.codinbox.echo.api.cache.RedisCacheProvider;
+import fr.codinbox.echo.api.cache.CacheMap;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.core.EchoClientImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RMap;
 
 import java.time.Instant;
 import java.util.Set;
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("integration")
 class CacheIntegrationTest extends RedisIntegrationTestBase {
 
-    private RedisCacheProvider cacheProvider;
+    private CacheProvider cacheProvider;
 
     @BeforeEach
     void setUp() {
@@ -81,10 +81,10 @@ class CacheIntegrationTest extends RedisIntegrationTestBase {
 
     @Test
     void getMap_putAndGet() {
-        RMap<String, String> map = cacheProvider.getMap("test:map");
-        map.put("key1", "value1");
+        CacheMap<String, String> map = cacheProvider.getMap("test:map");
+        map.putAsync("key1", "value1").join();
 
-        String result = map.get("key1");
+        String result = map.getAsync("key1").join();
 
         assertThat(result).isEqualTo("value1");
     }

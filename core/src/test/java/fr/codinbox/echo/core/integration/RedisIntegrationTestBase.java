@@ -1,8 +1,10 @@
 package fr.codinbox.echo.core.integration;
 
 import fr.codinbox.connector.commons.redis.RedisConnection;
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.core.EchoClientImpl;
+import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,7 +57,13 @@ public abstract class RedisIntegrationTestBase {
     }
 
     protected EchoClientImpl createClient(EchoResourceType type, String id) {
-        return new EchoClientImpl(mockConnection, type, id);
+        EchoConfig config = EchoConfig.builder()
+                .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
+                .messagingProviderFactory(RedisProviderFactory.messagingFactory(mockConnection))
+                .resourceType(type)
+                .resourceId(id)
+                .build();
+        return new EchoClientImpl(config);
     }
 
     protected void createHeartbeat(EchoResourceType type, String id) {

@@ -1,10 +1,12 @@
 package fr.codinbox.echo.core.healthcheck;
 
 import fr.codinbox.connector.commons.redis.RedisConnection;
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.EchoClientImpl;
+import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.server.ServerImpl;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.junit.jupiter.api.*;
@@ -86,8 +88,17 @@ class HealthcheckIntegrationTest {
     }
 
     private EchoClientImpl createTestClient(EchoResourceType type, String id, boolean cleanupEnabled) {
-        EchoClientImpl client = new EchoClientImpl(mockConnection, type, id,
-                TEST_HEARTBEAT_TTL, TEST_HEARTBEAT_INTERVAL, TEST_SCAN_INTERVAL, cleanupEnabled);
+        EchoConfig config = EchoConfig.builder()
+                .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
+                .messagingProviderFactory(RedisProviderFactory.messagingFactory(mockConnection))
+                .resourceType(type)
+                .resourceId(id)
+                .heartbeatTtlSeconds(TEST_HEARTBEAT_TTL)
+                .heartbeatIntervalSeconds(TEST_HEARTBEAT_INTERVAL)
+                .scanIntervalSeconds(TEST_SCAN_INTERVAL)
+                .cleanupEnabled(cleanupEnabled)
+                .build();
+        EchoClientImpl client = new EchoClientImpl(config);
         activeClients.add(client);
         return client;
     }

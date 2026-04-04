@@ -2,7 +2,7 @@ package fr.codinbox.echo.core.proxy;
 
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
-import fr.codinbox.echo.api.cache.RedisCacheProvider;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -49,7 +49,7 @@ class ProxyImplTest {
     void stillExists_shouldCheckHeartbeatKey() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.hasObject("heartbeat:proxy:testProxy"))

@@ -4,9 +4,12 @@ import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.connector.commons.redis.RedisConnectorService;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
+import fr.codinbox.echo.api.utils.EnvUtils;
 import fr.codinbox.echo.core.EchoClientImpl;
+import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.paper.listener.JoinListener;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -34,7 +37,14 @@ public class EchoPaper extends JavaPlugin {
             if (echoConnection.isEmpty())
                 throw new IllegalStateException("Failed to get Redis connection for Echo, is the " + ECHO_CONNECTOR_CONNECTION_NAME + " connection property configured?");
 
-            final EchoClient client = EchoClientImpl.autoInit(echoConnection.get(), EchoResourceType.SERVER);
+            final RedisConnection connection = echoConnection.get();
+            final EchoConfig config = EchoConfig.builder()
+                    .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
+                    .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
+                    .resourceType(EchoResourceType.SERVER)
+                    .resourceId(Objects.requireNonNull(EnvUtils.getResourceId()))
+                    .build();
+            final EchoClient client = EchoClientImpl.autoInit(config);
 
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();

@@ -1,6 +1,6 @@
 package fr.codinbox.echo.api;
 
-import fr.codinbox.echo.api.cache.RedisCacheProvider;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
@@ -106,21 +106,21 @@ public interface EchoClient {
     @NotNull EchoFuture<Void> unregisterUserUsername(final @NotNull User user);
 
     /**
-     * Gets the low-level Redis cache provider.
+     * Gets the cache provider.
      *
-     * <p><b>Warning:</b> This exposes raw Redis operations. Incorrect usage can corrupt
+     * <p><b>Warning:</b> This exposes low-level cache operations. Incorrect usage can corrupt
      * the network state. Use the higher-level APIs (properties, messaging) when possible.</p>
      *
      * <pre>{@code
-     * RedisCacheProvider cache = client.getCacheProvider();
+     * CacheProvider cache = client.getCacheProvider();
      * cache.setObject("my:custom:key", "value").join();
      * String value = cache.<String>getObject("my:custom:key").join();
      * }</pre>
      *
-     * @return the Redis cache provider
-     * @see RedisCacheProvider
+     * @return the cache provider
+     * @see CacheProvider
      */
-    @NotNull RedisCacheProvider getCacheProvider();
+    @NotNull CacheProvider getCacheProvider();
 
     /**
      * Gets the messaging provider for pub/sub operations.

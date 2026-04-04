@@ -1,10 +1,11 @@
 package fr.codinbox.echo.core;
 
-import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.EchoFuture;
-import fr.codinbox.echo.api.cache.RedisCacheProvider;
+import fr.codinbox.echo.api.cache.CacheMap;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
@@ -15,9 +16,7 @@ import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.api.utils.EnvUtils;
-import fr.codinbox.echo.core.cache.RedisRedisCacheProvider;
 import fr.codinbox.echo.core.messaging.MessageTargetBuilderImpl;
-import fr.codinbox.echo.core.messaging.provider.RedisMessagingProvider;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
@@ -25,9 +24,6 @@ import fr.codinbox.echo.core.user.UserImpl;
 import fr.codinbox.echo.core.utils.MapUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.redisson.api.RLock;
-import org.redisson.api.RMapAsync;
-import org.redisson.api.RedissonClient;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -46,8 +42,7 @@ public class EchoClientImpl implements EchoClient {
 
     private final @NotNull Logger logger;
 
-    private final @NotNull RedissonClient redissonClient;
-    private final @NotNull RedisCacheProvider redisCacheProvider;
+    private final @NotNull CacheProvider cacheProvider;
     private final @NotNull MessagingProvider messagingProvider;
     private final @NotNull EchoResourceType resourceType;
     private final @NotNull String resourceId;
@@ -59,36 +54,23 @@ public class EchoClientImpl implements EchoClient {
     private final boolean cleanupEnabled;
     private final @NotNull ScheduledExecutorService scheduler;
 
-    public EchoClientImpl(final @NotNull RedisConnection connection,
-                          final @NotNull EchoResourceType resourceType,
-                          final @NotNull String resourceId) {
-        this(connection, resourceType, resourceId,
-                EnvUtils.getHeartbeatTtl(), EnvUtils.getHeartbeatInterval(),
-                EnvUtils.getScanInterval(),
-                resourceType == EchoResourceType.PROXY || EnvUtils.isHealthcheckCleanupEnabled());
-    }
-
-    public EchoClientImpl(final @NotNull RedisConnection connection,
-                          final @NotNull EchoResourceType resourceType,
-                          final @NotNull String resourceId,
-                          final long heartbeatTtlSeconds,
-                          final long heartbeatIntervalSeconds,
-                          final long scanIntervalSeconds,
-                          final boolean cleanupEnabled) {
+    public EchoClientImpl(final @NotNull EchoConfig config) {
         this.logger = Logger.getLogger(LOGGER_NAME);
 
         Echo.initClient(this);
 
-        this.redissonClient = connection.getClient();
-        this.redisCacheProvider = new RedisRedisCacheProvider(connection);
-        this.messagingProvider = new RedisMessagingProvider(connection);
-        this.resourceType = resourceType;
-        this.resourceId = resourceId;
+        this.cacheProvider = config.getCacheProviderFactory().create();
+        this.messagingProvider = config.getMessagingProviderFactory().create();
+        this.resourceType = config.getResourceType();
+        this.resourceId = config.getResourceId();
 
-        this.heartbeatTtlSeconds = heartbeatTtlSeconds;
-        this.heartbeatIntervalSeconds = heartbeatIntervalSeconds;
-        this.scanIntervalSeconds = scanIntervalSeconds;
-        this.cleanupEnabled = cleanupEnabled;
+        this.heartbeatTtlSeconds = config.getHeartbeatTtlSeconds();
+        this.heartbeatIntervalSeconds = config.getHeartbeatIntervalSeconds();
+        this.scanIntervalSeconds = config.getScanIntervalSeconds();
+        this.cleanupEnabled = config.isCleanupEnabled();
+
+        this.cacheProvider.init().join();
+        this.messagingProvider.init().join();
 
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             final Thread t = new Thread(r, "echo-healthcheck");
@@ -103,16 +85,23 @@ public class EchoClientImpl implements EchoClient {
 
         this.messagingProvider.subscribe(topic, this::onMessageReceive);
         this.messagingProvider.subscribe(MessageTarget.BROADCAST_TOPIC, this::onMessageReceive);
+
+        // Subscribe to the type-specific global topic
+        final String globalTopic = switch (resourceType) {
+            case PROXY -> MessageTarget.PROXIES_TOPIC;
+            case SERVER -> MessageTarget.SERVERS_TOPIC;
+        };
+        this.messagingProvider.subscribe(globalTopic, this::onMessageReceive);
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Map<UUID, Long>> getAllUsers() {
-        return EchoFuture.of(this.getUserMap().readAllMapAsync().toCompletableFuture()
+        return EchoFuture.of(this.getUserMap().readAllAsync()
                 .thenApplyAsync(MapUtils::mapStringToUuidKey));
     }
 
-    private @NotNull RMapAsync<String, Long> getUserMap() {
-        return this.redisCacheProvider.getAsyncMap(UserImpl.USER_MAP);
+    private @NotNull CacheMap<String, Long> getUserMap() {
+        return this.cacheProvider.getMap(UserImpl.USER_MAP);
     }
 
     @Override
@@ -126,9 +115,9 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull EchoFuture<@NotNull Optional<User>> getUserByUsername(final @NotNull String username) {
-        final RMapAsync<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
+        final CacheMap<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
 
-        return EchoFuture.of(usernameToIdMap.getAsync(username.toLowerCase(Locale.ROOT)).toCompletableFuture().thenApply(idStr -> {
+        return EchoFuture.of(usernameToIdMap.getAsync(username.toLowerCase(Locale.ROOT)).thenApply(idStr -> {
             if (idStr == null)
                 return null;
             return UUID.fromString(idStr);
@@ -137,7 +126,7 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull EchoFuture<Void> registerUserUsername(@NotNull UUID id, @NotNull String username) {
-        return EchoFuture.of(this.getPlayerUsernameToIdMap().putAsync(username.toLowerCase(Locale.ROOT), id.toString()).toCompletableFuture().thenApply(aVoid -> null));
+        return EchoFuture.of(this.getPlayerUsernameToIdMap().putAsync(username.toLowerCase(Locale.ROOT), id.toString()).thenApply(aVoid -> null));
     }
 
     @Override
@@ -150,19 +139,18 @@ public class EchoClientImpl implements EchoClient {
                     final String username = usernameOpt.get();
 
                     return this.getPlayerUsernameToIdMap()
-                            .removeAsync(username.toLowerCase(Locale.ROOT))
-                            .toCompletableFuture();
+                            .removeAsync(username.toLowerCase(Locale.ROOT));
                 })
         ));
     }
 
-    private @NotNull RMapAsync<String, String> getPlayerUsernameToIdMap() {
-        return this.redisCacheProvider.getAsyncMap(UserImpl.USERNAME_TO_ID_MAP);
+    private @NotNull CacheMap<String, String> getPlayerUsernameToIdMap() {
+        return this.cacheProvider.getMap(UserImpl.USERNAME_TO_ID_MAP);
     }
 
     @Override
-    public @NotNull RedisCacheProvider getCacheProvider() {
-        return this.redisCacheProvider;
+    public @NotNull CacheProvider getCacheProvider() {
+        return this.cacheProvider;
     }
 
     @Override
@@ -177,11 +165,11 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull EchoFuture<@NotNull Map<String, Long>> getServers() {
-        return EchoFuture.of(this.getServerMap().readAllMapAsync().toCompletableFuture());
+        return EchoFuture.of(this.getServerMap().readAllAsync());
     }
 
-    private @NotNull RMapAsync<String, Long> getServerMap() {
-        return this.redisCacheProvider.getAsyncMap(ServerImpl.SERVER_MAP);
+    private @NotNull CacheMap<String, Long> getServerMap() {
+        return this.cacheProvider.getMap(ServerImpl.SERVER_MAP);
     }
 
     @Override
@@ -193,11 +181,11 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull EchoFuture<@NotNull Map<String, Long>> getProxies() {
-        return EchoFuture.of(this.getProxyMap().readAllMapAsync().toCompletableFuture());
+        return EchoFuture.of(this.getProxyMap().readAllAsync());
     }
 
-    private @NotNull RMapAsync<String, Long> getProxyMap() {
-        return this.redisCacheProvider.getAsyncMap(ProxyImpl.PROXY_MAP);
+    private @NotNull CacheMap<String, Long> getProxyMap() {
+        return this.cacheProvider.getMap(ProxyImpl.PROXY_MAP);
     }
 
     @Override
@@ -242,9 +230,9 @@ public class EchoClientImpl implements EchoClient {
         }
 
         // Emit first heartbeat
-        this.redisCacheProvider.setObject(heartbeatKey, Instant.now().toEpochMilli())
-                .thenCompose(v -> this.redisCacheProvider.expireObject(heartbeatKey,
-                        Instant.now().plusSeconds(this.heartbeatTtlSeconds)))
+        this.cacheProvider.setObject(heartbeatKey, Instant.now().toEpochMilli())
+                .thenCompose(v -> this.cacheProvider.expireObject(heartbeatKey,
+                        Duration.ofSeconds(this.heartbeatTtlSeconds)))
                 .join();
     }
 
@@ -265,29 +253,20 @@ public class EchoClientImpl implements EchoClient {
         sendLocalServerStatusDirect(status);
     }
 
-    public static @NotNull EchoClientImpl autoInit(@NotNull RedisConnection connection,
-                                                   @Nullable EchoResourceType resourceType) throws Exception {
-        String resourceId;
+    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config) throws Exception {
         Address resourceAddress;
 
         try {
-            if (resourceType == null)
-                resourceType = Objects.requireNonNull(EnvUtils.getResourceType());
-            resourceId = Objects.requireNonNull(EnvUtils.getResourceId());
             resourceAddress = Objects.requireNonNull(EnvUtils.getAddress());
         } catch (final @NotNull Exception exception) {
-            throw new IllegalStateException("Failed to load resource type id and/or address from environment variables", exception);
+            throw new IllegalStateException("Failed to load resource address from environment variables", exception);
         }
 
-        final EchoClientImpl impl = new EchoClientImpl(
-                connection,
-                resourceType,
-                resourceId
-        );
+        final EchoClientImpl impl = new EchoClientImpl(config);
         impl.createLocalResource(resourceAddress);
-        switch (resourceType) {
-            case PROXY -> impl.registerProxy(resourceId).join();
-            case SERVER -> impl.registerServer(resourceId).join();
+        switch (config.getResourceType()) {
+            case PROXY -> impl.registerProxy(config.getResourceId()).join();
+            case SERVER -> impl.registerServer(config.getResourceId()).join();
         }
         impl.advertiseLocalResource();
         impl.startHealthcheck();
@@ -297,23 +276,23 @@ public class EchoClientImpl implements EchoClient {
 
     public @NotNull CompletableFuture<@NotNull Long> registerProxy(final @NotNull String id) {
         final Instant creationTime = Instant.now();
-        return this.getProxyMap().fastPutAsync(id, creationTime.toEpochMilli()).toCompletableFuture()
+        return this.getProxyMap().fastPutAsync(id, creationTime.toEpochMilli())
                 .thenApplyAsync(aVoid -> creationTime.toEpochMilli());
     }
 
     public @NotNull CompletableFuture<Void> unregisterProxy(final @NotNull String id) {
-        return this.getProxyMap().fastRemoveAsync(id).toCompletableFuture()
+        return this.getProxyMap().fastRemoveAsync(id)
                 .thenRunAsync(() -> {});
     }
 
     public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
         final Instant creationTime = Instant.now();
-        return this.getServerMap().putAsync(id, creationTime.toEpochMilli()).toCompletableFuture()
+        return this.getServerMap().putAsync(id, creationTime.toEpochMilli())
                 .thenApply(aVoid -> creationTime);
     }
 
     public @NotNull CompletableFuture<Void> unregisterServer(final @NotNull String id) {
-        return this.getServerMap().removeAsync(id).toCompletableFuture().thenApply(aVoid -> null);
+        return this.getServerMap().removeAsync(id).thenApply(aVoid -> null);
     }
 
     @Override
@@ -322,7 +301,7 @@ public class EchoClientImpl implements EchoClient {
 
         // Delete heartbeat key before stillExists() check (otherwise we'd fail our own check)
         final String heartbeatKey = getHeartbeatKey(this.resourceType, this.resourceId);
-        this.redisCacheProvider.deleteObject(heartbeatKey).join();
+        this.cacheProvider.deleteObject(heartbeatKey).join();
 
         switch (this.resourceType) {
             case PROXY -> {
@@ -339,6 +318,9 @@ public class EchoClientImpl implements EchoClient {
                 server.cleanup().await();
             }
         }
+
+        this.messagingProvider.shutdown().join();
+        this.cacheProvider.shutdown().join();
     }
 
     @Override
@@ -356,7 +338,7 @@ public class EchoClientImpl implements EchoClient {
                 user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
                 user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
                 this.registerUserUsername(uuid, username),
-                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli()).toCompletableFuture()
+                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli())
         ).thenApply(aVoid -> user));
     }
 
@@ -365,7 +347,7 @@ public class EchoClientImpl implements EchoClient {
         return EchoFuture.of(CompletableFuture.allOf(
                 this.unregisterUserUsername(user),
                 this.registerUserInServer(user, null),
-                this.getUserMap().fastRemoveAsync(user.getId().toString()).toCompletableFuture(),
+                this.getUserMap().fastRemoveAsync(user.getId().toString()),
                 user.cleanup()
         ));
     }
@@ -418,9 +400,9 @@ public class EchoClientImpl implements EchoClient {
     private void emitHeartbeat() {
         try {
             final String key = getHeartbeatKey(this.resourceType, this.resourceId);
-            this.redisCacheProvider.setObject(key, Instant.now().toEpochMilli())
-                    .thenCompose(v -> this.redisCacheProvider.expireObject(key,
-                            Instant.now().plusSeconds(this.heartbeatTtlSeconds)))
+            this.cacheProvider.setObject(key, Instant.now().toEpochMilli())
+                    .thenCompose(v -> this.cacheProvider.expireObject(key,
+                            Duration.ofSeconds(this.heartbeatTtlSeconds)))
                     .join();
         } catch (final Exception e) {
             this.logger.log(Level.SEVERE, "Failed to emit heartbeat", e);
@@ -430,8 +412,7 @@ public class EchoClientImpl implements EchoClient {
     public void scanForDeadResources() {
         try {
             // Scan servers
-            final Map<String, Long> servers = this.getServerMap().readAllMapAsync()
-                    .toCompletableFuture().join();
+            final Map<String, Long> servers = this.getServerMap().readAllAsync().join();
             for (final String serverId : servers.keySet()) {
                 if (serverId.equals(this.resourceId) && this.resourceType == EchoResourceType.SERVER)
                     continue;
@@ -439,8 +420,7 @@ public class EchoClientImpl implements EchoClient {
             }
 
             // Scan proxies
-            final Map<String, Long> proxies = this.getProxyMap().readAllMapAsync()
-                    .toCompletableFuture().join();
+            final Map<String, Long> proxies = this.getProxyMap().readAllAsync().join();
             for (final String proxyId : proxies.keySet()) {
                 if (proxyId.equals(this.resourceId) && this.resourceType == EchoResourceType.PROXY)
                     continue;
@@ -455,17 +435,17 @@ public class EchoClientImpl implements EchoClient {
         final String heartbeatKey = getHeartbeatKey(type, id);
         final String suspectKey = getSuspectKey(type, id);
 
-        final boolean heartbeatExists = this.redisCacheProvider.hasObject(heartbeatKey).join();
+        final boolean heartbeatExists = this.cacheProvider.hasObject(heartbeatKey).join();
         if (heartbeatExists)
             return;
 
         // No heartbeat — check if already suspected
-        final boolean isSuspect = this.redisCacheProvider.hasObject(suspectKey).join();
+        final boolean isSuspect = this.cacheProvider.hasObject(suspectKey).join();
         if (!isSuspect) {
             // First detection: mark as suspect
-            this.redisCacheProvider.setObject(suspectKey, Instant.now().toEpochMilli())
-                    .thenCompose(v -> this.redisCacheProvider.expireObject(suspectKey,
-                            Instant.now().plusSeconds(this.scanIntervalSeconds * 2)))
+            this.cacheProvider.setObject(suspectKey, Instant.now().toEpochMilli())
+                    .thenCompose(v -> this.cacheProvider.expireObject(suspectKey,
+                            Duration.ofSeconds(this.scanIntervalSeconds * 2)))
                     .join();
             this.logger.warning("Resource %s:%s has no heartbeat, marked as suspect".formatted(type.name(), id));
             return;
@@ -478,27 +458,13 @@ public class EchoClientImpl implements EchoClient {
 
     private void cleanupDeadResource(final @NotNull EchoResourceType type, final @NotNull String id) {
         final String lockKey = getCleanupLockKey(type, id);
-        final RLock lock = this.redissonClient.getLock(lockKey);
 
-        boolean acquired;
-        try {
-            acquired = lock.tryLock(0, 30, TimeUnit.SECONDS);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        if (!acquired) {
-            this.logger.log(Level.FINE, "Cleanup lock for %s:%s already held by another node".formatted(type.name(), id));
-            return;
-        }
-
-        try {
+        this.cacheProvider.withLock(lockKey, 0, 30, TimeUnit.SECONDS, () -> {
             // Re-check heartbeat under lock (may have come back)
             final String heartbeatKey = getHeartbeatKey(type, id);
-            if (this.redisCacheProvider.hasObject(heartbeatKey).join()) {
+            if (this.cacheProvider.hasObject(heartbeatKey).join()) {
                 this.logger.info("Resource %s:%s heartbeat restored, skipping cleanup".formatted(type.name(), id));
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             switch (type) {
@@ -507,19 +473,18 @@ public class EchoClientImpl implements EchoClient {
             }
 
             // Remove suspect key
-            this.redisCacheProvider.deleteObject(getSuspectKey(type, id)).join();
+            this.cacheProvider.deleteObject(getSuspectKey(type, id)).join();
 
             this.logger.info("Cleanup completed for %s:%s".formatted(type.name(), id));
-        } catch (final Exception e) {
-            this.logger.log(Level.SEVERE, "Failed to cleanup dead resource %s:%s".formatted(type.name(), id), e);
-        } finally {
-            try {
-                if (lock.isHeldByCurrentThread())
-                    lock.unlock();
-            } catch (final Exception e) {
-                this.logger.log(Level.FINE, "Failed to unlock cleanup lock for %s:%s".formatted(type.name(), id), e);
+            return CompletableFuture.completedFuture(null);
+        }).handle((acquired, ex) -> {
+            if (ex != null) {
+                this.logger.log(Level.SEVERE, "Failed to cleanup dead resource %s:%s".formatted(type.name(), id), ex);
+            } else if (Boolean.FALSE.equals(acquired)) {
+                this.logger.log(Level.FINE, "Cleanup lock for %s:%s already held by another node".formatted(type.name(), id));
             }
-        }
+            return null;
+        }).join();
     }
 
     private void cleanupDeadServer(final @NotNull String serverId) {
@@ -592,7 +557,7 @@ public class EchoClientImpl implements EchoClient {
         try {
             final ServerImpl server = new ServerImpl(serverId, null);
             final MessageTarget target = this.newMessageTargetBuilder()
-                    .withAllProxies().await()
+                    .withAllProxies()
                     .build();
             final ServerStatusNotification notification = new ServerStatusNotification(server, status);
             server.publishMessage(target, notification).await();

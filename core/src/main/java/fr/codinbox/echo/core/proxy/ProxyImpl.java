@@ -2,6 +2,7 @@ package fr.codinbox.echo.core.proxy;
 
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoFuture;
+import fr.codinbox.echo.api.cache.CacheMap;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.proxy.Proxy;
@@ -11,7 +12,6 @@ import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import fr.codinbox.echo.core.utils.MapUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.redisson.api.RMap;
 
 import java.time.Instant;
 import java.util.Map;
@@ -49,17 +49,17 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
 
     @Override
     public @NotNull EchoFuture<@NotNull Map<UUID, Long>> getConnectedUsers() {
-        return EchoFuture.of(this.getConnectedUsersMap().readAllMapAsync().toCompletableFuture()
+        return EchoFuture.of(this.getConnectedUsersMap().readAllAsync()
                 .thenApplyAsync(MapUtils::mapStringToUuidKey));
     }
 
-    private @NotNull RMap<String, Long> getConnectedUsersMap() {
+    private @NotNull CacheMap<String, Long> getConnectedUsersMap() {
         return Echo.getClient().getCacheProvider().getMap(USER_MAP_KEY.formatted(this.getId()));
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> hasUser(final @NotNull UUID id) {
-        return EchoFuture.of(this.getConnectedUsersMap().containsKeyAsync(id.toString()).toCompletableFuture());
+        return EchoFuture.of(this.getConnectedUsersMap().containsKeyAsync(id.toString()));
     }
 
     @Override
@@ -80,20 +80,18 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> registerUser(final @NotNull User user) {
-        return EchoFuture.of(this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now().toEpochMilli())
-                .toCompletableFuture());
+        return EchoFuture.of(this.getConnectedUsersMap().fastPutAsync(user.getId().toString(), Instant.now().toEpochMilli()));
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> unregisterUser(final @NotNull User user) {
         return EchoFuture.of(this.getConnectedUsersMap().fastRemoveAsync(user.getId().toString())
-                .toCompletableFuture()
                 .thenApply(l -> l >= 1));
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> clearUsers() {
-        return EchoFuture.of(this.getConnectedUsersMap().clearAsync().toCompletableFuture());
+        return EchoFuture.of(this.getConnectedUsersMap().clearAsync().thenApply(v -> true));
     }
 
 }

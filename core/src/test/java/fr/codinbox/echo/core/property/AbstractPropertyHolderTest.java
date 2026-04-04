@@ -3,7 +3,7 @@ package fr.codinbox.echo.core.property;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
-import fr.codinbox.echo.api.cache.RedisCacheProvider;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +38,7 @@ class AbstractPropertyHolderTest {
     void setProperty_shouldDelegateToCacheSetObject() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.setObject(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -54,7 +54,7 @@ class AbstractPropertyHolderTest {
     void setProperty_withNullValue_shouldCallDeleteProperty() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.deleteObject(anyString())).thenReturn(CompletableFuture.completedFuture(true));
@@ -70,7 +70,7 @@ class AbstractPropertyHolderTest {
     void getProperty_shouldDelegateToCacheGetObject() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.<String>getObject("test:myId:property:key"))
@@ -87,7 +87,7 @@ class AbstractPropertyHolderTest {
     void deleteProperty_shouldDelegateToCacheDeleteObject() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.deleteObject("test:myId:property:key"))
@@ -105,7 +105,7 @@ class AbstractPropertyHolderTest {
     void hasProperty_shouldDelegateToCacheHasObject() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
-            RedisCacheProvider mockCache = mock(RedisCacheProvider.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.hasObject("test:myId:property:key"))

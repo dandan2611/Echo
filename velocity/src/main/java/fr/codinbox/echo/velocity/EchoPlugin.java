@@ -14,12 +14,15 @@ import fr.codinbox.connector.commons.redis.RedisConnectorService;
 import fr.codinbox.connector.velocity.Connector;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
+import fr.codinbox.echo.api.utils.EnvUtils;
 import fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.core.EchoClientImpl;
+import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
 import fr.codinbox.echo.velocity.messaging.ServerStatusNotificationHandler;
@@ -59,7 +62,14 @@ public class EchoPlugin {
             if (echoConnection.isEmpty())
                 throw new IllegalStateException("Failed to get Redis connection for Echo, is the " + ECHO_CONNECTOR_CONNECTION_NAME + " connection property configured?");
 
-            final EchoClient client = EchoClientImpl.autoInit(echoConnection.get(), EchoResourceType.PROXY);
+            final RedisConnection connection = echoConnection.get();
+            final EchoConfig config = EchoConfig.builder()
+                    .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
+                    .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
+                    .resourceType(EchoResourceType.PROXY)
+                    .resourceId(java.util.Objects.requireNonNull(EnvUtils.getResourceId()))
+                    .build();
+            final EchoClient client = EchoClientImpl.autoInit(config);
 
             // Dynamic server registration
             final MessagingProvider messagingProvider = client.getMessagingProvider();
