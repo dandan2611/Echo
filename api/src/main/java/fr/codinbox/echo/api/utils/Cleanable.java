@@ -4,14 +4,22 @@ import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A cleanable resource is a resource that can be tear down without letting any resources behind.
+ * A resource that supports graceful cleanup, releasing all associated data without leaving
+ * orphaned state behind.
+ *
+ * <p>Implemented by {@link fr.codinbox.echo.api.user.User User},
+ * {@link fr.codinbox.echo.api.server.Server Server}, and
+ * {@link fr.codinbox.echo.api.proxy.Proxy Proxy}. Cleanup removes the resource's properties,
+ * address, user registrations, and other associated data from Redis.</p>
  */
 public interface Cleanable {
 
     /**
-     * Cleans up the resource.
+     * Cleans up all data associated with this resource.
      *
-     * @return a future that completes when the resource is cleaned up
+     * <p>After cleanup, the resource is no longer usable and should be discarded.</p>
+     *
+     * @return a future that completes when the cleanup is finished
      */
     @NotNull EchoFuture<Void> cleanup();
 

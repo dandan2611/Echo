@@ -15,156 +15,285 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Echo Client.
+ * The main client interface for interacting with the Echo network.
+ *
+ * <p>Provides methods to query and manage users, servers, and proxies across the entire network,
+ * as well as access to the messaging and caching subsystems.</p>
+ *
+ * <p>Obtain an instance via {@link Echo#getClient()}:</p>
+ * <pre>{@code
+ * EchoClient client = Echo.getClient();
+ *
+ * // Query a user
+ * Optional<User> user = client.getUserById(uuid).await();
+ *
+ * // List all servers
+ * Map<String, Long> servers = client.getServers().await();
+ * }</pre>
+ *
+ * <p>All methods returning {@link EchoFuture} can be used asynchronously (via {@code thenAccept},
+ * {@code thenCompose}, etc.) or blocking (via {@link EchoFuture#await()}).</p>
+ *
+ * @see Echo#getClient()
+ * @see EchoFuture
  */
 public interface EchoClient {
 
     /**
-     * Gets all connected users of the entire network.
+     * Gets all connected users across the entire network.
      *
-     * @return a future that completes with a map of all users and their join time
+     * <p>Returns a map where keys are player UUIDs and values are their join timestamps
+     * (milliseconds since epoch).</p>
+     *
+     * <pre>{@code
+     * Map<UUID, Long> users = client.getAllUsers().await();
+     * System.out.println("Online players: " + users.size());
+     * }</pre>
+     *
+     * @return a future that completes with a map of user UUIDs to join timestamps
      */
     @NotNull EchoFuture<@NotNull Map<UUID, Long>> getAllUsers();
 
     /**
-     * Gets a user by its identifier.
+     * Gets a user by their UUID.
      *
-     * @param id the user identifier
-     * @return a future that completes with an optional user
+     * <pre>{@code
+     * Optional<User> user = client.getUserById(playerUuid).await();
+     * user.ifPresent(u -> {
+     *     String name = u.getUsername().await().orElse("unknown");
+     *     System.out.println("Found player: " + name);
+     * });
+     * }</pre>
+     *
+     * @param id the user's UUID (typically their Minecraft UUID)
+     * @return a future that completes with the user, or empty if not found
      */
     @NotNull EchoFuture<@NotNull Optional<User>> getUserById(final @NotNull UUID id);
 
     /**
-     * Gets a user by its username.
+     * Gets a user by their username.
      *
-     * @param username the username
-     * @return a future that completes with an optional user
+     * <pre>{@code
+     * Optional<User> user = client.getUserByUsername("Steve").await();
+     * }</pre>
+     *
+     * @param username the player's username (case-sensitive)
+     * @return a future that completes with the user, or empty if not found
      */
     @NotNull EchoFuture<@NotNull Optional<User>> getUserByUsername(final @NotNull String username);
 
     /**
-     * Registers a user's username. The previous username of the user is unregistered (if set).
+     * Registers or updates a user's username mapping.
      *
-     * @param id the user identifier
-     * @param username the username
+     * <p>If the user already had a username registered, the old mapping is removed first.
+     * This is typically called automatically by the platform plugin when a player joins.</p>
+     *
+     * @param id       the user's UUID
+     * @param username the username to register
      * @return a future that completes when the username is registered
      */
     @NotNull EchoFuture<Void> registerUserUsername(final @NotNull UUID id, final @NotNull String username);
 
     /**
-     * Unregisters a user's username.
+     * Unregisters a user's username mapping.
      *
-     * @param user the user
+     * <p>After this call, {@link #getUserByUsername(String)} will no longer find this user
+     * by their previous username.</p>
+     *
+     * @param user the user whose username mapping should be removed
      * @return a future that completes when the username is unregistered
      */
     @NotNull EchoFuture<Void> unregisterUserUsername(final @NotNull User user);
 
     /**
-     * Gets the cache provider.
-     * Going over there leads to a lot of low-level Redis operations and could be dangerous for the state of the network. Proceed with caution.
+     * Gets the low-level Redis cache provider.
      *
-     * @return the cache provider
+     * <p><b>Warning:</b> This exposes raw Redis operations. Incorrect usage can corrupt
+     * the network state. Use the higher-level APIs (properties, messaging) when possible.</p>
+     *
+     * <pre>{@code
+     * RedisCacheProvider cache = client.getCacheProvider();
+     * cache.setObject("my:custom:key", "value").join();
+     * String value = cache.<String>getObject("my:custom:key").join();
+     * }</pre>
+     *
+     * @return the Redis cache provider
+     * @see RedisCacheProvider
      */
     @NotNull RedisCacheProvider getCacheProvider();
 
     /**
-     * Gets the messaging provider.
+     * Gets the messaging provider for pub/sub operations.
+     *
+     * <p>Use this to subscribe to topics and publish messages across the network.</p>
+     *
+     * <pre>{@code
+     * MessagingProvider messaging = client.getMessagingProvider();
+     *
+     * // Subscribe to a custom topic
+     * messaging.subscribe("my-alerts", AlertMessage.class, alert -> {
+     *     System.out.println("Alert: " + alert.getText());
+     * });
+     * }</pre>
      *
      * @return the messaging provider
+     * @see MessagingProvider
      */
     @NotNull MessagingProvider getMessagingProvider();
 
     /**
-     * Creates a new message target builder. Useful for sending {@link fr.codinbox.echo.api.messaging.EchoMessage} to targets.
+     * Creates a new {@link MessageTarget.Builder} for constructing message targets.
+     *
+     * <p>The builder allows you to compose complex targets (multiple servers, proxies, or both)
+     * before sending a message.</p>
+     *
+     * <pre>{@code
+     * MessageTarget target = client.newMessageTargetBuilder()
+     *     .withServer("lobby-1")
+     *     .withServer("lobby-2")
+     *     .withProxy("proxy-eu")
+     *     .build();
+     *
+     * new AlertMessage("Hello!").sendTo(target);
+     * }</pre>
      *
      * @return a new message target builder
+     * @see MessageTarget
      */
     @NotNull MessageTarget.Builder newMessageTargetBuilder();
 
     /**
-     * Gets all servers of the network.
+     * Gets all registered servers on the network.
      *
-     * @return a future that completes with a map of all servers and their creation time
+     * <p>Returns a map where keys are server identifiers and values are their registration
+     * timestamps (milliseconds since epoch).</p>
+     *
+     * <pre>{@code
+     * Map<String, Long> servers = client.getServers().await();
+     * servers.forEach((id, createdAt) ->
+     *     System.out.println("Server: " + id)
+     * );
+     * }</pre>
+     *
+     * @return a future that completes with a map of server IDs to creation timestamps
      */
     @NotNull EchoFuture<@NotNull Map<String, Long>> getServers();
 
     /**
      * Gets a server by its identifier.
      *
-     * @param id the server identifier
-     * @return a future that completes with an optional server
+     * <pre>{@code
+     * Optional<Server> server = client.getServerById("lobby-1").await();
+     * server.ifPresent(s -> {
+     *     Address addr = s.getAddress();
+     *     System.out.println("Server at " + addr.getHost() + ":" + addr.getPort());
+     * });
+     * }</pre>
+     *
+     * @param id the server identifier (e.g. {@code "lobby-1"}, {@code "survival-2"})
+     * @return a future that completes with the server, or empty if not found
      */
     @NotNull EchoFuture<@NotNull Optional<Server>> getServerById(final @NotNull String id);
 
     /**
-     * Gets all proxies of the network.
+     * Gets all registered proxies on the network.
      *
-     * @return a future that completes with a map of all proxies and their creation time
+     * <p>Returns a map where keys are proxy identifiers and values are their registration
+     * timestamps (milliseconds since epoch).</p>
+     *
+     * <pre>{@code
+     * Map<String, Long> proxies = client.getProxies().await();
+     * System.out.println("Active proxies: " + proxies.size());
+     * }</pre>
+     *
+     * @return a future that completes with a map of proxy IDs to creation timestamps
      */
     @NotNull EchoFuture<@NotNull Map<String, Long>> getProxies();
 
     /**
      * Gets a proxy by its identifier.
      *
-     * @param id the proxy identifier
-     * @return a future that completes with an optional proxy
+     * <pre>{@code
+     * Optional<Proxy> proxy = client.getProxyById("proxy-eu").await();
+     * }</pre>
+     *
+     * @param id the proxy identifier (e.g. {@code "proxy-eu"}, {@code "proxy-us"})
+     * @return a future that completes with the proxy, or empty if not found
      */
     @NotNull EchoFuture<@NotNull Optional<Proxy>> getProxyById(final @NotNull String id);
 
     /**
-     * Gets the current (local) resource type.
+     * Gets the resource type of the current (local) node.
      *
-     * @return the current (local) resource type
+     * <p>Returns whether this node is running as a {@link EchoResourceType#SERVER}
+     * or a {@link EchoResourceType#PROXY}.</p>
+     *
+     * @return the current node's resource type
      */
     @NotNull EchoResourceType getCurrentResourceType();
 
     /**
-     * Gets the current (local) resource identifier.
+     * Gets the unique identifier of the current (local) node.
      *
-     * @return the current (local) resource identifier
+     * <p>This corresponds to the {@code ECHO_RESOURCE_ID} environment variable.</p>
+     *
+     * @return the current node's identifier, or empty if not configured
      */
     @NotNull Optional<String> getCurrentResourceId();
 
     /**
-     * Shuts down the client.
+     * Shuts down the Echo client, releasing all resources and connections.
+     *
+     * <p>This is called automatically by the platform plugin on server shutdown.
+     * After calling this method, the client is no longer usable.</p>
      */
     void shutdown();
 
     /**
-     * Gets the local topic.
+     * Gets the messaging topic for the current (local) node.
      *
-     * @return the local topic
+     * <p>This is the topic that other nodes use to send messages directly to this node.
+     * It is derived from the node's resource type and identifier.</p>
+     *
+     * @return the local messaging topic
      */
     @NotNull String getLocalTopic();
 
     /**
      * Creates a new user and registers it in the network.
-     * This method should not be used manually, except for those who know what they are doing.
      *
-     * @param uuid the user identifier
-     * @param username the username
-     * @param proxyId the proxy identifier
-     * @return a future that completes with the created user
+     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when
+     * a player connects to the proxy. Manual usage may corrupt the network state.</p>
+     *
+     * @param uuid     the player's UUID
+     * @param username the player's username
+     * @param proxyId  the identifier of the proxy the player connected through
+     * @return a future that completes with the newly created user
      */
     @NotNull EchoFuture<@NotNull User> createUser(final @NotNull UUID uuid,
                                                    final @NotNull String username,
                                                    final @NotNull String proxyId);
 
     /**
-     * Destroys a user.
-     * This method should not be used manually, except for those who know what they are doing.
+     * Destroys a user, removing all their data from the network.
+     *
+     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when
+     * a player disconnects from the proxy. Manual usage may corrupt the network state.</p>
      *
      * @param user the user to destroy
-     * @return a future that completes when the user is destroyed
+     * @return a future that completes when the user is fully cleaned up
      */
     @NotNull EchoFuture<Void> destroyUser(final @NotNull User user);
 
     /**
-     * Registers a user in a server.
+     * Registers a user in a server, updating their current server tracking.
      *
-     * @param user the user
-     * @param server the server
-     * @return a future that completes when the user is registered in the server
+     * <p>This records the user as connected to the specified server. Pass {@code null}
+     * to unregister the user from their current server.</p>
+     *
+     * @param user   the user to register
+     * @param server the server to register the user in, or {@code null} to unregister
+     * @return a future that completes when the registration is updated
      */
     @NotNull EchoFuture<Void> registerUserInServer(final @NotNull User user, final @Nullable Server server);
 
