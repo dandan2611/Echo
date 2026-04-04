@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "5.2.0"
+version = "5.3.0"
 
 repositories {
 }
