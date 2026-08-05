@@ -43,7 +43,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 <dependency>
     <groupId>fr.codinbox.echo</groupId>
     <artifactId>api</artifactId>
-    <version>6.1.0</version>
+    <version>6.1.1</version>
 </dependency>
 ```
 

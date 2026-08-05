@@ -16,6 +16,7 @@ import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
+import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.utils.EnvUtils;
 import fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest;
@@ -73,7 +74,7 @@ public class EchoPlugin {
 
             // Dynamic server registration
             final MessagingProvider messagingProvider = client.getMessagingProvider();
-            messagingProvider.subscribe(client.getLocalTopic(), ServerStatusNotification.class, new ServerStatusNotificationHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(MessageTarget.PROXIES_TOPIC, ServerStatusNotification.class, new ServerStatusNotificationHandler(this.logger, this.proxy));
             messagingProvider.subscribe(client.getLocalTopic(), ServerSwitchRequest.class, new ServerSwitchRequestHandler(this.logger, this.proxy));
             messagingProvider.subscribe(client.getLocalTopic(), ProxySwitchRequest.class, new ProxySwitchRequestHandler(this.logger, this.proxy));
 
