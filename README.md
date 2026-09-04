@@ -13,7 +13,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 - **Graceful draining** - Stop new joins while keeping existing players and heartbeats alive
 - **On-demand servers** - Acquire and terminate disposable servers without exposing the orchestrator
 - **Atomic placement and queues** - Reserve whole groups and coordinate recoverable Redis-backed handoffs
-- **Async-first API** - All operations return `EchoFuture`, with a simple `.await()` for blocking calls
+- **Async-first API** - Core operations use `EchoFuture`; orchestration modules use `CompletableFuture`
 - **Platform integrations** - Ready-to-use plugins for [Paper](https://papermc.io/) and [Velocity](https://velocitypowered.com/)
 
 ## Requirements
@@ -35,6 +35,21 @@ Echo provides a unified API to track players, servers, and proxies across your e
 | `paper` | Paper server plugin - auto-registers players and servers |
 | `velocity` | Velocity proxy plugin - handles server switching and player routing |
 
+### 7.0 API map
+
+| Area | Public entry points |
+|------|---------------------|
+| Client/config | `EchoClient` availability, load, placement, and session methods; `EchoConfig` initial properties, load provider, placement, and `Supplier` factories |
+| Load | `ServerLoad`, `ServerLoadSnapshot`, `ServerLoadProvider`, `ServerLoadManager` |
+| Placement | `ServerPlacement` requests, reservations, policies, monitoring, and explanations |
+| Messaging/admin | `MessagingProvider.request`, `MessageTarget.builder`, `RemoteAdministration`, `ResourceControlRequest`, `UserDisconnectRequest`, availability notifications, bounded switch statuses |
+| On demand | `OnDemandServers`, `ServerRequest`, `ServerHandle`, `OnDemandAdministration` allocation/reconciliation records |
+| Agones | `AgonesOnDemandServers`, `AgonesGameServerLifecycle` |
+| Queues | `QueueId`, `QueueDefinition`, `QueueOptions`, `QueueRequest`, `QueueRequestStatus`, `QueuePlacementAssignment`, `QueuePlacementPreparer`, `QueueService`, `QueueAdministration`, `RedisQueue` |
+| Commands | `EchoCommands`, `CommandAudience`, `CommandFormatter` |
+| Paper | `EchoPaper` drain/load/activation methods and `ServerDrainEvent` |
+| Velocity | `EchoPlugin` drain/activation/shutdown and session-aware disconnect methods |
+
 ## Installation
 
 ### Maven
@@ -50,7 +65,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 <dependency>
     <groupId>fr.codinbox.echo</groupId>
     <artifactId>api</artifactId>
-    <version>6.1.1</version>
+    <version>7.0.0</version>
 </dependency>
 ```
 
@@ -62,9 +77,15 @@ repositories {
 }
 
 dependencies {
-    implementation("fr.codinbox.echo:api:6.1.1")
+    implementation("fr.codinbox.echo:api:7.0.0")
 }
 ```
+
+Replace `api` with the artifact needed by the integration: `core`, `ondemand`, `agones`, `queue`,
+or `commands`. Use the `paper` and `velocity` shadow JARs as plugins rather than application
+dependencies. The platform JARs include the shared commands, queue protocol, and in-pod Agones
+lifecycle, but intentionally exclude the Fabric8 allocation client; allocation controllers must
+depend on `fr.codinbox.echo:agones:7.0.0`.
 
 ## Configuration
 
@@ -78,10 +99,19 @@ Echo reads its configuration from environment variables:
 | `ECHO_AGONES_ENABLED` | Enable the optional Agones lifecycle | `true` (default: `false`) |
 | `ECHO_AGONES_LONG_LIVED` | Self-allocate and observe rollout drain requests | `true` for lobbies, otherwise `false` |
 | `ECHO_AGONES_DRAIN_ANNOTATION` | Annotation that requests a graceful drain | `echo.codinbox.fr/draining` |
+| `ECHO_RESOURCE_PROPERTY_<key>` | String-valued initial property, applied before discovery | `ECHO_RESOURCE_PROPERTY_region=eu-west` |
 
-A Redis connection named `ECHO` must be registered through the Connector library.
-The Paper plugin only enables its Agones lifecycle when `ECHO_AGONES_ENABLED=true`. In that case,
+A Redis connection named `ECHO` must be registered through the Connector library. Initial-property
+suffixes are exact and case-sensitive; empty suffixes and the reserved keys `creation_time`,
+`availability`, and `load` are rejected. Paper sets `placement_capacity` from `max-players`.
+
+Paper and Velocity enable their Agones lifecycle only when `ECHO_AGONES_ENABLED=true`. In that case,
 the Agones sidecar must inject `AGONES_SDK_HTTP_PORT`. Without the flag, Echo runs without Agones.
+
+Programmatic configuration uses `EchoConfig.builder()`. Provider factories are standard
+`Supplier<? extends CacheProvider>` and `Supplier<? extends MessagingProvider>` values. Servers can
+also set `initialProperties`, a default `serverLoadProvider`, and a `serverPlacement`
+implementation; proxies cannot configure a load provider.
 
 ### Server availability
 
@@ -105,9 +135,56 @@ public void onServerDrain(ServerDrainEvent event) {
 
 EchoPaper shuts the GameServer down as soon as it becomes empty, or after 30 minutes at the latest.
 
+### Server load
+
+Servers publish a `ServerLoadSnapshot` containing the participant count, whether queue assignments
+are accepted, and the sample validity window. Paper provides player-count load automatically.
+Custom game plugins can temporarily replace the provider and close the registration to restore the
+previous one:
+
+```java
+ServerLoadManager loads = client.getServerLoadManager();
+try (ServerLoadManager.ProviderRegistration ignored =
+        loads.setProvider(() -> new ServerLoad(activeMatches, acceptingPlayers))) {
+    ServerLoadSnapshot snapshot = loads.refresh().await();
+    if (snapshot.isStale(Instant.now())) {
+        throw new IllegalStateException("Load expired");
+    }
+}
+```
+
+Use `loads.getCurrent()` to read the last snapshot. Placement rejects stale load and servers whose
+provider reports `acceptingQueueAssignments=false`.
+
+### Atomic placement
+
+`ServerPlacement` reserves capacity for a whole group in one Redis operation. Requests are
+idempotent by request ID, reservations expire unless renewed, and only the token-owning reservation
+can renew or release its slots:
+
+```java
+ServerPlacement placement = client.getServerPlacement();
+ServerPlacement.Request request = new ServerPlacement.Request(
+        "party-42",
+        Set.of(playerOne, playerTwo, playerThree, playerFour),
+        Set.of("game-1", "game-2"),
+        Map.of(new PropertyKey<String>("mode"), "ranked"),
+        ServerPlacement.Policy.FILL_MOST_LOADED,
+        Duration.ofSeconds(30));
+
+ServerPlacement.Reservation reservation = placement.reserve(request).await().orElseThrow();
+reservation = placement.renew(reservation, Duration.ofSeconds(30)).await().orElseThrow();
+placement.release(reservation).await();
+```
+
+Candidates must be registered, alive, active, fresh, accepting assignments, match all exact
+properties, and have enough free `placement_capacity`. Use `SPREAD_LEAST_LOADED` to spread groups.
+Operations can be inspected with `listActiveReservations`, `findActiveReservation`, `inspectServer`,
+and `explain`; explanations include a rejection reason for every candidate.
+
 ### On-demand servers
 
-Queue and matchmaking code depend only on the `ondemand` module:
+Application code can depend on the protocol-neutral `ondemand` module:
 
 ```java
 PropertyKey<UUID> OWNER = new PropertyKey<>("owner");
@@ -121,8 +198,63 @@ onDemandServers.terminate(server).join();
 
 The Agones adapter makes acquisition idempotent, waits for the allocated GameServer to become
 active in Echo, writes the requested Echo properties before returning it, and deletes allocations
-that fail to register before the configured timeout. The two-argument `ServerRequest` constructor
-remains available when no initial properties are needed.
+that fail to register before the configured timeout. A two-argument `ServerRequest` constructor is
+available when no initial properties are needed. `ServerHandle.requestId()` links a handle back to
+the idempotent request.
+
+Use `OnDemandServers.load()` when an adapter was registered by the host. Administration supports
+`listAllocations`, `getAllocation`, termination by request ID, and `reconcile` to compare the
+orchestrator allocation with its live Echo resource.
+
+Create an Agones allocation adapter inside Kubernetes with:
+
+```java
+try (AgonesOnDemandServers agones = AgonesOnDemandServers.inCluster(
+        client,
+        Map.of("agones.dev/fleet", "bedwars"),
+        Duration.ofMinutes(2))) {
+    ServerHandle server = agones.acquire(new ServerRequest("match-42", "bedwars")).join();
+}
+```
+
+The pod needs an in-cluster service account with access to Agones `GameServerAllocations` and
+`GameServers`, Kubernetes service environment variables and service-account files, and the Agones
+SDK HTTP sidecar. `AgonesGameServerLifecycle.inPod(...)` covers self-allocated long-lived servers,
+externally allocated servers, and annotation-driven draining; close lifecycle and allocation
+adapters during shutdown.
+
+### Queues
+
+The `queue` module combines Echo, Redis Connector, on-demand allocation, and atomic placement. It
+stores recoverable request state in Redis and transfers only after the target Paper server accepts
+the placement:
+
+```java
+QueueDefinition ranked = new QueueDefinition(
+        new QueueId("ranked"),
+        "bedwars",
+        Map.of(new PropertyKey<String>("mode"), "ranked"),
+        ServerPlacement.Policy.FILL_MOST_LOADED);
+
+try (QueueService queue = new RedisQueue(
+        redisConnection,
+        client,
+        onDemandServers,
+        client.getServerPlacement(),
+        List.of(ranked),
+        QueueOptions.defaults())) {
+    queue.start().join();
+    QueueRequest request = new QueueRequest(
+            "party-42", ranked.id(), Set.of(playerOne, playerTwo));
+    QueueRequestStatus status = queue.enqueue(request).join();
+}
+```
+
+Request states are `QUEUED`, `CLAIMED`, `PREPARED`, `TRANSFERRING`, `COMPLETED`, `FAILED`, and
+`CANCELLED`. `QueueService.load()` accesses a host-registered service; `get` and `cancel` manage
+requests. Its administration API lists queues/tickets and supports pause, resume, wake, retry, and
+terminal-record purging. Paper discovers a custom `QueuePlacementPreparer` through Bukkit's
+services manager; return `Decision.accept()` or `Decision.reject(reason)` before transfer.
 
 ## Usage
 
@@ -134,7 +266,9 @@ EchoClient client = Echo.getClient();
 
 ### Async and blocking calls
 
-Every API method returns an `EchoFuture<T>`, which extends `CompletableFuture<T>` with an `.await()` method. You choose your execution model:
+Core API operations generally return `EchoFuture<T>`, which extends `CompletableFuture<T>` with an
+`.await()` method. Queue, on-demand, and Agones orchestration operations return standard
+`CompletableFuture<T>` and can use `join`, `get`, or normal completion stages:
 
 ```java
 // Async
@@ -233,16 +367,19 @@ messaging.subscribe("my-topic", AlertMessage.class, alert -> {
 
 #### Request / Response
 
-Use `awaitReply` for composable request/response patterns:
+Use `request` for a bounded exchange. It registers the reply waiter before publishing, avoiding
+lost fast replies:
 
 ```java
 MyRequest request = new MyRequest("data");
-request.sendToServer("lobby-1");
-
-// Wait for a typed reply
-request.awaitReply(MyResponse.class).thenAccept(response -> {
-    System.out.println("Got response: " + response.getResult());
-});
+request.setReplyTopic(client.getLocalTopic());
+client.getMessagingProvider()
+        .request(
+                MessageTarget.server("lobby-1").getTargets().iterator().next(),
+                request,
+                MyResponse.class,
+                Duration.ofSeconds(10))
+        .thenAccept(response -> System.out.println("Got response: " + response.getResult()));
 ```
 
 On the receiving side, reply to a message:
@@ -269,6 +406,59 @@ if (response.isSuccessful()) {
 Proxy targetProxy = client.getProxyById("proxy-us").await().orElseThrow();
 user.tryConnectToProxy(targetProxy).await();
 ```
+
+`tryConnectToServer(String)` now has a ten-second default timeout. Use
+`tryConnectToServer(String, Duration)` to set it explicitly. Failures distinguish a missing,
+unavailable, or unregistered target, a disconnected player, a timeout, and an internal error.
+`User.getSessionId()` exposes the current login session; integrations that manage user records
+should use the session-aware `EchoClient.createUser` and `destroyUser` overloads so stale disconnect
+events cannot delete a newer session.
+
+### Remote administration
+
+`RemoteAdministration` sends a bounded request to one exact resource and validates both the target
+and deadline. Resource actions are `PING`, `REFRESH_LOAD`, `DRAIN`, `ACTIVATE`, and `SHUTDOWN`:
+
+```java
+RemoteAdministration administration = new RemoteAdministration(client);
+ResourceControlRequest request = new ResourceControlRequest(
+        ResourceControlRequest.Action.DRAIN,
+        EchoResourceType.SERVER,
+        "game-1",
+        Duration.ofMinutes(10),
+        "deployment");
+
+ResourceControlRequest.Response response =
+        administration.control(request, Duration.ofSeconds(5)).await();
+administration.disconnect(user, "maintenance", Duration.ofSeconds(5)).await();
+```
+
+Always inspect the response status: a delivered request can still be rejected as invalid, expired,
+wrongly targeted, disallowed, unsupported, timed out, or failed.
+
+### Administration commands
+
+Paper registers `/echo` and `/echoserver`; Velocity registers `/echo` and `/echoproxy`. The shared
+command tree exposes:
+
+| Group | Operations |
+|-------|------------|
+| General | `help`, `version`, `status`, and resource/health/queue/placement monitors |
+| Resources | `server` and `proxy` list, info, ping, properties, drain, activate, shutdown; server load refresh |
+| Users | list, info, send, disconnect |
+| Queues | list, info, tickets, enqueue, cancel, pause, resume, wake, retry, requeue, purge |
+| Placement and allocation | status/explain/reservations/reserve/renew/release and list/info/acquire/reconcile/terminate |
+
+Each command has the corresponding `echo.command.<path>` permission. State-changing and destructive
+commands print the exact retry command and require `--confirm`.
+
+### Platform lifecycle
+
+Paper automatically publishes player-count load and placement capacity, refreshes load on joins and
+quits, accepts remote control requests, and exposes `beginDrain`, `isDraining`, `refreshLoad`,
+`activate`, and `requestShutdown`. Velocity rejects logins while starting or draining, removes
+draining servers from routing, restores active servers, accepts remote control and disconnect
+requests, and exposes drain/activate/shutdown plus session-aware `disconnectPlayer` overloads.
 
 ## Healthcheck
 
@@ -299,6 +489,32 @@ When a dead resource is cleaned up:
 | `ECHO_HEALTHCHECK_CLEANUP_ENABLED` | `false` | Enable cleanup on servers (always active on proxies) |
 
 > **Note**: Proxies always perform cleanup. For server-only infrastructures (no proxy), set `ECHO_HEALTHCHECK_CLEANUP_ENABLED=true` on at least one server.
+
+## Migrating from 6.x
+
+### Replace removed APIs
+
+| 6.x | 7.0 |
+|-----|-----|
+| `client.newMessageTargetBuilder()` | `MessageTarget.builder()` |
+| `CacheProviderFactory` | `Supplier<? extends CacheProvider>` |
+| `MessagingProviderFactory` | `Supplier<? extends MessagingProvider>` |
+| `Pair`, `NullableUtils`, `FutureUtils` | JDK records, `Optional`, and `CompletableFuture` methods |
+| `MapUtils.map` / `MapFunction` | Standard collection and stream operations |
+
+`MessageTarget.Builder` is now a final concrete class; custom implementations and mocks must be
+removed. `api` no longer exports fastutil transitively, so consumers using it directly must declare
+their own dependency. Paper's `JoinListener` now requires `EchoPaper` and `ServerLoadManager`;
+Velocity's listener takes login-state/session suppliers instead of `ProxyServer`.
+
+### Review changed behavior
+
+- Server switching is bounded and reports explicit target, player, timeout, and internal failures.
+- Proxy transfers route through the user's current proxy.
+- User cleanup is session-aware and maintains server/proxy membership.
+- Initial properties are persisted before a resource becomes discoverable.
+- Server shutdown advertises `DRAINING` before unregistering.
+- Non-positive Redis lock leases use Redisson watchdog renewal; subscription cancellation removes only Echo's listener.
 
 ## Building
 
