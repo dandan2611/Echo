@@ -158,13 +158,14 @@ public interface CacheProvider {
     /**
      * Acquires a distributed lock, executes the action, then releases it.
      *
-     * <p>The lock is acquired with the given wait and lease times. If acquired, the
+     * <p>The lock is acquired with the given wait and lease times. A non-positive lease
+     * lets implementations renew the lock until the action ends. If acquired, the
      * supplier's future is awaited, then the lock is released. If the lock cannot be
      * acquired within {@code waitTime}, the action is not executed.</p>
      *
      * @param key       the lock key
      * @param waitTime  maximum time to wait for the lock
-     * @param leaseTime maximum time to hold the lock
+     * @param leaseTime maximum time to hold the lock, or non-positive for automatic renewal
      * @param unit      the time unit for waitTime and leaseTime
      * @param action    the action to execute while holding the lock
      * @return a future that completes with {@code true} if the lock was acquired and

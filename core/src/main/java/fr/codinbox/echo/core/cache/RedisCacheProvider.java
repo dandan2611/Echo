@@ -105,32 +105,28 @@ public class RedisCacheProvider implements CacheProvider {
                                                          final @NotNull Supplier<@NotNull CompletableFuture<Void>> action) {
         return CompletableFuture.supplyAsync(() -> {
             final RLock lock = client().getLock(key);
-            boolean acquired;
             try {
-                acquired = lock.tryLock(waitTime, leaseTime, unit);
+                final boolean acquired = leaseTime > 0
+                        ? lock.tryLock(waitTime, leaseTime, unit)
+                        : lock.tryLock(waitTime, unit);
+                if (!acquired)
+                    return false;
+                try {
+                    action.get().join();
+                    return true;
+                } finally {
+                    try {
+                        if (lock.isHeldByCurrentThread())
+                            lock.unlock();
+                    } catch (final Exception ignored) {
+                        // Best effort unlock; Redisson releases watchdog locks if this process dies.
+                    }
+                }
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
             }
-            if (!acquired)
-                return false;
-            return lock;
-        }).thenCompose(result -> {
-            if (result instanceof Boolean b)
-                return CompletableFuture.completedFuture(b);
-            final RLock lock = (RLock) result;
-            return action.get().handle((v, ex) -> {
-                try {
-                    if (lock.isHeldByCurrentThread())
-                        lock.unlock();
-                } catch (final Exception unlockEx) {
-                    // Best effort unlock
-                }
-                if (ex != null)
-                    throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
-                return true;
-            });
-        });
+        }, runnable -> Thread.ofVirtual().name("echo-cache-lock").start(runnable));
     }
 
 }

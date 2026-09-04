@@ -32,7 +32,7 @@ public class ServerImpl extends AbstractPropertyHolder<String> implements Server
         super(id, SERVER_KEY.formatted(id));
 
         if (address != null)
-            Echo.getClient().getCacheProvider().setObject(SERVER_ADDRESS_KEY.formatted(id), address);
+            Echo.getClient().getCacheProvider().setObject(SERVER_ADDRESS_KEY.formatted(id), address).join();
     }
 
     @Override

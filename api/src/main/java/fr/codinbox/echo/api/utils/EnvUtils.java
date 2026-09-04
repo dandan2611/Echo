@@ -1,9 +1,13 @@
 package fr.codinbox.echo.api.utils;
 
 import fr.codinbox.echo.api.local.EchoResourceType;
+import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.Address;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Utility class for reading Echo configuration from environment variables.
@@ -39,6 +43,9 @@ public class EnvUtils {
 
     /** Environment variable name for the node's network address ({@code host:port}). */
     public static final @NotNull String ENV_RESOURCE_ADDRESS = "ECHO_RESOURCE_ADDRESS";
+
+    /** Prefix for string-valued initial resource properties. */
+    public static final @NotNull String ENV_RESOURCE_PROPERTY_PREFIX = "ECHO_RESOURCE_PROPERTY_";
 
     /** Environment variable name for the heartbeat TTL in seconds. */
     public static final @NotNull String ENV_HEARTBEAT_TTL = "ECHO_HEARTBEAT_TTL";
@@ -91,6 +98,30 @@ public class EnvUtils {
         if (address == null)
             return null;
         return Address.fromString(address);
+    }
+
+    /**
+     * Reads string-valued initial properties from variables prefixed with
+     * {@value #ENV_RESOURCE_PROPERTY_PREFIX}. The suffix is the exact, case-sensitive property key.
+     *
+     * @return immutable initial properties
+     */
+    public static @NotNull Map<PropertyKey<String>, String> getInitialProperties() {
+        return getInitialProperties(System.getenv());
+    }
+
+    static @NotNull Map<PropertyKey<String>, String> getInitialProperties(
+            final @NotNull Map<String, String> environment) {
+        final Map<PropertyKey<String>, String> properties = new LinkedHashMap<>();
+        environment.forEach((name, value) -> {
+            if (!name.startsWith(ENV_RESOURCE_PROPERTY_PREFIX))
+                return;
+            final String key = name.substring(ENV_RESOURCE_PROPERTY_PREFIX.length());
+            if (key.isEmpty())
+                throw new IllegalArgumentException("Resource property key must not be empty");
+            properties.put(new PropertyKey<>(key), value);
+        });
+        return Map.copyOf(properties);
     }
 
     /**

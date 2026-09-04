@@ -46,8 +46,12 @@ NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 BUILD_FILES=(
     "$ROOT_DIR/build.gradle.kts"
     "$ROOT_DIR/api/build.gradle.kts"
+    "$ROOT_DIR/agones/build.gradle.kts"
+    "$ROOT_DIR/commands/build.gradle.kts"
     "$ROOT_DIR/core/build.gradle.kts"
+    "$ROOT_DIR/ondemand/build.gradle.kts"
     "$ROOT_DIR/paper/build.gradle.kts"
+    "$ROOT_DIR/queue/build.gradle.kts"
     "$ROOT_DIR/velocity/build.gradle.kts"
 )
 

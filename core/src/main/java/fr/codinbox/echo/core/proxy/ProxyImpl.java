@@ -32,7 +32,7 @@ public class ProxyImpl extends AbstractPropertyHolder<String> implements Proxy {
         super(id, PROXY_KEY.formatted(id));
 
         if (address != null)
-            Echo.getClient().getCacheProvider().setObject(PROXY_ADDRESS_KEY.formatted(id), address);
+            Echo.getClient().getCacheProvider().setObject(PROXY_ADDRESS_KEY.formatted(id), address).join();
     }
 
     @Override

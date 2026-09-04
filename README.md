@@ -10,6 +10,9 @@ Echo provides a unified API to track players, servers, and proxies across your e
 - **Distributed messaging** - Publish/subscribe messaging with typed handlers and request/response patterns
 - **Property storage** - Attach arbitrary key-value properties with optional TTL to any resource
 - **Server switching** - Transfer players between servers and proxies with status feedback
+- **Graceful draining** - Stop new joins while keeping existing players and heartbeats alive
+- **On-demand servers** - Acquire and terminate disposable servers without exposing the orchestrator
+- **Atomic placement and queues** - Reserve whole groups and coordinate recoverable Redis-backed handoffs
 - **Async-first API** - All operations return `EchoFuture`, with a simple `.await()` for blocking calls
 - **Platform integrations** - Ready-to-use plugins for [Paper](https://papermc.io/) and [Velocity](https://velocitypowered.com/)
 
@@ -25,6 +28,10 @@ Echo provides a unified API to track players, servers, and proxies across your e
 |--------|-------------|
 | `api` | Public API interfaces and contracts |
 | `core` | Core implementation backed by Redis (Redisson) |
+| `ondemand` | Protocol-agnostic server acquisition contract |
+| `agones` | Agones allocation and game-server lifecycle adapter |
+| `queue` | Redis-backed group queues, placement, and recoverable player handoff |
+| `commands` | Shared Cloud Annotations administration commands for servers and proxies |
 | `paper` | Paper server plugin - auto-registers players and servers |
 | `velocity` | Velocity proxy plugin - handles server switching and player routing |
 
@@ -55,7 +62,7 @@ repositories {
 }
 
 dependencies {
-    implementation("fr.codinbox.echo:api:6.1.0")
+    implementation("fr.codinbox.echo:api:6.1.1")
 }
 ```
 
@@ -68,8 +75,54 @@ Echo reads its configuration from environment variables:
 | `ECHO_RESOURCE_TYPE` | The type of this node | `SERVER` or `PROXY` |
 | `ECHO_RESOURCE_ID` | Unique identifier for this node | `lobby-1`, `proxy-eu` |
 | `ECHO_RESOURCE_ADDRESS` | The address of this node | `127.0.0.1:25565` |
+| `ECHO_AGONES_ENABLED` | Enable the optional Agones lifecycle | `true` (default: `false`) |
+| `ECHO_AGONES_LONG_LIVED` | Self-allocate and observe rollout drain requests | `true` for lobbies, otherwise `false` |
+| `ECHO_AGONES_DRAIN_ANNOTATION` | Annotation that requests a graceful drain | `echo.codinbox.fr/draining` |
 
 A Redis connection named `ECHO` must be registered through the Connector library.
+The Paper plugin only enables its Agones lifecycle when `ECHO_AGONES_ENABLED=true`. In that case,
+the Agones sidecar must inject `AGONES_SDK_HTTP_PORT`. Without the flag, Echo runs without Agones.
+
+### Server availability
+
+Servers are `ACTIVE` by default. Marking a server `DRAINING` keeps it in Echo for heartbeat and
+player tracking, but immediately removes it from every Velocity proxy as a destination:
+
+```java
+Echo.getClient().setLocalServerAvailability(ServerAvailability.DRAINING);
+```
+
+When Agones requests a long-lived server drain during a Fleet rollout, EchoPaper first persists
+`DRAINING`, then fires `ServerDrainEvent` on the Paper main thread. Game plugins can use its
+absolute deadline to stop starting games, warn players, and finish or migrate current sessions:
+
+```java
+@EventHandler
+public void onServerDrain(ServerDrainEvent event) {
+    gameManager.stopAcceptingGames(event.getDeadline());
+}
+```
+
+EchoPaper shuts the GameServer down as soon as it becomes empty, or after 30 minutes at the latest.
+
+### On-demand servers
+
+Queue and matchmaking code depend only on the `ondemand` module:
+
+```java
+PropertyKey<UUID> OWNER = new PropertyKey<>("owner");
+ServerRequest request = new ServerRequest(
+        "match-42",
+        "bedwars",
+        Map.of(OWNER, ownerId));
+ServerHandle server = onDemandServers.acquire(request).join();
+onDemandServers.terminate(server).join();
+```
+
+The Agones adapter makes acquisition idempotent, waits for the allocated GameServer to become
+active in Echo, writes the requested Echo properties before returning it, and deletes allocations
+that fail to register before the configured timeout. The two-argument `ServerRequest` constructor
+remains available when no initial properties are needed.
 
 ## Usage
 

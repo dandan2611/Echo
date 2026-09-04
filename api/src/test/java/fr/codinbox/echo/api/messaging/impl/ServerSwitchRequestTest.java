@@ -61,7 +61,13 @@ class ServerSwitchRequestTest {
                 ServerSwitchRequestStatus.ALREADY_CONNECTED,
                 ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS,
                 ServerSwitchRequestStatus.CONNECTION_CANCELLED,
-                ServerSwitchRequestStatus.SERVER_DISCONNECTED
+                ServerSwitchRequestStatus.SERVER_DISCONNECTED,
+                ServerSwitchRequestStatus.TARGET_SERVER_NOT_FOUND,
+                ServerSwitchRequestStatus.TARGET_SERVER_UNAVAILABLE,
+                ServerSwitchRequestStatus.TARGET_SERVER_NOT_REGISTERED,
+                ServerSwitchRequestStatus.PLAYER_NOT_CONNECTED,
+                ServerSwitchRequestStatus.TIMED_OUT,
+                ServerSwitchRequestStatus.INTERNAL_ERROR
         );
     }
 }

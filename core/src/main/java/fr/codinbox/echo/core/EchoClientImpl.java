@@ -11,15 +11,20 @@ import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
+import fr.codinbox.echo.api.messaging.impl.ServerAvailabilityNotification;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
+import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerLoadManager;
+import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.api.utils.EnvUtils;
 import fr.codinbox.echo.core.messaging.MessageTargetBuilderImpl;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
+import fr.codinbox.echo.core.server.ServerLoadManagerImpl;
 import fr.codinbox.echo.core.user.UserImpl;
 import fr.codinbox.echo.core.utils.MapUtils;
 import org.jetbrains.annotations.NotNull;
@@ -39,6 +44,7 @@ public class EchoClientImpl implements EchoClient {
     private static final @NotNull String HEARTBEAT_KEY_FORMAT = "heartbeat:%s:%s";
     private static final @NotNull String SUSPECT_KEY_FORMAT = "suspect:%s:%s";
     private static final @NotNull String CLEANUP_LOCK_FORMAT = "cleanup:%s:%s";
+    private static final @NotNull String USER_LIFECYCLE_LOCK_FORMAT = "user:%s:lifecycle";
 
     private final @NotNull Logger logger;
 
@@ -47,6 +53,10 @@ public class EchoClientImpl implements EchoClient {
     private final @NotNull EchoResourceType resourceType;
     private final @NotNull String resourceId;
     private final @NotNull String topic;
+    private final @NotNull Map<fr.codinbox.echo.api.property.PropertyKey<?>, Object> initialProperties;
+    private final @Nullable ServerLoadManagerImpl serverLoadManager;
+    private final @Nullable ServerPlacement serverPlacement;
+    private final boolean publishInitialServerLoad;
 
     private final long heartbeatTtlSeconds;
     private final long heartbeatIntervalSeconds;
@@ -63,6 +73,13 @@ public class EchoClientImpl implements EchoClient {
         this.messagingProvider = config.getMessagingProviderFactory().create();
         this.resourceType = config.getResourceType();
         this.resourceId = config.getResourceId();
+        this.initialProperties = config.getInitialProperties();
+        this.serverLoadManager = this.resourceType == EchoResourceType.SERVER
+                ? new ServerLoadManagerImpl(new ServerImpl(this.resourceId, null),
+                config.getServerLoadProvider(), Duration.ofSeconds(config.getHeartbeatTtlSeconds()))
+                : null;
+        this.publishInitialServerLoad = config.getServerLoadProvider() != null;
+        this.serverPlacement = config.getServerPlacement();
 
         this.heartbeatTtlSeconds = config.getHeartbeatTtlSeconds();
         this.heartbeatIntervalSeconds = config.getHeartbeatIntervalSeconds();
@@ -107,10 +124,7 @@ public class EchoClientImpl implements EchoClient {
     @Override
     public @NotNull EchoFuture<@NotNull Optional<User>> getUserById(final @NotNull UUID id) {
         final User user = new UserImpl(id);
-        final CompletableFuture<Optional<User>> future = new CompletableFuture<>();
-
-        user.getUsername().thenAccept(username -> future.complete(username.map(u -> user)));
-        return EchoFuture.of(future);
+        return EchoFuture.of(user.getUsername().thenApply(username -> username.map(ignored -> user)));
     }
 
     @Override
@@ -159,6 +173,20 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
+    public @NotNull ServerLoadManager getServerLoadManager() {
+        if (this.serverLoadManager == null)
+            throw new IllegalStateException("Server load is only available on server resources");
+        return this.serverLoadManager;
+    }
+
+    @Override
+    public @NotNull ServerPlacement getServerPlacement() {
+        if (this.serverPlacement == null)
+            throw new IllegalStateException("Server placement is not configured");
+        return this.serverPlacement;
+    }
+
+    @Override
     public @NotNull MessageTarget.Builder newMessageTargetBuilder() {
         return new MessageTargetBuilderImpl();
     }
@@ -204,26 +232,46 @@ public class EchoClientImpl implements EchoClient {
         return Optional.of(this.resourceId);
     }
 
+    @Override
+    public @NotNull EchoFuture<Void> setLocalServerAvailability(final @NotNull ServerAvailability availability) {
+        if (this.resourceType != EchoResourceType.SERVER)
+            throw new IllegalStateException("Only a server can change server availability");
+
+        final ServerImpl server = new ServerImpl(this.resourceId, null);
+        return EchoFuture.of(server.setProperty(Server.PROPERTY_AVAILABILITY, availability.name())
+                .thenCompose(ignored -> this.publishServerAvailability(this.resourceId, availability)));
+    }
+
     public void onMessageReceive(final @NotNull EchoMessage message) {
         if (!this.messagingProvider.handleReply(message))
             return;
     }
 
     public void createLocalResource(final @NotNull Address address) {
+        createLocalResource(address, ServerAvailability.ACTIVE);
+    }
+
+    private void createLocalResource(final @NotNull Address address,
+                                     final @NotNull ServerAvailability initialAvailability) {
         final String heartbeatKey = getHeartbeatKey(this.resourceType, this.resourceId);
 
         switch (this.resourceType) {
             case PROXY -> {
                 final ProxyImpl proxy = new ProxyImpl(this.resourceId, address);
 
-                proxy.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
+                this.applyInitialProperties(proxy);
+                proxy.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()).await();
 
                 this.logger.info("Created proxy %s".formatted(proxy.getId()));
             }
             case SERVER -> {
                 final ServerImpl server = new ServerImpl(this.resourceId, address);
 
-                server.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli());
+                this.applyInitialProperties(server);
+                server.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()).await();
+                server.setProperty(Server.PROPERTY_AVAILABILITY, initialAvailability.name()).await();
+                if (this.publishInitialServerLoad)
+                    this.serverLoadManager.refresh().await();
 
                 this.logger.info("Created server %s".formatted(server.getId()));
             }
@@ -236,24 +284,42 @@ public class EchoClientImpl implements EchoClient {
                 .join();
     }
 
+    private void applyInitialProperties(final @NotNull AbstractPropertyHolder<String> resource) {
+        this.initialProperties.forEach((key, value) -> resource.setProperty(key.key(), value).await());
+    }
+
     public void advertiseLocalResource() {
         switch (this.resourceType) {
             case PROXY -> {
 
             }
             case SERVER -> {
-                this.sendLocalServerStatus(ServerStatusNotification.Status.REGISTERED);
+                final ServerAvailability availability = new ServerImpl(this.resourceId, null).getAvailability().await();
+                if (availability == ServerAvailability.ACTIVE)
+                    this.publishServerStatus(this.resourceId, ServerStatusNotification.Status.REGISTERED).join();
+                else
+                    this.publishServerAvailability(this.resourceId, availability).join();
 
                 this.logger.info("Advertised server %s".formatted(this.getCurrentResourceId().orElse(null)));
             }
         }
     }
 
-    private void sendLocalServerStatus(final @NotNull ServerStatusNotification.Status status) {
-        sendLocalServerStatusDirect(status);
+    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config) throws Exception {
+        return autoInit(config, ServerAvailability.ACTIVE);
     }
 
-    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config) throws Exception {
+    /**
+     * Initializes Echo while controlling whether the local server is initially routable.
+     *
+     * @param config Echo configuration
+     * @param initialAvailability initial server availability
+     * @return the initialized client
+     * @throws Exception when initialization fails
+     */
+    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config,
+                                                    final @NotNull ServerAvailability initialAvailability)
+            throws Exception {
         Address resourceAddress;
 
         try {
@@ -263,7 +329,7 @@ public class EchoClientImpl implements EchoClient {
         }
 
         final EchoClientImpl impl = new EchoClientImpl(config);
-        impl.createLocalResource(resourceAddress);
+        impl.createLocalResource(resourceAddress, initialAvailability);
         switch (config.getResourceType()) {
             case PROXY -> impl.registerProxy(config.getResourceId()).join();
             case SERVER -> impl.registerServer(config.getResourceId()).join();
@@ -299,20 +365,35 @@ public class EchoClientImpl implements EchoClient {
     public void shutdown() {
         this.scheduler.shutdownNow();
 
+        if (this.resourceType == EchoResourceType.SERVER) {
+            try {
+                this.setLocalServerAvailability(ServerAvailability.DRAINING).join();
+            } catch (RuntimeException error) {
+                this.logger.log(Level.WARNING,
+                        "Failed to drain server %s during shutdown".formatted(this.resourceId), error);
+            }
+        }
+
         // Delete heartbeat key before stillExists() check (otherwise we'd fail our own check)
         final String heartbeatKey = getHeartbeatKey(this.resourceType, this.resourceId);
         this.cacheProvider.deleteObject(heartbeatKey).join();
 
         switch (this.resourceType) {
             case PROXY -> {
-                this.unregisterProxy(this.getCurrentResourceId().orElseThrow());
+                this.unregisterProxy(this.getCurrentResourceId().orElseThrow()).join();
                 final ProxyImpl proxy = new ProxyImpl(this.resourceId, null);
                 this.logger.info("Cleaning up local resource in current thread");
                 proxy.cleanup().await();
             }
             case SERVER -> {
-                this.sendLocalServerStatusDirect(ServerStatusNotification.Status.UNREGISTERED);
-                this.unregisterServer(this.getCurrentResourceId().orElseThrow()).join();
+                final String serverId = this.getCurrentResourceId().orElseThrow();
+                try {
+                    this.publishServerStatus(serverId, ServerStatusNotification.Status.UNREGISTERED).join();
+                } catch (RuntimeException error) {
+                    this.logger.log(Level.WARNING,
+                            "Failed to send shutdown notification for server %s".formatted(serverId), error);
+                }
+                this.unregisterServer(serverId).join();
                 final ServerImpl server = new ServerImpl(this.resourceId, null);
                 this.logger.info("Cleaning up local resource in current thread");
                 server.cleanup().await();
@@ -332,24 +413,75 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull EchoFuture<@NotNull User> createUser(final @NotNull UUID uuid,
                                                           final @NotNull String username,
                                                           final @NotNull String proxyId) {
+        return this.createUser(uuid, username, proxyId, UUID.randomUUID().toString());
+    }
+
+    @Override
+    public @NotNull EchoFuture<@NotNull User> createUser(final @NotNull UUID uuid,
+                                                          final @NotNull String username,
+                                                          final @NotNull String proxyId,
+                                                          final @NotNull String sessionId) {
+        Objects.requireNonNull(sessionId, "sessionId");
         final User user = new UserImpl(uuid);
-        return EchoFuture.of(CompletableFuture.allOf(
-                user.setProperty(User.PROPERTY_USERNAME, username),
-                user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
-                user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
-                this.registerUserUsername(uuid, username),
-                this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli())
-        ).thenApply(aVoid -> user));
+        final CompletableFuture<Boolean> created = this.cacheProvider.withLock(
+                USER_LIFECYCLE_LOCK_FORMAT.formatted(uuid), 30, 0, TimeUnit.SECONDS,
+                () -> CompletableFuture.allOf(
+                        user.setProperty(User.PROPERTY_USERNAME, username),
+                        user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
+                        user.setProperty(User.PROPERTY_SESSION_ID, sessionId),
+                        user.setProperty(AbstractPropertyHolder.CREATION_TIME_KEY, Instant.now().toEpochMilli()),
+                        this.registerUserUsername(uuid, username),
+                        this.getUserMap().fastPutAsync(uuid.toString(), Instant.now().toEpochMilli()),
+                        new ProxyImpl(proxyId, null).registerUser(user)
+                ));
+        return EchoFuture.of(created.thenCompose(acquired -> acquired
+                ? CompletableFuture.completedFuture(user)
+                : CompletableFuture.failedFuture(new IllegalStateException("User lifecycle lock unavailable"))));
     }
 
     @Override
     public @NotNull EchoFuture<Void> destroyUser(final @NotNull User user) {
-        return EchoFuture.of(CompletableFuture.allOf(
+        return this.destroyUserLocked(user, () -> this.destroyUserState(user));
+    }
+
+    @Override
+    public @NotNull EchoFuture<Void> destroyUser(final @NotNull User user,
+                                                  final @NotNull String expectedSessionId) {
+        Objects.requireNonNull(expectedSessionId, "expectedSessionId");
+        return this.destroyUserLocked(user, () -> user.getSessionId().thenCompose(sessionId ->
+                sessionId.filter(expectedSessionId::equals).isPresent()
+                        ? this.destroyUserState(user)
+                        : CompletableFuture.completedFuture(null)));
+    }
+
+    private @NotNull EchoFuture<Void> destroyUserLocked(final @NotNull User user,
+                                                         final @NotNull java.util.function.Supplier<CompletableFuture<Void>> action) {
+        CompletableFuture<Boolean> destroyed = this.cacheProvider.withLock(
+                USER_LIFECYCLE_LOCK_FORMAT.formatted(user.getId()), 30, 0, TimeUnit.SECONDS, action);
+        return EchoFuture.of(destroyed.thenCompose(acquired -> acquired
+                ? CompletableFuture.completedFuture(null)
+                : CompletableFuture.failedFuture(new IllegalStateException("User lifecycle lock unavailable"))));
+    }
+
+    private @NotNull CompletableFuture<Void> destroyUserState(final @NotNull User user) {
+        return CompletableFuture.allOf(
                 this.unregisterUserUsername(user),
-                this.registerUserInServer(user, null),
-                this.getUserMap().fastRemoveAsync(user.getId().toString()),
-                user.cleanup()
-        ));
+                this.unregisterUserFromServer(user),
+                this.unregisterUserFromProxy(user),
+                this.getUserMap().fastRemoveAsync(user.getId().toString())
+        ).thenCompose(ignored -> user.cleanup());
+    }
+
+    private @NotNull CompletableFuture<Void> unregisterUserFromServer(final @NotNull User user) {
+        return user.getCurrentServerId().thenCompose(serverId -> serverId
+                .<CompletableFuture<Boolean>>map(id -> new ServerImpl(id, null).unregisterUser(user))
+                .orElseGet(() -> CompletableFuture.completedFuture(false))).thenApply(ignored -> null);
+    }
+
+    private @NotNull CompletableFuture<Void> unregisterUserFromProxy(final @NotNull User user) {
+        return user.getCurrentProxyId().thenCompose(proxyId -> proxyId
+                .<CompletableFuture<Boolean>>map(id -> new ProxyImpl(id, null).unregisterUser(user))
+                .orElseGet(() -> CompletableFuture.completedFuture(false))).thenApply(ignored -> null);
     }
 
     @Override
@@ -554,20 +686,30 @@ public class EchoClientImpl implements EchoClient {
 
     private void sendServerStatusNotification(final @NotNull String serverId,
                                                final @NotNull ServerStatusNotification.Status status) {
-        try {
-            final ServerImpl server = new ServerImpl(serverId, null);
-            final MessageTarget target = this.newMessageTargetBuilder()
-                    .withAllProxies()
-                    .build();
-            final ServerStatusNotification notification = new ServerStatusNotification(server, status);
-            server.publishMessage(target, notification).await();
-        } catch (final Exception e) {
-            this.logger.log(Level.WARNING, "Failed to send status notification for server %s".formatted(serverId), e);
-        }
+        this.publishServerStatus(serverId, status).exceptionally(error -> {
+            this.logger.log(Level.WARNING, "Failed to send status notification for server %s".formatted(serverId), error);
+            return null;
+        });
     }
 
-    private void sendLocalServerStatusDirect(final @NotNull ServerStatusNotification.Status status) {
-        final String serverId = this.getCurrentResourceId().orElseThrow();
-        sendServerStatusNotification(serverId, status);
+    private CompletableFuture<Void> publishServerStatus(final @NotNull String serverId,
+                                                         final @NotNull ServerStatusNotification.Status status) {
+        final ServerImpl server = new ServerImpl(serverId, null);
+        final MessageTarget target = this.newMessageTargetBuilder()
+                .withAllProxies()
+                .build();
+        final ServerStatusNotification notification = new ServerStatusNotification(server, status);
+        return server.publishMessage(target, notification).thenApply(ignored -> null);
     }
+
+    private CompletableFuture<Void> publishServerAvailability(final @NotNull String serverId,
+                                                               final @NotNull ServerAvailability availability) {
+        final ServerImpl server = new ServerImpl(serverId, null);
+        final MessageTarget target = this.newMessageTargetBuilder()
+                .withAllProxies()
+                .build();
+        return server.publishMessage(target, new ServerAvailabilityNotification(server, availability))
+                .thenApply(ignored -> null);
+    }
+
 }

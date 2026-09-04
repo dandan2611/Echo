@@ -6,6 +6,9 @@ import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Server;
+import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerLoadManager;
+import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.api.user.User;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -142,6 +145,24 @@ public interface EchoClient {
     @NotNull MessagingProvider getMessagingProvider();
 
     /**
+     * Gets the local server load manager.
+     *
+     * @throws IllegalStateException when this client represents a proxy
+     */
+    default @NotNull ServerLoadManager getServerLoadManager() {
+        throw new IllegalStateException("Server load is only available on server resources");
+    }
+
+    /**
+     * Gets the configured atomic server placement implementation.
+     *
+     * @throws IllegalStateException when server placement was not configured
+     */
+    default @NotNull ServerPlacement getServerPlacement() {
+        throw new IllegalStateException("Server placement is not configured");
+    }
+
+    /**
      * Creates a new {@link MessageTarget.Builder} for constructing message targets.
      *
      * <p>The builder allows you to compose complex targets (multiple servers, proxies, or both)
@@ -242,6 +263,20 @@ public interface EchoClient {
     @NotNull Optional<String> getCurrentResourceId();
 
     /**
+     * Changes whether the local server accepts new players and notifies every proxy.
+     * The current resource must be a server.
+     *
+     * @param availability the new availability
+     * @return a future completed after the value is persisted and advertised
+     * @throws IllegalStateException if the local resource is not a server
+     */
+    default @NotNull EchoFuture<Void> setLocalServerAvailability(final @NotNull ServerAvailability availability) {
+        final EchoFuture<Void> result = new EchoFuture<>();
+        result.completeExceptionally(new UnsupportedOperationException("Server availability is not supported"));
+        return result;
+    }
+
+    /**
      * Shuts down the Echo client, releasing all resources and connections.
      *
      * <p>This is called automatically by the platform plugin on server shutdown.
@@ -274,6 +309,14 @@ public interface EchoClient {
                                                    final @NotNull String username,
                                                    final @NotNull String proxyId);
 
+    /** Creates a user for one exact login session. */
+    default @NotNull EchoFuture<@NotNull User> createUser(final @NotNull UUID uuid,
+                                                           final @NotNull String username,
+                                                           final @NotNull String proxyId,
+                                                           final @NotNull String sessionId) {
+        return this.createUser(uuid, username, proxyId);
+    }
+
     /**
      * Destroys a user, removing all their data from the network.
      *
@@ -284,6 +327,12 @@ public interface EchoClient {
      * @return a future that completes when the user is fully cleaned up
      */
     @NotNull EchoFuture<Void> destroyUser(final @NotNull User user);
+
+    /** Destroys the user only when the expected login session is still current. */
+    default @NotNull EchoFuture<Void> destroyUser(final @NotNull User user,
+                                                   final @NotNull String expectedSessionId) {
+        return this.destroyUser(user);
+    }
 
     /**
      * Registers a user in a server, updating their current server tracking.

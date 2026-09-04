@@ -4,6 +4,7 @@ import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.id.Identifiable;
 import fr.codinbox.echo.api.messaging.MessageRouter;
 import fr.codinbox.echo.api.property.PropertyHolder;
+import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.user.UserHolder;
 import fr.codinbox.echo.api.utils.Cleanable;
 import org.jetbrains.annotations.NotNull;
@@ -36,6 +37,31 @@ import org.jetbrains.annotations.NotNull;
  * @see fr.codinbox.echo.api.EchoClient#getServers()
  */
 public interface Server extends Identifiable<String>, UserHolder, PropertyHolder, MessageRouter, Joinable, Cleanable {
+
+    /**
+     * Property used to persist availability across proxy restarts.
+     */
+    @NotNull PropertyKey<String> PROPERTY_AVAILABILITY = new PropertyKey<>("availability");
+
+    /** Property containing the last server load snapshot. */
+    @NotNull PropertyKey<ServerLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
+
+    /**
+     * Gets whether this live server accepts new players.
+     *
+     * <p>Servers registered before availability was introduced default to {@link ServerAvailability#ACTIVE}.</p>
+     *
+     * @return the server availability
+     */
+    default @NotNull EchoFuture<@NotNull ServerAvailability> getAvailability() {
+        return EchoFuture.of(this.getProperty(PROPERTY_AVAILABILITY)
+                .thenApply(value -> value.map(ServerAvailability::valueOf).orElse(ServerAvailability.ACTIVE)));
+    }
+
+    /** Returns the last server load snapshot, or empty when none was published. */
+    default @NotNull EchoFuture<java.util.Optional<ServerLoadSnapshot>> getLoad() {
+        return this.getProperty(PROPERTY_LOAD);
+    }
 
     /**
      * Checks whether this server still exists in the network.

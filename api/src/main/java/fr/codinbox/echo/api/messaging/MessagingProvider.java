@@ -3,6 +3,7 @@ package fr.codinbox.echo.api.messaging;
 import fr.codinbox.echo.api.EchoFuture;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -70,7 +71,20 @@ public interface MessagingProvider {
      * @return a future that completes when the message has been published
      */
     <T extends EchoMessage> @NotNull EchoFuture<Void> publish(final @NotNull String topic,
-                                                               final @NotNull T obj);
+                                                                final @NotNull T obj);
+
+    /**
+     * Registers a typed reply waiter before publishing and bounds the full request lifecycle.
+     */
+    default <R extends EchoMessage> @NotNull EchoFuture<R> request(
+            @NotNull String topic,
+            @NotNull EchoMessage request,
+            @NotNull Class<R> responseType,
+            @NotNull Duration timeout) {
+        final EchoFuture<R> future = new EchoFuture<>();
+        future.completeExceptionally(new UnsupportedOperationException("Bounded requests are not supported"));
+        return future;
+    }
 
     /**
      * Publishes a message to multiple topics sequentially.

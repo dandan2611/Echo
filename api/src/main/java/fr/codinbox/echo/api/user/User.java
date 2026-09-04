@@ -11,6 +11,7 @@ import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.utils.Cleanable;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -51,6 +52,9 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * Property key for the identifier of the proxy the user is currently connected to.
      */
     @NotNull PropertyKey<String> PROPERTY_CURRENT_PROXY_ID = new PropertyKey<>("current_proxy_id");
+
+    /** Property key for the token identifying the user's current login session. */
+    @NotNull PropertyKey<String> PROPERTY_SESSION_ID = new PropertyKey<>("session_id");
 
     /**
      * Property key for the identifier of the server the user is currently on.
@@ -96,6 +100,11 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      */
     default @NotNull EchoFuture<Void> setCurrentProxyId(final @NotNull String proxyId) {
         return this.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId);
+    }
+
+    /** Returns the token identifying the user's current login session. */
+    default @NotNull EchoFuture<@NotNull Optional<String>> getSessionId() {
+        return EchoFuture.of(this.getProperty(User.PROPERTY_SESSION_ID));
     }
 
     /**
@@ -224,6 +233,12 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * @see ServerSwitchRequest.ServerSwitchRequestStatus
      */
     @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull String id);
+
+    /** Bounded variant for workflows that must recover from a missing proxy reply. */
+    default @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(
+            final @NotNull String id, final @NotNull Duration timeout) {
+        return this.tryConnectToServer(id);
+    }
 
     /**
      * Requests to transfer this user to a different server.

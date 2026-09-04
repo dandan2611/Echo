@@ -49,6 +49,9 @@ public class ServerSwitchRequest extends EchoMessage {
      */
     private @NotNull UUID[] userUuids;
 
+    /** Absolute transfer deadline in epoch milliseconds; zero means no protocol deadline. */
+    private long transferDeadlineEpochMillis;
+
     /**
      * Creates a server switch request for one or more players.
      *
@@ -165,7 +168,19 @@ public class ServerSwitchRequest extends EchoMessage {
          * The target server disconnected the player during the connection.
          * A reason may be available via {@code PlayerResponse.getSerializedReason()}.
          */
-        SERVER_DISCONNECTED
+        SERVER_DISCONNECTED,
+        /** The target is absent from Echo. */
+        TARGET_SERVER_NOT_FOUND,
+        /** The target is draining. */
+        TARGET_SERVER_UNAVAILABLE,
+        /** This proxy has not registered the target server. */
+        TARGET_SERVER_NOT_REGISTERED,
+        /** The requested player is not connected to this proxy. */
+        PLAYER_NOT_CONNECTED,
+        /** The bounded transfer request expired before a definitive result. */
+        TIMED_OUT,
+        /** An unexpected lookup or connection failure occurred. */
+        INTERNAL_ERROR
     }
 
 }

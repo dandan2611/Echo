@@ -3,6 +3,7 @@ package fr.codinbox.echo.core.proxy;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.cache.CacheProvider;
+import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @Tag("unit")
@@ -34,6 +36,21 @@ class ProxyImplTest {
             new ProxyImpl("testProxy", null);
 
             verify(mockClient, never()).getCacheProvider();
+        }
+    }
+
+    @Test
+    void constructor_withAddress_propagatesWriteFailure() {
+        try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
+            EchoClient mockClient = mock(EchoClient.class);
+            CacheProvider mockCache = mock(CacheProvider.class);
+            echoMock.when(Echo::getClient).thenReturn(mockClient);
+            when(mockClient.getCacheProvider()).thenReturn(mockCache);
+            when(mockCache.setObject(eq("proxy:testProxy:address"), any(Address.class)))
+                    .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("write failed")));
+
+            assertThatThrownBy(() -> new ProxyImpl("testProxy", new Address("127.0.0.1", 25565)))
+                    .hasRootCauseMessage("write failed");
         }
     }
 
