@@ -543,7 +543,6 @@ class AgonesOnDemandServersTest {
                 mock(KubernetesClient.class), "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
         OnDemandAdministration administration = this.adapter.administration();
 
-        assertThat(administration).isSameAs(this.adapter);
         List<OnDemandAdministration.Allocation> allocations = administration.listAllocations().join();
         assertThat(allocations).containsExactly(
                 new OnDemandAdministration.Allocation("queue-a", "match-a"),

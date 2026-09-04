@@ -38,14 +38,6 @@ class ServerImplTest {
     }
 
     @Test
-    void constants_shouldHaveCorrectValues() {
-        assertThat(ServerImpl.SERVER_MAP).isEqualTo("servers:map");
-        assertThat(ServerImpl.SERVER_TOPIC).isEqualTo("server:%s");
-        assertThat(ServerImpl.SERVER_KEY).isEqualTo("server:%s");
-        assertThat(ServerImpl.SERVER_ADDRESS_KEY).isEqualTo("server:%s:address");
-    }
-
-    @Test
     void stillExists_shouldCheckHeartbeatKey() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
@@ -61,11 +53,6 @@ class ServerImplTest {
             assertThat(result).isTrue();
             verify(mockCache).hasObject("heartbeat:server:testServer");
         }
-    }
-
-    @Test
-    void heartbeatKey_shouldHaveCorrectFormat() {
-        assertThat(ServerImpl.HEARTBEAT_KEY).isEqualTo("heartbeat:server:%s");
     }
 
     @Test

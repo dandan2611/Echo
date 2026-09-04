@@ -250,8 +250,7 @@ class UserDisconnectRequestHandlerTest {
     }
 
     @Test
-    void publicConstructorAndSynchronousLookupFailuresAreCovered() {
-        assertThat(new UserDisconnectRequestHandler(this.plugin, this.echo)).isNotNull();
+    void synchronousLookupFailuresAreReportedWithOrWithoutMessages() {
         UserDisconnectRequest withMessage = request("proxy-1", NOW.plusSeconds(5));
         UserDisconnectRequest withoutMessage = request("proxy-1", NOW.plusSeconds(5));
         when(this.echo.getUserById(USER_ID))

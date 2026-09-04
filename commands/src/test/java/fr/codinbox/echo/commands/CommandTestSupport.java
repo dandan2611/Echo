@@ -140,10 +140,6 @@ final class CommandTestSupport {
         String output() {
             return this.audience.output();
         }
-
-        void clearOutput() {
-            this.audience.messages.clear();
-        }
     }
 
     static final class FakeAudience implements CommandAudience<String> {

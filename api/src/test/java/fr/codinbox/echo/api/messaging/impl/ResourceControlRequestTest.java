@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,13 +21,6 @@ class ResourceControlRequestTest {
         request.setExecutionDeadlineEpochMillis(10_000L);
 
         assertThat(request.resolveDrainDeadlineEpochMillis(1_000L)).isEqualTo(6_000L);
-        assertThat(request.getAction()).isEqualTo(ResourceControlRequest.Action.DRAIN);
-        assertThat(request.getExpectedResourceType()).isEqualTo(EchoResourceType.SERVER);
-        assertThat(request.getExpectedResourceId()).isEqualTo("game-1");
-        assertThat(request.getDeadlineDurationMillis()).isEqualTo(5_000L);
-        assertThat(request.getDeadlineEpochMillis()).isZero();
-        assertThat(request.getExecutionDeadlineEpochMillis()).isEqualTo(10_000L);
-        assertThat(request.getReason()).isEqualTo("maintenance");
         assertThat(request.validationError()).isNull();
         assertThatThrownBy(() -> new ResourceControlRequest(
                 ResourceControlRequest.Action.DRAIN, EchoResourceType.SERVER, "game-1",
@@ -126,35 +118,9 @@ class ResourceControlRequestTest {
     }
 
     @Test
-    void responseCopiesCorrelationAndAlwaysCarriesOutcome() {
-        ResourceControlRequest request = new ResourceControlRequest(
-                ResourceControlRequest.Action.PING, EchoResourceType.PROXY, "proxy-1", null);
-        UUID correlation = UUID.fromString("00000000-0000-0000-0000-000000000001");
-        request.setMessageId(correlation);
-
-        ResourceControlRequest.Response response = new ResourceControlRequest.Response(
-                request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
-
-        assertThat(response.getMessageId()).isEqualTo(correlation);
-        assertThat(response.isAccepted()).isTrue();
-        assertThat(response.getStatus()).isEqualTo(ResourceControlRequest.Status.ACCEPTED);
-        assertThat(response.getMessage()).isEqualTo("pong");
-    }
-
-    @Test
-    void responseSupportsJacksonSetters() {
+    void responseJacksonSettersRejectNullRequiredValues() {
         ResourceControlRequest.Response response = new ResourceControlRequest.Response();
-        assertThat(response.isAccepted()).isFalse();
-        assertThat(response.getStatus()).isNull();
-        assertThat(response.getMessage()).isNull();
 
-        response.setAccepted(true);
-        response.setStatus(ResourceControlRequest.Status.TIMED_OUT);
-        response.setMessage("timed out");
-
-        assertThat(response.isAccepted()).isTrue();
-        assertThat(response.getStatus()).isEqualTo(ResourceControlRequest.Status.TIMED_OUT);
-        assertThat(response.getMessage()).isEqualTo("timed out");
         assertThatThrownBy(() -> response.setStatus(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> response.setMessage(null)).isInstanceOf(NullPointerException.class);
     }

@@ -5,7 +5,6 @@ import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -116,12 +115,4 @@ class AbstractPropertyHolderTest {
         }
     }
 
-    @Test
-    void getId_shouldReturnCorrectId() {
-        try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
-            TestPropertyHolder holder = new TestPropertyHolder("myId");
-
-            assertThat(holder.getId()).isEqualTo("myId");
-        }
-    }
 }

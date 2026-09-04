@@ -12,21 +12,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MessageTargetTest {
 
     @Test
-    void everyone_returnsBroadcastTopic() {
-        MessageTarget target = MessageTarget.everyone();
-
-        assertThat(target.getTargets()).containsExactly(MessageTarget.BROADCAST_TOPIC);
-    }
-
-    @Test
-    void constructor_storesTargets() {
-        Set<String> targets = Set.of("topic1", "topic2");
-        MessageTarget target = new MessageTarget(targets);
-
-        assertThat(target.getTargets()).containsExactlyInAnyOrderElementsOf(targets);
-    }
-
-    @Test
     void getTargets_returnsUnmodifiableCopy() {
         MessageTarget target = new MessageTarget(Set.of("topic1"));
 

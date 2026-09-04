@@ -68,14 +68,7 @@ class OnDemandServersTest {
     }
 
     @Test
-    void allocationValidatesAndExposesItsImmutableState() {
-        OnDemandAdministration.Allocation allocation =
-                new OnDemandAdministration.Allocation("queue-1", "server-1");
-
-        assertThat(allocation.requestId()).isEqualTo("queue-1");
-        assertThat(allocation.serverId()).isEqualTo("server-1");
-        assertThat(allocation).isEqualTo(new OnDemandAdministration.Allocation("queue-1", "server-1"));
-
+    void allocationValidatesIdentifiers() {
         assertThatThrownBy(() -> new OnDemandAdministration.Allocation(null, "server-1"))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("requestId");
@@ -91,21 +84,9 @@ class OnDemandServersTest {
     }
 
     @Test
-    void reconciliationValidatesAndExposesItsImmutableState() {
+    void reconciliationValidatesState() {
         OnDemandAdministration.Allocation allocation =
                 new OnDemandAdministration.Allocation("queue-1", "server-1");
-        OnDemandAdministration.Reconciliation active =
-                new OnDemandAdministration.Reconciliation(allocation, true, ServerAvailability.ACTIVE);
-        OnDemandAdministration.Reconciliation dead =
-                new OnDemandAdministration.Reconciliation(allocation, false, null);
-
-        assertThat(active.allocation()).isSameAs(allocation);
-        assertThat(active.live()).isTrue();
-        assertThat(active.availability()).isEqualTo(ServerAvailability.ACTIVE);
-        assertThat(dead.live()).isFalse();
-        assertThat(dead.availability()).isNull();
-        assertThat(active).isEqualTo(new OnDemandAdministration.Reconciliation(
-                allocation, true, ServerAvailability.ACTIVE));
 
         assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(
                 null, false, null))

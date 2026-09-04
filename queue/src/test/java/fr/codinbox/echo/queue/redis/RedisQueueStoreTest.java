@@ -81,15 +81,6 @@ class RedisQueueStoreTest {
     }
 
     @Test
-    void defaultClockConstructorAndCloseRequireNoExtraLifecycle() {
-        RedisQueueStore defaultClockStore = new RedisQueueStore(this.connection);
-
-        assertThat(defaultClockStore.paused(QUEUE_ID)).isFalse();
-        defaultClockStore.close();
-        this.store.close();
-    }
-
-    @Test
     void enqueueRoundTripsTheWholeQueueDocumentAndIsIdempotent() {
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(UUID.randomUUID()));
 

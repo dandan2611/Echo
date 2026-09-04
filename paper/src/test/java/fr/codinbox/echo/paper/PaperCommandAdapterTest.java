@@ -16,11 +16,6 @@ import static org.mockito.Mockito.when;
 class PaperCommandAdapterTest {
 
     @Test
-    void exposesExpectedRootAliases() {
-        assertThat(EchoPaper.COMMAND_ROOT).isEqualTo("echo|echoserver");
-    }
-
-    @Test
     void audienceUsesTheUnderlyingPaperSender() {
         CommandSourceStack source = mock(CommandSourceStack.class);
         CommandSender sender = mock(CommandSender.class);

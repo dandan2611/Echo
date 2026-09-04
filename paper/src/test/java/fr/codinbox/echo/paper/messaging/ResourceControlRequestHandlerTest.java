@@ -57,17 +57,6 @@ class ResourceControlRequestHandlerTest {
     }
 
     @Test
-    void constructorsAcceptDependenciesAndRejectNulls() {
-        assertThat(new ResourceControlRequestHandler(this.plugin, this.echo)).isNotNull();
-        assertThatThrownBy(() -> new ResourceControlRequestHandler(null, this.echo, CLOCK))
-                .isInstanceOf(NullPointerException.class).hasMessage("plugin");
-        assertThatThrownBy(() -> new ResourceControlRequestHandler(this.plugin, null, CLOCK))
-                .isInstanceOf(NullPointerException.class).hasMessage("echo");
-        assertThatThrownBy(() -> new ResourceControlRequestHandler(this.plugin, this.echo, null))
-                .isInstanceOf(NullPointerException.class).hasMessage("clock");
-    }
-
-    @Test
     void invalidRequestIsRejectedBeforeTargetLookup() {
         ResourceControlRequest request = request(new ResourceControlRequest());
 

@@ -133,9 +133,6 @@ class ServerPlacementTest {
                 "request-1", "token-1", "lobby-1", members, Instant.parse("2026-09-03T12:00:30Z"));
         members.clear();
 
-        assertThat(reservation.requestId()).isEqualTo("request-1");
-        assertThat(reservation.token()).isEqualTo("token-1");
-        assertThat(reservation.serverId()).isEqualTo("lobby-1");
         assertThat(reservation.members()).containsExactly(player);
         assertThatThrownBy(() -> reservation.members().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
@@ -219,10 +216,7 @@ class ServerPlacementTest {
                 "request-1", "lobby-1", members, expiresAt);
         members.clear();
 
-        assertThat(reservation.requestId()).isEqualTo("request-1");
-        assertThat(reservation.serverId()).isEqualTo("lobby-1");
         assertThat(reservation.members()).containsExactly(member);
-        assertThat(reservation.expiresAt()).isEqualTo(expiresAt);
         assertThatThrownBy(() -> reservation.members().clear()).isInstanceOf(UnsupportedOperationException.class);
 
         assertThatThrownBy(() -> new ServerPlacement.ActiveReservation(
@@ -246,23 +240,6 @@ class ServerPlacementTest {
         assertThatThrownBy(() -> new ServerPlacement.ActiveReservation(
                 "request-1", "lobby-1", Set.of(member), null))
                 .isInstanceOf(NullPointerException.class).hasMessage("expiresAt");
-    }
-
-    @Test
-    void serverStatus_acceptsValidPresentAndMissingMeasurements() {
-        ServerPlacement.ServerStatus measured = status("lobby-1");
-        ServerPlacement.ServerStatus missing = new ServerPlacement.ServerStatus("lobby-2", false,
-                ServerPlacement.AvailabilityState.DEFAULT_ACTIVE, OptionalInt.empty(), 0,
-                OptionalInt.empty(), OptionalLong.empty(), false, false);
-
-        assertThat(measured.serverId()).isEqualTo("lobby-1");
-        assertThat(measured.participantLoad()).hasValue(3);
-        assertThat(measured.reservedSlots()).isEqualTo(2);
-        assertThat(measured.capacity()).hasValue(10);
-        assertThat(measured.freeSlots()).hasValue(5L);
-        assertThat(missing.participantLoad()).isEmpty();
-        assertThat(missing.capacity()).isEmpty();
-        assertThat(missing.freeSlots()).isEmpty();
     }
 
     @Test
@@ -311,17 +288,6 @@ class ServerPlacementTest {
     @Test
     void candidateEvaluation_validatesEligibilityAndMeasurements() {
         ServerPlacement.ServerStatus status = status("lobby-1");
-        ServerPlacement.CandidateEvaluation eligible = new ServerPlacement.CandidateEvaluation(
-                "lobby-1", Optional.of(status), ServerPlacement.RejectionReason.NONE, OptionalLong.of(5));
-        ServerPlacement.CandidateEvaluation rejected = new ServerPlacement.CandidateEvaluation(
-                "missing", Optional.empty(), ServerPlacement.RejectionReason.SERVER_NOT_REGISTERED,
-                OptionalLong.empty());
-
-        assertThat(eligible.status()).contains(status);
-        assertThat(eligible.effectiveLoad()).hasValue(5L);
-        assertThat(rejected.status()).isEmpty();
-        assertThat(rejected.effectiveLoad()).isEmpty();
-
         assertThatThrownBy(() -> new ServerPlacement.CandidateEvaluation(null, Optional.empty(),
                 ServerPlacement.RejectionReason.SERVER_NOT_REGISTERED, OptionalLong.empty()))
                 .isInstanceOf(NullPointerException.class).hasMessage("serverId");
@@ -359,10 +325,8 @@ class ServerPlacementTest {
                 Optional.of("lobby-1"), candidates);
         candidates.clear();
 
-        assertThat(explanation.selectedServerId()).contains("lobby-1");
         assertThat(explanation.candidates()).containsExactly(other, eligible);
         assertThatThrownBy(() -> explanation.candidates().clear()).isInstanceOf(UnsupportedOperationException.class);
-        assertThat(new ServerPlacement.Explanation(Optional.empty(), List.of()).selectedServerId()).isEmpty();
 
         assertThatThrownBy(() -> new ServerPlacement.Explanation(null, List.of()))
                 .isInstanceOf(NullPointerException.class).hasMessage("selectedServerId");

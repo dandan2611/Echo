@@ -72,15 +72,21 @@ class JoinListenerTest {
     @Test
     void onJoinSchedulesRefreshBeforeReturningForMissingResourceId() throws Exception {
         when(client.getCurrentResourceId()).thenReturn(Optional.empty());
+        when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot()));
         try (MockedStatic<Echo> echo = mockStatic(Echo.class)) {
             echo.when(Echo::getClient).thenReturn(client);
 
             invokePrivate("onJoin", PlayerJoinEvent.class, new PlayerJoinEvent(player, "joined"));
 
+            ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
             InOrder order = inOrder(scheduler, client);
-            order.verify(scheduler).runTask(eq(plugin), any(Runnable.class));
+            order.verify(scheduler).runTask(eq(plugin), task.capture());
             order.verify(client).getCurrentResourceId();
             verify(client, never()).getUserById(any());
+            verify(loadManager, never()).refresh();
+
+            task.getValue().run();
+            verify(loadManager).refresh();
         }
     }
 
@@ -173,42 +179,20 @@ class JoinListenerTest {
     @Test
     void onQuitSchedulesRefreshBeforeReturningWhenProxyExists() throws Exception {
         when(client.getProxies()).thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L)));
+        when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot()));
         try (MockedStatic<Echo> echo = mockStatic(Echo.class)) {
             echo.when(Echo::getClient).thenReturn(client);
 
             invokePrivate("onQuit", PlayerQuitEvent.class, new PlayerQuitEvent(player, "left"));
 
+            ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
             InOrder order = inOrder(scheduler, client);
-            order.verify(scheduler).runTask(eq(plugin), any(Runnable.class));
+            order.verify(scheduler).runTask(eq(plugin), task.capture());
             order.verify(client).getProxies();
             verify(client, never()).getUserById(any());
-        }
-    }
-
-    @Test
-    void onJoinRefreshesLoadOnlyWhenCapturedTaskRuns() throws Exception {
-        when(client.getCurrentResourceId()).thenReturn(Optional.empty());
-        when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot()));
-        try (MockedStatic<Echo> echo = mockStatic(Echo.class)) {
-            echo.when(Echo::getClient).thenReturn(client);
-            invokePrivate("onJoin", PlayerJoinEvent.class, new PlayerJoinEvent(player, "joined"));
-
             verify(loadManager, never()).refresh();
-            scheduledTask().run();
-            verify(loadManager).refresh();
-        }
-    }
 
-    @Test
-    void onQuitRefreshesLoadOnlyWhenCapturedTaskRuns() throws Exception {
-        when(client.getProxies()).thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L)));
-        when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot()));
-        try (MockedStatic<Echo> echo = mockStatic(Echo.class)) {
-            echo.when(Echo::getClient).thenReturn(client);
-            invokePrivate("onQuit", PlayerQuitEvent.class, new PlayerQuitEvent(player, "left"));
-
-            verify(loadManager, never()).refresh();
-            scheduledTask().run();
+            task.getValue().run();
             verify(loadManager).refresh();
         }
     }

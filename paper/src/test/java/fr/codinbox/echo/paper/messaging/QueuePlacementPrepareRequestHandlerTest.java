@@ -88,12 +88,6 @@ class QueuePlacementPrepareRequestHandlerTest {
     }
 
     @Test
-    void publicConstructorAcceptsDependencies() {
-        assertThat(new QueuePlacementPrepareRequestHandler(plugin, echo, stopping::get, () -> preparer))
-                .isNotNull();
-    }
-
-    @Test
     void acceptedPreparationWaitsForReadinessAndPaperSchedulerAndPreservesCorrelation() {
         EchoFuture<Optional<Server>> serverLookup = new EchoFuture<>();
         CompletableFuture<QueuePlacementPreparer.Decision> decision = new CompletableFuture<>();

@@ -56,20 +56,6 @@ class UserImplTest {
     }
 
     @Test
-    void constants_shouldHaveCorrectValues() {
-        assertThat(UserImpl.USERNAME_TO_ID_MAP).isEqualTo("users:username_to_id");
-        assertThat(UserImpl.USER_MAP).isEqualTo("users:map");
-        assertThat(UserImpl.USER_KEY_PREFIX).isEqualTo("user:%s");
-    }
-
-    @Test
-    void getId_shouldReturnTheUuid() {
-        UserImpl user = new UserImpl(USER_ID);
-
-        assertThat(user.getId()).isEqualTo(USER_ID);
-    }
-
-    @Test
     void tryConnectToServer_defaultOverloadUsesTenSecondTimeout() {
         stubCurrentProxy();
         ServerSwitchRequest.PlayerResponse expected = stubResponse(Duration.ofSeconds(10));

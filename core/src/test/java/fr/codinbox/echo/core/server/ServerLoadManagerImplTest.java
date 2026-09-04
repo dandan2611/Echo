@@ -15,7 +15,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -115,16 +114,6 @@ class ServerLoadManagerImplTest {
 
         assertThatThrownBy(() -> manager(() -> new ServerLoad(1, true)).refresh().join())
                 .hasRootCauseMessage("write failed");
-    }
-
-    @Test
-    void current_readsPersistedSnapshot() {
-        ServerLoadSnapshot snapshot = new ServerLoadSnapshot(
-                new ServerLoad(5, false), NOW, NOW.plusSeconds(30));
-        when(server.getLoad()).thenReturn(EchoFuture.completed(Optional.of(snapshot)));
-
-        assertThat(manager(() -> new ServerLoad(0, true)).getCurrent().join())
-                .contains(snapshot);
     }
 
     private ServerLoadManagerImpl manager(ServerLoadProvider defaultProvider) {

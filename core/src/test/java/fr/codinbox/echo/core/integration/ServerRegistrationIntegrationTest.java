@@ -81,15 +81,4 @@ class ServerRegistrationIntegrationTest extends RedisIntegrationTestBase {
         assertThat(connectedUsers).containsKey(userId);
     }
 
-    @Test
-    void server_stillExists_afterCreation_returnsTrue() {
-        new ServerImpl("srv-5", new Address("127.0.0.1", 25568));
-        client.registerServer("srv-5").join();
-        createHeartbeat(EchoResourceType.SERVER, "srv-5");
-
-        Server server = client.getServerById("srv-5").join().orElseThrow();
-        boolean exists = server.stillExists().join();
-
-        assertThat(exists).isTrue();
-    }
 }

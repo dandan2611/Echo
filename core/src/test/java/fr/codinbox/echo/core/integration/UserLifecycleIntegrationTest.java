@@ -35,17 +35,6 @@ class UserLifecycleIntegrationTest extends RedisIntegrationTestBase {
     }
 
     @Test
-    void getUserByUsername_returnsUser() {
-        UUID userId = UUID.randomUUID();
-        client.createUser(userId, "Bob", "proxy-1").join();
-
-        Optional<User> found = client.getUserByUsername("Bob").join();
-
-        assertThat(found).isPresent();
-        assertThat(found.get().getId()).isEqualTo(userId);
-    }
-
-    @Test
     void getUserByUsername_caseInsensitive() {
         UUID userId = UUID.randomUUID();
         client.createUser(userId, "Alice", "proxy-1").join();

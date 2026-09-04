@@ -46,7 +46,6 @@ class RemoteAdministrationTest {
 
     @Test
     void constructorsRejectNullDependencies() {
-        assertThat(new RemoteAdministration(this.echo)).isNotNull();
         assertThatThrownBy(() -> new RemoteAdministration(null))
                 .isInstanceOf(NullPointerException.class).hasMessage("echo");
         assertThatThrownBy(() -> new RemoteAdministration(this.echo, null))
@@ -126,12 +125,10 @@ class RemoteAdministrationTest {
         ArgumentCaptor<UserDisconnectRequest> request = ArgumentCaptor.forClass(UserDisconnectRequest.class);
         verify(this.messaging).request(eq("proxy:proxy-2"), request.capture(),
                 eq(UserDisconnectRequest.Response.class), eq(Duration.ofMillis(2_750)));
-        assertThat(request.getValue().getExpectedProxyId()).isEqualTo("proxy-2");
-        assertThat(request.getValue().getExpectedSessionId()).isEqualTo("session-2");
-        assertThat(request.getValue().getUserId()).isEqualTo(userId);
-        assertThat(request.getValue().getReason()).isEqualTo("maintenance");
-        assertThat(request.getValue().getDeadlineEpochMillis()).isEqualTo(4_000L);
-        assertThat(request.getValue().getReplyTopic()).isEqualTo("proxy:admin");
+        assertThat(new Object[]{request.getValue().getExpectedProxyId(), request.getValue().getExpectedSessionId(),
+                request.getValue().getUserId(), request.getValue().getReason(),
+                request.getValue().getDeadlineEpochMillis(), request.getValue().getReplyTopic()})
+                .containsExactly("proxy-2", "session-2", userId, "maintenance", 4_000L, "proxy:admin");
     }
 
     @Test

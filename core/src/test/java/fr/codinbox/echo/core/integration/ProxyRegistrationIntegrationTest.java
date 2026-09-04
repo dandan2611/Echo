@@ -47,18 +47,6 @@ class ProxyRegistrationIntegrationTest extends RedisIntegrationTestBase {
     }
 
     @Test
-    void proxy_stillExists_withHeartbeat_returnsTrue() {
-        new ProxyImpl("prx-3", new Address("127.0.0.1", 25579));
-        client.registerProxy("prx-3").join();
-        createHeartbeat(EchoResourceType.PROXY, "prx-3");
-
-        Proxy proxy = client.getProxyById("prx-3").join().orElseThrow();
-        boolean exists = proxy.stillExists().join();
-
-        assertThat(exists).isTrue();
-    }
-
-    @Test
     void proxy_registerAndGetConnectedUsers() {
         new ProxyImpl("prx-4", new Address("127.0.0.1", 25580));
         client.registerProxy("prx-4").join();

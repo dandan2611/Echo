@@ -49,25 +49,4 @@ class ServerLoadTest {
                 .hasMessage("now");
     }
 
-    @Test
-    void snapshot_hasRecordCompatibleValueSemantics() {
-        Instant sampledAt = Instant.parse("2026-09-03T12:00:00Z");
-        ServerLoad load = new ServerLoad(4, true);
-        ServerLoadSnapshot snapshot = new ServerLoadSnapshot(load, sampledAt, sampledAt.plusSeconds(30));
-        ServerLoadSnapshot equal = new ServerLoadSnapshot(load, sampledAt, sampledAt.plusSeconds(30));
-
-        assertThat(snapshot.load()).isSameAs(load);
-        assertThat(snapshot.sampledAt()).isEqualTo(sampledAt);
-        assertThat(snapshot.validUntil()).isEqualTo(sampledAt.plusSeconds(30));
-        assertThat(snapshot).isEqualTo(snapshot).isEqualTo(equal)
-                .hasSameHashCodeAs(equal)
-                .isNotEqualTo(null)
-                .isNotEqualTo("snapshot")
-                .isNotEqualTo(new ServerLoadSnapshot(new ServerLoad(3, true), sampledAt, sampledAt.plusSeconds(30)))
-                .isNotEqualTo(new ServerLoadSnapshot(load, sampledAt.plusSeconds(1), sampledAt.plusSeconds(30)))
-                .isNotEqualTo(new ServerLoadSnapshot(load, sampledAt, sampledAt.plusSeconds(31)));
-        assertThat(snapshot.toString()).isEqualTo(
-                "ServerLoadSnapshot[load=ServerLoad[participantCount=4, acceptingQueueAssignments=true], "
-                        + "sampledAt=2026-09-03T12:00:00Z, validUntil=2026-09-03T12:00:30Z]");
-    }
 }

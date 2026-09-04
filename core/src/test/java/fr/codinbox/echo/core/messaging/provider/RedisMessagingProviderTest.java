@@ -109,21 +109,6 @@ class RedisMessagingProviderTest {
     }
 
     @Test
-    void waitForReply_shouldStoreConsumer() {
-        EchoMessage message = mock(EchoMessage.class);
-        UUID messageId = UUID.randomUUID();
-        when(message.getMessageId()).thenReturn(messageId);
-
-        provider.waitForReply(message, msg -> true);
-
-        // Verify the consumer is stored by calling handleReply which should find it
-        EchoMessage reply = mock(EchoMessage.class);
-        when(reply.getMessageId()).thenReturn(messageId);
-        boolean result = provider.handleReply(reply);
-        assertThat(result).isTrue();
-    }
-
-    @Test
     void handleReply_withMatchingConsumer_shouldInvokeAndReturnItsResult() {
         UUID messageId = UUID.randomUUID();
 

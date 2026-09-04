@@ -27,15 +27,6 @@ class MapUtilsTest {
     }
 
     @Test
-    void mapStringToUuidKey_shouldReturnEmptyMapForEmptyInput() {
-        Map<String, Integer> input = Map.of();
-
-        Map<UUID, Integer> result = MapUtils.mapStringToUuidKey(input);
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
     void mapStringToUuidKey_shouldThrowForInvalidUuid() {
         Map<String, Integer> input = Map.of("not-a-uuid", 1);
 

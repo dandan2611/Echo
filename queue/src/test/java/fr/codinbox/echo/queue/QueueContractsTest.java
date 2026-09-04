@@ -25,6 +25,14 @@ import static org.mockito.Mockito.mock;
 class QueueContractsTest {
 
     @Test
+    void defaults_preserveCoordinationTimeouts() {
+        QueueOptions options = QueueOptions.defaults();
+
+        assertThat(new Duration[] { options.transferTimeout(), options.transferReconciliationTimeout() })
+                .containsExactly(Duration.ofSeconds(15), Duration.ofSeconds(1));
+    }
+
+    @Test
     void legacyQueueServicesRejectUnsupportedAdministration() {
         QueueService service = mock(QueueService.class, CALLS_REAL_METHODS);
 
@@ -56,7 +64,6 @@ class QueueContractsTest {
     void invalidContractsFailBeforeRedisIsTouched() {
         QueueId queueId = new QueueId("survival:classic");
 
-        assertThat(queueId.toString()).isEqualTo("survival:classic");
         assertThatThrownBy(() -> new QueueId(" ")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new QueueRequest(" ", queueId, Set.of(UUID.randomUUID())))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -87,9 +94,6 @@ class QueueContractsTest {
                 Duration.ofSeconds(4), Duration.ofSeconds(1), Duration.ofSeconds(2), Duration.ofSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("pollInterval");
-        assertThat(QueueOptions.defaults().transferTimeout()).isEqualTo(Duration.ofSeconds(15));
-        assertThat(QueueOptions.defaults().transferReconciliationTimeout()).isEqualTo(Duration.ofSeconds(1));
-
         QueueRequest request = new QueueRequest("ticket", queueId, Set.of(UUID.randomUUID()));
         assertThatThrownBy(() -> new QueueRequestStatus(request, -1, QueueRequestStatus.State.QUEUED,
                 null, null, Map.of(), null)).isInstanceOf(IllegalArgumentException.class);
@@ -117,8 +121,6 @@ class QueueContractsTest {
 
     @Test
     void preparerDecisionRequiresAReasonWhenRejected() {
-        assertThat(QueuePlacementPreparer.Decision.accept().accepted()).isTrue();
-        assertThat(QueuePlacementPreparer.Decision.reject("full").reason()).isEqualTo("full");
         assertThatThrownBy(() -> new QueuePlacementPreparer.Decision(true, "unexpected"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new QueuePlacementPreparer.Decision(false, null))

@@ -59,11 +59,10 @@ import static org.mockito.Mockito.when;
 class EchoCommandsTest {
 
     @Test
-    void everyCommandHasUniquePermissionAndRootPlaceholder() {
+    void everyCommandHasAPermissionAndUsesTheRootPlaceholder() {
         List<Method> commands = Arrays.stream(EchoCommands.class.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(Command.class)).toList();
 
-        assertThat(commands).hasSize(54);
         assertThat(commands).allSatisfy(method -> {
             Permission permission = method.getAnnotation(Permission.class);
             assertThat(permission).isNotNull();

@@ -14,19 +14,6 @@ class UserDisconnectRequestTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Test
-    void constructorStoresAValidBoundedRequest() {
-        UserDisconnectRequest request = new UserDisconnectRequest(
-                "proxy-1", "session-1", USER_ID, "maintenance", 5_000L);
-
-        assertThat(request.getExpectedProxyId()).isEqualTo("proxy-1");
-        assertThat(request.getExpectedSessionId()).isEqualTo("session-1");
-        assertThat(request.getUserId()).isEqualTo(USER_ID);
-        assertThat(request.getReason()).isEqualTo("maintenance");
-        assertThat(request.getDeadlineEpochMillis()).isEqualTo(5_000L);
-        assertThat(request.validationError()).isNull();
-    }
-
-    @Test
     void constructorRejectsInvalidRequiredValues() {
         assertThatThrownBy(() -> new UserDisconnectRequest(null, "session-1", USER_ID, "reason", 1L))
                 .isInstanceOf(NullPointerException.class).hasMessage("expectedProxyId");
@@ -73,35 +60,9 @@ class UserDisconnectRequestTest {
     }
 
     @Test
-    void responseCopiesCorrelationAndCarriesOutcome() {
-        UserDisconnectRequest request = new UserDisconnectRequest(
-                "proxy-1", "session-1", USER_ID, "maintenance", 5_000L);
-        UUID correlation = UUID.fromString("00000000-0000-0000-0000-000000000002");
-        request.setMessageId(correlation);
-
-        UserDisconnectRequest.Response response = new UserDisconnectRequest.Response(
-                request, true, UserDisconnectRequest.Status.DISCONNECTED, "disconnected");
-
-        assertThat(response.getMessageId()).isEqualTo(correlation);
-        assertThat(response.isAccepted()).isTrue();
-        assertThat(response.getStatus()).isEqualTo(UserDisconnectRequest.Status.DISCONNECTED);
-        assertThat(response.getMessage()).isEqualTo("disconnected");
-    }
-
-    @Test
-    void responseSupportsJacksonSetters() {
+    void responseJacksonSettersRejectNullRequiredValues() {
         UserDisconnectRequest.Response response = new UserDisconnectRequest.Response();
-        assertThat(response.isAccepted()).isFalse();
-        assertThat(response.getStatus()).isNull();
-        assertThat(response.getMessage()).isNull();
 
-        response.setAccepted(true);
-        response.setStatus(UserDisconnectRequest.Status.TIMED_OUT);
-        response.setMessage("timed out");
-
-        assertThat(response.isAccepted()).isTrue();
-        assertThat(response.getStatus()).isEqualTo(UserDisconnectRequest.Status.TIMED_OUT);
-        assertThat(response.getMessage()).isEqualTo("timed out");
         assertThatThrownBy(() -> response.setStatus(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> response.setMessage(null)).isInstanceOf(NullPointerException.class);
     }

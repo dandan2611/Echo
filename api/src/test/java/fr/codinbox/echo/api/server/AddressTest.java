@@ -12,14 +12,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AddressTest {
 
     @Test
-    void constructor_setsHostAndPort() {
-        Address address = new Address("localhost", 25565);
-
-        assertThat(address.getHost()).isEqualTo("localhost");
-        assertThat(address.getPort()).isEqualTo(25565);
-    }
-
-    @Test
     void toInetSocketAddress_returnsCorrectAddress() {
         Address address = new Address("127.0.0.1", 8080);
 

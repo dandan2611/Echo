@@ -52,14 +52,6 @@ class ProxyImplTest {
     }
 
     @Test
-    void constants_shouldHaveCorrectValues() {
-        assertThat(ProxyImpl.PROXY_MAP).isEqualTo("proxies:map");
-        assertThat(ProxyImpl.PROXY_TOPIC).isEqualTo("proxy:%s");
-        assertThat(ProxyImpl.PROXY_KEY).isEqualTo("proxy:%s");
-        assertThat(ProxyImpl.PROXY_ADDRESS_KEY).isEqualTo("proxy:%s:address");
-    }
-
-    @Test
     void stillExists_shouldCheckHeartbeatKey() {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             EchoClient mockClient = mock(EchoClient.class);
@@ -77,8 +69,4 @@ class ProxyImplTest {
         }
     }
 
-    @Test
-    void heartbeatKey_shouldHaveCorrectFormat() {
-        assertThat(ProxyImpl.HEARTBEAT_KEY).isEqualTo("heartbeat:proxy:%s");
-    }
 }

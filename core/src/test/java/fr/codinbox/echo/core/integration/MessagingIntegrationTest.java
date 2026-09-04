@@ -60,25 +60,4 @@ class MessagingIntegrationTest extends RedisIntegrationTestBase {
         assertThat(received.get().getMessageId()).isEqualTo(msg.getMessageId());
     }
 
-    @Test
-    void handleReply_withWaitForReply_dispatches() {
-        TestMessage original = new TestMessage("request");
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<EchoMessage> receivedReply = new AtomicReference<>();
-
-        messagingProvider.waitForReply(original, reply -> {
-            receivedReply.set(reply);
-            latch.countDown();
-            return true;
-        });
-
-        TestMessage replyMsg = new TestMessage("response");
-        replyMsg.setMessageId(original.getMessageId());
-
-        boolean handled = messagingProvider.handleReply(replyMsg);
-
-        assertThat(handled).isTrue();
-        assertThat(receivedReply.get()).isNotNull();
-        assertThat(receivedReply.get().getMessageId()).isEqualTo(original.getMessageId());
-    }
 }

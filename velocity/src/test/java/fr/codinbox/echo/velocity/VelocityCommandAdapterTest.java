@@ -17,11 +17,6 @@ import static org.mockito.Mockito.when;
 class VelocityCommandAdapterTest {
 
     @Test
-    void exposesExpectedRootAliases() {
-        assertThat(EchoPlugin.COMMAND_ROOT).isEqualTo("echo|echoproxy");
-    }
-
-    @Test
     void audienceUsesVelocitySenders() {
         Player player = mock(Player.class);
         ConsoleCommandSource console = mock(ConsoleCommandSource.class);

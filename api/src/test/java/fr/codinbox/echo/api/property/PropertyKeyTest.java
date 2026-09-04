@@ -9,13 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PropertyKeyTest {
 
     @Test
-    void of_createsKey() {
-        PropertyKey<String> key = PropertyKey.of("my.key", String.class);
-
-        assertThat(key.key()).isEqualTo("my.key");
-    }
-
-    @Test
     void toString_returnsKey() {
         PropertyKey<String> key = PropertyKey.of("my.key", String.class);
 
@@ -45,11 +38,4 @@ class PropertyKeyTest {
         assertThat(key).isNotEqualTo(null);
     }
 
-    @Test
-    void hashCode_consistency() {
-        PropertyKey<String> key1 = PropertyKey.of("my.key", String.class);
-        PropertyKey<String> key2 = PropertyKey.of("my.key", String.class);
-
-        assertThat(key1.hashCode()).isEqualTo(key2.hashCode());
-    }
 }

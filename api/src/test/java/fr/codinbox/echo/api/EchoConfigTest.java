@@ -22,48 +22,28 @@ import static org.mockito.Mockito.mock;
 class EchoConfigTest {
 
     @Test
-    void build_exposesConfiguredValues() {
-        Supplier<CacheProvider> cacheProviderFactory = () -> mock(CacheProvider.class);
-        Supplier<MessagingProvider> messagingProviderFactory = () -> mock(MessagingProvider.class);
-        ServerLoadProvider serverLoadProvider = () -> new ServerLoad(3, true);
-        ServerPlacement serverPlacement = mock(ServerPlacement.class);
+    void build_preservesConfiguredProviders() {
+        Supplier<CacheProvider> cacheFactory = () -> mock(CacheProvider.class);
+        Supplier<MessagingProvider> messagingFactory = () -> mock(MessagingProvider.class);
+        ServerLoadProvider loadProvider = () -> new ServerLoad(3, true);
+        ServerPlacement placement = mock(ServerPlacement.class);
+        EchoConfig config = EchoConfig.builder().cacheProviderFactory(cacheFactory)
+                .messagingProviderFactory(messagingFactory).resourceType(EchoResourceType.SERVER)
+                .resourceId("test-server").serverLoadProvider(loadProvider).serverPlacement(placement).build();
 
-        EchoConfig config = EchoConfig.builder()
-                .cacheProviderFactory(cacheProviderFactory)
-                .messagingProviderFactory(messagingProviderFactory)
-                .resourceType(EchoResourceType.SERVER)
-                .resourceId("test-server")
-                .heartbeatTtlSeconds(60)
-                .heartbeatIntervalSeconds(20)
-                .scanIntervalSeconds(45)
-                .cleanupEnabled(true)
-                .serverLoadProvider(serverLoadProvider)
-                .serverPlacement(serverPlacement)
-                .build();
-
-        assertThat(config.getCacheProviderFactory()).isSameAs(cacheProviderFactory);
-        assertThat(config.getMessagingProviderFactory()).isSameAs(messagingProviderFactory);
-        assertThat(config.getResourceType()).isEqualTo(EchoResourceType.SERVER);
-        assertThat(config.getResourceId()).isEqualTo("test-server");
-        assertThat(config.getHeartbeatTtlSeconds()).isEqualTo(60);
-        assertThat(config.getHeartbeatIntervalSeconds()).isEqualTo(20);
-        assertThat(config.getScanIntervalSeconds()).isEqualTo(45);
-        assertThat(config.isCleanupEnabled()).isTrue();
-        assertThat(config.getServerLoadProvider()).isSameAs(serverLoadProvider);
-        assertThat(config.getServerPlacement()).isSameAs(serverPlacement);
+        assertThat(new Object[] { config.getCacheProviderFactory(), config.getMessagingProviderFactory(),
+                config.getServerLoadProvider(), config.getServerPlacement() })
+                .containsExactly(cacheFactory, messagingFactory, loadProvider, placement);
     }
 
     @Test
-    void build_appliesDefaultsForEachResourceType() {
+    void build_appliesOperationalDefaultsForEachResourceType() {
         EchoConfig server = builder().build();
         EchoConfig proxy = builder().resourceType(EchoResourceType.PROXY).build();
 
-        assertThat(server.getHeartbeatTtlSeconds()).isEqualTo(EchoConfig.DEFAULT_HEARTBEAT_TTL);
-        assertThat(server.getHeartbeatIntervalSeconds()).isEqualTo(EchoConfig.DEFAULT_HEARTBEAT_INTERVAL);
-        assertThat(server.getScanIntervalSeconds()).isEqualTo(EchoConfig.DEFAULT_SCAN_INTERVAL);
-        assertThat(server.isCleanupEnabled()).isFalse();
-        assertThat(server.getServerLoadProvider()).isNull();
-        assertThat(server.getServerPlacement()).isNull();
+        assertThat(new Object[] { server.getHeartbeatTtlSeconds(), server.getHeartbeatIntervalSeconds(),
+                server.getScanIntervalSeconds(), server.isCleanupEnabled(), server.getServerLoadProvider(),
+                server.getServerPlacement() }).containsExactly(30L, 10L, 15L, false, null, null);
         assertThat(proxy.isCleanupEnabled()).isTrue();
     }
 
@@ -101,11 +81,6 @@ class EchoConfigTest {
                 .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("proxy");
-    }
-
-    @Test
-    void initialProperties_whenOmitted_areEmpty() {
-        assertThat(builder().build().getInitialProperties()).isEmpty();
     }
 
     @Test

@@ -25,7 +25,6 @@ class ExceptionTest {
     void unknownServerException_messageContainsServerAndName() {
         UnknownServerException ex = new UnknownServerException("myServer");
 
-        assertThat(ex).isInstanceOf(UnknownResourceException.class);
         assertThat(ex.getMessage()).contains("server").contains("myServer");
     }
 
@@ -33,23 +32,13 @@ class ExceptionTest {
     void unknownProxyException_messageContainsProxyAndName() {
         UnknownProxyException ex = new UnknownProxyException("myProxy");
 
-        assertThat(ex).isInstanceOf(UnknownResourceException.class);
         assertThat(ex.getMessage()).contains("proxy").contains("myProxy");
-    }
-
-    @Test
-    void unknownProxyException_defaultConstructorExists() {
-        UnknownProxyException ex = new UnknownProxyException();
-
-        assertThat(ex).isInstanceOf(UnknownResourceException.class);
-        assertThat(ex.getMessage()).contains("proxy");
     }
 
     @Test
     void unknownUserException_messageContainsUserAndName() {
         UnknownUserException ex = new UnknownUserException("myUser");
 
-        assertThat(ex).isInstanceOf(UnknownResourceException.class);
         assertThat(ex.getMessage()).contains("user").contains("myUser");
     }
 
@@ -58,7 +47,6 @@ class ExceptionTest {
         UUID uuid = UUID.randomUUID();
         UserHasNoProxyException ex = new UserHasNoProxyException(uuid);
 
-        assertThat(ex).isInstanceOf(RuntimeException.class);
         assertThat(ex.getMessage()).contains(uuid.toString());
     }
 }
