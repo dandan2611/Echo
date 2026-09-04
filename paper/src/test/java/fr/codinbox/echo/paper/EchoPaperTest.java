@@ -4,6 +4,7 @@ import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadManager;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
@@ -268,7 +269,8 @@ class EchoPaperTest {
     void loadRefreshSamplesTheProviderOnTheBukkitMainThread() throws Exception {
         Fixture fixture = fixture(List.of());
         ServerLoadManager loadManager = mock(ServerLoadManager.class);
-        ServerLoadSnapshot snapshot = mock(ServerLoadSnapshot.class);
+        ServerLoadSnapshot snapshot = new ServerLoadSnapshot(
+                new ServerLoad(0, true), Instant.EPOCH, Instant.EPOCH.plusSeconds(1));
         when(fixture.echoClient.getServerLoadManager()).thenReturn(loadManager);
         when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot));
 

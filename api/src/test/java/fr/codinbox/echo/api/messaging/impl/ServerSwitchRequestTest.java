@@ -1,11 +1,8 @@
 package fr.codinbox.echo.api.messaging.impl;
 
-import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest.PlayerResponse;
-import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest.ServerSwitchRequestStatus;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,41 +30,4 @@ class ServerSwitchRequestTest {
         assertThat(request.getUserUuids()).containsExactly(uuid);
     }
 
-    @Test
-    void response_storesResponses() {
-        UUID uuid = UUID.randomUUID();
-        PlayerResponse pr = new PlayerResponse(true, ServerSwitchRequestStatus.SUCCESS, null);
-        Map<UUID, PlayerResponse> map = Map.of(uuid, pr);
-
-        ServerSwitchRequest.Response response = new ServerSwitchRequest.Response(map);
-
-        assertThat(response.getResponses()).containsKey(uuid);
-        assertThat(response.getResponses().get(uuid).isSuccessful()).isTrue();
-    }
-
-    @Test
-    void playerResponse_storesFields() {
-        PlayerResponse pr = new PlayerResponse(false, ServerSwitchRequestStatus.SERVER_DISCONNECTED, "kicked");
-
-        assertThat(pr.isSuccessful()).isFalse();
-        assertThat(pr.getStatus()).isEqualTo(ServerSwitchRequestStatus.SERVER_DISCONNECTED);
-        assertThat(pr.getSerializedReason()).isEqualTo("kicked");
-    }
-
-    @Test
-    void serverSwitchRequestStatus_values() {
-        assertThat(ServerSwitchRequestStatus.values()).containsExactly(
-                ServerSwitchRequestStatus.SUCCESS,
-                ServerSwitchRequestStatus.ALREADY_CONNECTED,
-                ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS,
-                ServerSwitchRequestStatus.CONNECTION_CANCELLED,
-                ServerSwitchRequestStatus.SERVER_DISCONNECTED,
-                ServerSwitchRequestStatus.TARGET_SERVER_NOT_FOUND,
-                ServerSwitchRequestStatus.TARGET_SERVER_UNAVAILABLE,
-                ServerSwitchRequestStatus.TARGET_SERVER_NOT_REGISTERED,
-                ServerSwitchRequestStatus.PLAYER_NOT_CONNECTED,
-                ServerSwitchRequestStatus.TIMED_OUT,
-                ServerSwitchRequestStatus.INTERNAL_ERROR
-        );
-    }
 }

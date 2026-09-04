@@ -18,7 +18,7 @@ public final class CommandFormatter {
         lines.add(Component.text(title, NamedTextColor.AQUA));
         rows.forEach((key, value) -> lines.add(Component.text(key + ": ", NamedTextColor.GRAY)
                 .append(Component.text(String.valueOf(value), NamedTextColor.WHITE))));
-        return join(lines);
+        return Component.join(Component.newline(), lines);
     }
 
     public Component list(String title, Collection<?> values) {
@@ -28,7 +28,7 @@ public final class CommandFormatter {
             lines.add(Component.text("None", NamedTextColor.GRAY));
         else
             values.forEach(value -> lines.add(Component.text("- " + value, NamedTextColor.WHITE)));
-        return join(lines);
+        return Component.join(Component.newline(), lines);
     }
 
     public Component success(String message) {
@@ -61,15 +61,5 @@ public final class CommandFormatter {
 
     public String duration(Duration duration) {
         return duration.toString();
-    }
-
-    private static Component join(List<Component> lines) {
-        Component result = Component.empty();
-        for (int index = 0; index < lines.size(); index++) {
-            if (index > 0)
-                result = result.append(Component.newline());
-            result = result.append(lines.get(index));
-        }
-        return result;
     }
 }

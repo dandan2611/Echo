@@ -2,7 +2,6 @@ package fr.codinbox.echo.queue.redis;
 
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
-import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.property.PropertyKey;
@@ -66,7 +65,8 @@ class RedisQueueTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("QueueService is not loaded");
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             assertThat(queue.enqueue(request).join().state()).isEqualTo(QueueRequestStatus.State.QUEUED);
             assertThatThrownBy(() -> queue.get(QUEUE_ID, " ")).isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> queue.cancel(QUEUE_ID, " ")).isInstanceOf(IllegalArgumentException.class);
@@ -83,12 +83,12 @@ class RedisQueueTest {
                 .hasMessage("QueueService is not loaded");
 
         RedisQueue unopened = new RedisQueue(new InMemoryQueueStore(), echo, onDemand, placement,
-                List.of(DEFINITION), OPTIONS);
+                List.of(DEFINITION), OPTIONS, Clock.systemUTC());
         unopened.close();
         assertThatThrownBy(() -> new RedisQueue(new InMemoryQueueStore(), echo, onDemand, placement,
-                List.of(DEFINITION, DEFINITION), OPTIONS)).isInstanceOf(IllegalArgumentException.class);
+                List.of(DEFINITION, DEFINITION), OPTIONS, Clock.systemUTC())).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RedisQueue(new InMemoryQueueStore(), echo, onDemand, placement,
-                List.of(), OPTIONS)).isInstanceOf(IllegalArgumentException.class);
+                List.of(), OPTIONS, Clock.systemUTC())).isInstanceOf(IllegalArgumentException.class);
 
     }
 
@@ -154,9 +154,9 @@ class RedisQueueTest {
         ServerPlacement placement = mock(ServerPlacement.class);
 
         try (RedisQueue first = new RedisQueue(new InMemoryQueueStore(), echo, onDemand, placement,
-                List.of(DEFINITION), OPTIONS);
+                List.of(DEFINITION), OPTIONS, Clock.systemUTC());
              RedisQueue second = new RedisQueue(new InMemoryQueueStore(), echo, onDemand, placement,
-                     List.of(DEFINITION), OPTIONS)) {
+                     List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             first.start().join();
 
             assertThatThrownBy(() -> second.start().join())
@@ -181,7 +181,8 @@ class RedisQueueTest {
             throw new IllegalStateException("redis unavailable");
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             assertThatThrownBy(() -> queue.enqueue(request).join())
                     .hasRootCauseInstanceOf(IllegalStateException.class)
                     .hasRootCauseMessage("redis unavailable");
@@ -209,7 +210,7 @@ class RedisQueueTest {
             return null;
         }).when(store).release(claim);
         RedisQueue queue = new RedisQueue(store, mock(EchoClient.class), mock(OnDemandServers.class),
-                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS);
+                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS, Clock.systemUTC());
 
         queue.start().join();
         claimEntered.get(5, TimeUnit.SECONDS);
@@ -234,7 +235,7 @@ class RedisQueueTest {
         OnDemandServers onDemand = mock(OnDemandServers.class);
 
         try (RedisQueue queue = new RedisQueue(store, mock(EchoClient.class), onDemand,
-                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS)) {
+                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             released.get(5, TimeUnit.SECONDS);
         }
@@ -256,7 +257,7 @@ class RedisQueueTest {
         QueueOptions shortClaim = new QueueOptions(Duration.ofHours(1), Duration.ofMillis(3),
                 Duration.ofHours(3), Duration.ofSeconds(5), Duration.ofHours(2), Duration.ofSeconds(1));
         RedisQueue queue = new RedisQueue(store, mock(EchoClient.class), onDemand,
-                mock(ServerPlacement.class), List.of(DEFINITION), shortClaim);
+                mock(ServerPlacement.class), List.of(DEFINITION), shortClaim, Clock.systemUTC());
 
         queue.start().join();
         queue.enqueue(new QueueRequest("ticket-1", QUEUE_ID, Set.of(UUID.randomUUID()))).join();
@@ -282,7 +283,6 @@ class RedisQueueTest {
 
         when(echo.getLocalTopic()).thenReturn("server:coordinator");
         when(echo.getMessagingProvider()).thenReturn(messaging);
-        when(echo.newMessageTargetBuilder()).thenAnswer(ignored -> new TargetBuilder());
         when(echo.getUserById(member)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-1")));
         when(onDemand.acquire(any())).thenReturn(CompletableFuture.completedFuture(new ServerHandle("game-1")));
@@ -310,7 +310,8 @@ class RedisQueueTest {
                             ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null))));
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             QueueRequestStatus enqueued = queue.enqueue(
                     new QueueRequest("ticket-1", QUEUE_ID, Set.of(member))).join();
@@ -338,7 +339,6 @@ class RedisQueueTest {
 
         when(echo.getLocalTopic()).thenReturn("server:coordinator");
         when(echo.getMessagingProvider()).thenReturn(messaging);
-        when(echo.newMessageTargetBuilder()).thenAnswer(ignored -> new TargetBuilder());
         when(onDemand.acquire(any())).thenReturn(CompletableFuture.completedFuture(new ServerHandle("game-1")));
         when(onDemand.terminate(any())).thenAnswer(ignored -> {
             terminated.countDown();
@@ -359,7 +359,8 @@ class RedisQueueTest {
                     prepare.getPlacementId(), prepare.getRunVersion(), false, "not ready"));
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(new QueueRequest("ticket-1", QUEUE_ID, Set.of(member))).join();
 
@@ -382,7 +383,8 @@ class RedisQueueTest {
         when(onDemand.acquire(any())).thenReturn(blockedAllocation);
         UUID member = UUID.randomUUID();
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
 
@@ -413,7 +415,8 @@ class RedisQueueTest {
             return CompletableFuture.completedFuture(null);
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(request).join();
             allocationStarted.get(5, TimeUnit.SECONDS);
@@ -460,7 +463,7 @@ class RedisQueueTest {
         });
 
         try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement,
-                List.of(filteredDefinition), OPTIONS)) {
+                List.of(filteredDefinition), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(request).join();
             store.awaitRelease();
@@ -500,7 +503,8 @@ class RedisQueueTest {
         when(placement.renew(any(), any())).thenReturn(EchoFuture.completed(Optional.empty()));
         when(placement.release(any())).thenReturn(EchoFuture.completed(true));
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(request).join();
             terminated.get(5, TimeUnit.SECONDS);
@@ -542,7 +546,8 @@ class RedisQueueTest {
                     prepare.getPlacementId(), prepare.getRunVersion(), true, null));
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(request).join();
             terminated.get(5, TimeUnit.SECONDS);
@@ -566,18 +571,19 @@ class RedisQueueTest {
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
         ServerPlacement.Reservation reservation = new ServerPlacement.Reservation(
                 "placement-ticket", "token", "game-1", Set.of(member), Instant.now().plusSeconds(30));
-        StoredRequest prepared = StoredRequest.queued(request, 0).withState(
+        StoredRequest prepared = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.PREPARED, placementId, "game-1", Map.of(), null);
         RunRecord run = new RunRecord(placementId, 4, RunState.PREPARED, "game-1", request.requestId(),
                 StoredReservation.from(reservation), false, Instant.now().plusSeconds(5).toEpochMilli(),
                 0, false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), prepared), run));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), prepared), run, false, null));
         stubMessaging(echo, messaging);
         when(placement.renew(any(), any())).thenReturn(EchoFuture.completed(Optional.empty()));
         when(placement.release(any())).thenReturn(EchoFuture.completed(true));
         when(onDemand.terminate(any())).thenReturn(CompletableFuture.completedFuture(null));
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             awaitState(store, queue, request.requestId(), QueueRequestStatus.State.QUEUED);
         }
@@ -621,7 +627,8 @@ class RedisQueueTest {
             };
         });
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(request).join();
             for (int attempt = 1; attempt <= 6; attempt++) {
@@ -653,13 +660,14 @@ class RedisQueueTest {
         ServerPlacement placement = mock(ServerPlacement.class);
         UUID member = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-2", QUEUE_ID, Set.of(member));
-        StoredRequest queued = StoredRequest.queued(request, 1);
+        StoredRequest queued = StoredRequest.queued(request, 1, null);
         RunRecord ready = new RunRecord(UUID.randomUUID(), 8, RunState.READY, "game-1", null,
                 null, true, 0, 0, false, null);
-        store.seed(new QueueState(1, 2, Map.of(request.requestId(), queued), ready));
+        store.seed(new QueueState(1, 2, Map.of(request.requestId(), queued), ready, false, null));
         when(placement.reserve(any())).thenReturn(EchoFuture.completed(Optional.empty()));
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
             assertThat(queue.get(QUEUE_ID, request.requestId()).join()).get()
@@ -682,11 +690,11 @@ class RedisQueueTest {
         ServerPlacement.Reservation reservation = new ServerPlacement.Reservation(
                 "placement-ticket", "token", "game-1", Set.of(member), Instant.parse("2026-09-03T12:01:00Z"));
         StoredReservation storedReservation = StoredReservation.from(reservation);
-        StoredRequest claimed = StoredRequest.queued(request, 1).withState(
+        StoredRequest claimed = StoredRequest.queued(request, 1, null).withState(
                 QueueRequestStatus.State.CLAIMED, placementId, "game-1", Map.of(), null);
         RunRecord preparing = new RunRecord(placementId, 8, RunState.PREPARING, "game-1", request.requestId(),
                 storedReservation, true, Instant.now().plusSeconds(5).toEpochMilli(), 0, false, null);
-        store.seed(new QueueState(1, 2, Map.of(request.requestId(), claimed), preparing));
+        store.seed(new QueueState(1, 2, Map.of(request.requestId(), claimed), preparing, false, null));
         stubMessaging(echo, messaging);
         when(placement.renew(any(), any())).thenReturn(EchoFuture.completed(Optional.of(reservation)));
         when(messaging.request(anyString(), any(QueuePlacementPrepareRequest.class),
@@ -700,7 +708,8 @@ class RedisQueueTest {
                 ? EchoFuture.of(CompletableFuture.failedFuture(new IllegalStateException("release unavailable")))
                 : EchoFuture.completed(true));
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
             assertThat(queue.get(QUEUE_ID, request.requestId()).join()).get()
@@ -712,38 +721,6 @@ class RedisQueueTest {
 
         assertThat(releases).hasValue(2);
         verifyNoInteractions(onDemand);
-    }
-
-    @Test
-    void ambiguousMessageTargetAbortsBeforeSendingTheAssignment() throws Exception {
-        InMemoryQueueStore store = new InMemoryQueueStore();
-        EchoClient echo = mock(EchoClient.class);
-        MessagingProvider messaging = mock(MessagingProvider.class);
-        OnDemandServers onDemand = mock(OnDemandServers.class);
-        ServerPlacement placement = mock(ServerPlacement.class);
-        MessageTarget.Builder builder = mock(MessageTarget.Builder.class);
-        QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(UUID.randomUUID()));
-        when(echo.getLocalTopic()).thenReturn("server:coordinator");
-        when(echo.getMessagingProvider()).thenReturn(messaging);
-        when(echo.newMessageTargetBuilder()).thenReturn(builder);
-        when(builder.withServer(anyString())).thenReturn(builder);
-        when(builder.build()).thenReturn(new MessageTarget(Set.of("server:game-1", "server:game-2")));
-        when(onDemand.acquire(any())).thenReturn(CompletableFuture.completedFuture(new ServerHandle("game-1")));
-        when(onDemand.terminate(any())).thenReturn(CompletableFuture.completedFuture(null));
-        when(placement.reserve(any())).thenAnswer(invocation -> EchoFuture.completed(Optional.of(
-                reservation(invocation.getArgument(0), "game-1"))));
-        when(placement.renew(any(), any())).thenAnswer(invocation ->
-                EchoFuture.completed(Optional.of(invocation.getArgument(0))));
-        when(placement.release(any())).thenReturn(EchoFuture.completed(true));
-
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
-            queue.start().join();
-            queue.enqueue(request).join();
-            store.awaitRelease();
-            assertThat(store.abortFailures()).containsExactly("Queue handoff requires exactly one messaging topic");
-        }
-
-        verifyNoInteractions(messaging);
     }
 
     @Test
@@ -820,7 +797,7 @@ class RedisQueueTest {
         QueueOptions retryOptions = new QueueOptions(Duration.ofMillis(1), Duration.ofSeconds(30),
                 Duration.ofSeconds(30), Duration.ofSeconds(5), Duration.ofSeconds(5), Duration.ofSeconds(1));
         try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement,
-                List.of(DEFINITION), retryOptions)) {
+                List.of(DEFINITION), retryOptions, Clock.systemUTC())) {
             queue.start().join();
             queue.enqueue(new QueueRequest("ticket-1", QUEUE_ID, members)).join();
             QueueRequestStatus failed = awaitState(store, queue, "ticket-1", QueueRequestStatus.State.FAILED);
@@ -848,11 +825,11 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest transferring = StoredRequest.queued(request, 0).withState(
+        StoredRequest transferring = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.TRANSFERRING, placementId, "game-1", Map.of(), null);
         RunRecord run = new RunRecord(placementId, 4, RunState.TRANSFERRING, "game-1", request.requestId(),
                 null, true, 0, Instant.now().plusSeconds(30).toEpochMilli(), false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run, false, null));
         stubMessaging(echo, messaging);
         when(echo.getUserById(member)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-1")));
@@ -862,7 +839,7 @@ class RedisQueueTest {
                                 ServerSwitchRequest.ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS)))));
 
         try (RedisQueue queue = new RedisQueue(store, echo, mock(OnDemandServers.class),
-                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS)) {
+                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
 
@@ -882,13 +859,13 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest transferring = StoredRequest.queued(request, 0).withState(
+        StoredRequest transferring = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.TRANSFERRING, placementId, "game-1", Map.of(), null);
         StoredReservation expired = new StoredReservation("placement-ticket", "old-token", "game-1",
                 Set.of(member), Instant.now().minusSeconds(1).toEpochMilli());
         RunRecord run = new RunRecord(placementId, 4, RunState.TRANSFERRING, "game-1", request.requestId(),
                 expired, true, 0, Instant.now().plusSeconds(30).toEpochMilli(), false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run, false, null));
         stubMessaging(echo, messaging);
         when(placement.renew(any(), any())).thenReturn(EchoFuture.completed(Optional.empty()));
         when(placement.reserve(any())).thenAnswer(invocation -> {
@@ -898,7 +875,7 @@ class RedisQueueTest {
         });
 
         try (RedisQueue queue = new RedisQueue(store, echo, mock(OnDemandServers.class), placement,
-                List.of(DEFINITION), OPTIONS)) {
+                List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
             assertThat(store.run().reservation().token()).isEqualTo("new-token");
@@ -922,11 +899,11 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest transferring = StoredRequest.queued(request, 0).withState(
+        StoredRequest transferring = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.TRANSFERRING, placementId, "game-1", Map.of(), null);
         RunRecord run = new RunRecord(placementId, 4, RunState.TRANSFERRING, "game-1", request.requestId(),
                 null, true, 0, clock.instant().plusSeconds(5).toEpochMilli(), false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run, false, null));
         stubMessaging(echo, messaging);
         when(echo.getUserById(member)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-1")));
@@ -953,13 +930,14 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest transferring = StoredRequest.queued(request, 0).withState(
+        StoredRequest transferring = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.TRANSFERRING, placementId, "game-1", Map.of(), null);
         RunRecord aborting = new RunRecord(placementId, 5, RunState.ABORTING, "game-1", request.requestId(),
                 null, true, 0, 0, false, "coordinator restarted");
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), aborting));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), aborting, false, null));
 
-        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS)) {
+        try (RedisQueue queue = new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), OPTIONS,
+                Clock.systemUTC())) {
             queue.start().join();
             awaitState(store, queue, request.requestId(), QueueRequestStatus.State.QUEUED);
         }
@@ -974,7 +952,7 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest completed = StoredRequest.queued(request, 0).withState(
+        StoredRequest completed = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.FAILED, placementId, "game-1", Map.of(member,
                         playerResponse(false, ServerSwitchRequest.ServerSwitchRequestStatus.PLAYER_NOT_CONNECTED)),
                 "Player did not transfer");
@@ -982,14 +960,14 @@ class RedisQueueTest {
                 Set.of(member), Instant.now().plusSeconds(30).toEpochMilli());
         RunRecord releasing = new RunRecord(placementId, 5, RunState.RELEASING, "game-1", request.requestId(),
                 reservation, true, 0, 0, false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), completed), releasing));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), completed), releasing, false, null));
         AtomicInteger releases = new AtomicInteger();
         when(placement.release(any())).thenAnswer(ignored -> releases.incrementAndGet() == 1
                 ? EchoFuture.of(CompletableFuture.failedFuture(new IllegalStateException("redis unavailable")))
                 : EchoFuture.completed(true));
 
         try (RedisQueue queue = new RedisQueue(store, mock(EchoClient.class), mock(OnDemandServers.class),
-                placement, List.of(DEFINITION), OPTIONS)) {
+                placement, List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
             assertThat(store.run().state()).isEqualTo(RunState.RELEASING);
@@ -1005,11 +983,11 @@ class RedisQueueTest {
     @Test
     void emptyPersistedAllocationIsClearedWithoutAllocatingAServer() throws Exception {
         InMemoryQueueStore store = new InMemoryQueueStore();
-        store.seed(new QueueState(1, 0, Map.of(), RunRecord.allocating()));
+        store.seed(new QueueState(1, 0, Map.of(), RunRecord.allocating(), false, null));
         OnDemandServers onDemand = mock(OnDemandServers.class);
 
         try (RedisQueue queue = new RedisQueue(store, mock(EchoClient.class), onDemand,
-                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS)) {
+                mock(ServerPlacement.class), List.of(DEFINITION), OPTIONS, Clock.systemUTC())) {
             queue.start().join();
             store.awaitRelease();
             assertThat(store.run()).isNull();
@@ -1036,7 +1014,6 @@ class RedisQueueTest {
 
         when(echo.getLocalTopic()).thenReturn("server:coordinator");
         when(echo.getMessagingProvider()).thenReturn(messaging);
-        when(echo.newMessageTargetBuilder()).thenAnswer(ignored -> new TargetBuilder());
         when(echo.getUserById(first)).thenReturn(EchoFuture.completed(Optional.of(firstUser)));
         when(echo.getUserById(second)).thenReturn(EchoFuture.completed(Optional.of(secondUser)));
         when(firstUser.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-1")));
@@ -1081,12 +1058,12 @@ class RedisQueueTest {
         UUID member = UUID.randomUUID();
         UUID placementId = UUID.randomUUID();
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
-        StoredRequest transferring = StoredRequest.queued(request, 0).withState(
+        StoredRequest transferring = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.TRANSFERRING, placementId, "game-1", Map.of(member,
                         playerResponse(false, ServerSwitchRequest.ServerSwitchRequestStatus.PLAYER_NOT_CONNECTED)), null);
         RunRecord run = new RunRecord(placementId, 4, RunState.TRANSFERRING, "game-1", request.requestId(),
                 null, true, 0, clock.millis(), false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), transferring), run, false, null));
         when(echo.getUserById(member)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(user.getCurrentServerId()).thenReturn(EchoFuture.completed(Optional.of("game-1")));
 
@@ -1117,11 +1094,11 @@ class RedisQueueTest {
         QueueRequest request = new QueueRequest("ticket-1", QUEUE_ID, Set.of(member));
         ServerPlacement.Reservation reservation = new ServerPlacement.Reservation(
                 "placement-ticket", "token", "game-1", Set.of(member), clock.instant().plusSeconds(30));
-        StoredRequest claimed = StoredRequest.queued(request, 0).withState(
+        StoredRequest claimed = StoredRequest.queued(request, 0, null).withState(
                 QueueRequestStatus.State.CLAIMED, placementId, "game-1", Map.of(), null);
         RunRecord preparing = new RunRecord(placementId, 4, RunState.PREPARING, "game-1", request.requestId(),
                 StoredReservation.from(reservation), false, deadline, 0, false, null);
-        store.seed(new QueueState(1, 1, Map.of(request.requestId(), claimed), preparing));
+        store.seed(new QueueState(1, 1, Map.of(request.requestId(), claimed), preparing, false, null));
         stubMessaging(echo, messaging);
         when(placement.renew(any(), any())).thenReturn(EchoFuture.completed(Optional.of(reservation)));
         when(placement.release(any())).thenReturn(EchoFuture.completed(true));
@@ -1155,7 +1132,6 @@ class RedisQueueTest {
     private static void stubMessaging(EchoClient echo, MessagingProvider messaging) {
         when(echo.getLocalTopic()).thenReturn("server:coordinator");
         when(echo.getMessagingProvider()).thenReturn(messaging);
-        when(echo.newMessageTargetBuilder()).thenAnswer(ignored -> new TargetBuilder());
     }
 
     private static ServerPlacement.Reservation reservation(ServerPlacement.Request request, String serverId) {
@@ -1166,20 +1142,6 @@ class RedisQueueTest {
     private static ServerSwitchRequest.PlayerResponse playerResponse(
             boolean successful, ServerSwitchRequest.ServerSwitchRequestStatus status) {
         return new ServerSwitchRequest.PlayerResponse(successful, status, null);
-    }
-
-    private static final class TargetBuilder implements MessageTarget.Builder {
-        private String topic;
-        @Override public MessageTarget.Builder withServer(String id) { this.topic = "server:" + id; return this; }
-        @Override public MessageTarget.Builder withServers(String... ids) { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withServers(Collection<String> ids) { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withAllServers() { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withProxy(String id) { this.topic = "proxy:" + id; return this; }
-        @Override public MessageTarget.Builder withProxies(String... ids) { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withProxies(Collection<String> ids) { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withAllProxies() { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget.Builder withBroadcast() { throw new UnsupportedOperationException(); }
-        @Override public MessageTarget build() { return new MessageTarget(Set.of(this.topic)); }
     }
 
     private static final class InMemoryQueueStore implements QueueStore {

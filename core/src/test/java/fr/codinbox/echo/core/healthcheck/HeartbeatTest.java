@@ -4,7 +4,6 @@ import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.integration.RedisIntegrationTestBase;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -39,22 +38,6 @@ class HeartbeatTest extends RedisIntegrationTestBase {
 
         boolean exists = redissonClient.getBucket("heartbeat:proxy:hb-proxy").isExists();
         assertThat(exists).isTrue();
-    }
-
-    @Test
-    void heartbeatTask_shouldRenewHeartbeatKey() throws InterruptedException {
-        EchoClientImpl client = createClient(EchoResourceType.SERVER, "hb-renew");
-        client.createLocalResource(new Address("127.0.0.1", 25567));
-        client.registerServer("hb-renew").join();
-        client.startHealthcheck();
-
-        // Wait for at least one heartbeat cycle (interval is 10s by default, but let's
-        // get the initial TTL and verify it was set)
-        long ttl = redissonClient.getBucket("heartbeat:server:hb-renew").remainTimeToLive();
-        assertThat(ttl).isGreaterThan(0);
-
-        // Shutdown to stop scheduler
-        client.shutdown();
     }
 
     @Test

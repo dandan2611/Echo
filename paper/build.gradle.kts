@@ -1,12 +1,8 @@
 plugins {
-    java
     `java-library`
     id("io.papermc.paperweight.userdev") version "1.7.1"
     id("com.gradleup.shadow") version "8.3.9"
 }
-
-group = "fr.codinbox.echo"
-version = "6.1.1"
 
 repositories {
     mavenCentral()
@@ -25,7 +21,6 @@ dependencies {
 
     paperweight.paperDevBundle("1.20.6-R0.1-SNAPSHOT")
 
-    testImplementation(project(":core"))
     testImplementation("fr.codinbox.connector:commons:6.0.0")
 }
 

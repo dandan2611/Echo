@@ -8,11 +8,11 @@ import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
 import fr.codinbox.echo.api.user.User;
-import fr.codinbox.echo.api.utils.Pair;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -55,13 +55,13 @@ public final class RemoteAdministration {
             throw new IllegalArgumentException("reason is required");
         requireTimeout(timeout);
         final long deadline = Math.addExact(this.currentTimeMillis.getAsLong(), timeout.toMillis());
-        CompletableFuture<Pair<String, String>> currentSession = user.getCurrentProxyId()
+        CompletableFuture<Map.Entry<String, String>> currentSession = user.getCurrentProxyId()
                 .thenCombine(user.getSessionId(), (proxyId, sessionId) -> {
                     if (proxyId.isEmpty())
                         throw new UserHasNoProxyException(user.getId());
                     if (sessionId.isEmpty())
                         throw new IllegalStateException("User with id '%s' has no session".formatted(user.getId()));
-                    return new Pair<>(proxyId.get(), sessionId.get());
+                    return Map.entry(proxyId.get(), sessionId.get());
                 });
         CompletableFuture<UserDisconnectRequest.Response> response = currentSession.copy()
                 .orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -71,17 +71,17 @@ public final class RemoteAdministration {
                         return CompletableFuture.failedFuture(new TimeoutException(
                                 "User disconnect deadline elapsed"));
                     UserDisconnectRequest request = new UserDisconnectRequest(
-                            session.first(), session.second(), user.getId(), reason, deadline);
+                            session.getKey(), session.getValue(), user.getId(), reason, deadline);
                     request.setReplyTopic(this.echo.getLocalTopic());
                     return this.echo.getMessagingProvider().request(
-                            this.topic(EchoResourceType.PROXY, session.first()), request,
+                            this.topic(EchoResourceType.PROXY, session.getKey()), request,
                             UserDisconnectRequest.Response.class, Duration.ofMillis(remainingMillis));
                 });
         return EchoFuture.of(response);
     }
 
     private String topic(EchoResourceType type, String id) {
-        MessageTarget.Builder builder = this.echo.newMessageTargetBuilder();
+        MessageTarget.Builder builder = MessageTarget.builder();
         MessageTarget target = type == EchoResourceType.SERVER
                 ? builder.withServer(id).build()
                 : builder.withProxy(id).build();

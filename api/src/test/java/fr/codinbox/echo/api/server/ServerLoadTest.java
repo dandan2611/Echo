@@ -59,9 +59,6 @@ class ServerLoadTest {
         assertThat(snapshot.load()).isSameAs(load);
         assertThat(snapshot.sampledAt()).isEqualTo(sampledAt);
         assertThat(snapshot.validUntil()).isEqualTo(sampledAt.plusSeconds(30));
-        assertThat(snapshot.getLoad()).isSameAs(load);
-        assertThat(snapshot.getSampledAt()).isEqualTo(sampledAt);
-        assertThat(snapshot.getValidUntil()).isEqualTo(sampledAt.plusSeconds(30));
         assertThat(snapshot).isEqualTo(snapshot).isEqualTo(equal)
                 .hasSameHashCodeAs(equal)
                 .isNotEqualTo(null)

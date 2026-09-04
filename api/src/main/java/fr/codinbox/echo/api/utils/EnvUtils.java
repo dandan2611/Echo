@@ -1,5 +1,6 @@
 package fr.codinbox.echo.api.utils;
 
+import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.Address;
@@ -58,10 +59,6 @@ public class EnvUtils {
 
     /** Environment variable name for enabling healthcheck cleanup on servers. */
     public static final @NotNull String ENV_HEALTHCHECK_CLEANUP_ENABLED = "ECHO_HEALTHCHECK_CLEANUP_ENABLED";
-
-    private static final long DEFAULT_HEARTBEAT_TTL = 30;
-    private static final long DEFAULT_HEARTBEAT_INTERVAL = 10;
-    private static final long DEFAULT_SCAN_INTERVAL = 15;
 
     /**
      * Gets the resource type from the {@code ECHO_RESOURCE_TYPE} environment variable.
@@ -130,9 +127,7 @@ public class EnvUtils {
      * @return the heartbeat TTL in seconds (default: 30)
      */
     public static long getHeartbeatTtl() {
-        final String value = System.getenv(ENV_HEARTBEAT_TTL);
-        if (value == null) return DEFAULT_HEARTBEAT_TTL;
-        return Long.parseLong(value);
+        return getLong(ENV_HEARTBEAT_TTL, EchoConfig.DEFAULT_HEARTBEAT_TTL);
     }
 
     /**
@@ -142,9 +137,7 @@ public class EnvUtils {
      * @return the heartbeat interval in seconds (default: 10)
      */
     public static long getHeartbeatInterval() {
-        final String value = System.getenv(ENV_HEARTBEAT_INTERVAL);
-        if (value == null) return DEFAULT_HEARTBEAT_INTERVAL;
-        return Long.parseLong(value);
+        return getLong(ENV_HEARTBEAT_INTERVAL, EchoConfig.DEFAULT_HEARTBEAT_INTERVAL);
     }
 
     /**
@@ -154,9 +147,7 @@ public class EnvUtils {
      * @return the scan interval in seconds (default: 15)
      */
     public static long getScanInterval() {
-        final String value = System.getenv(ENV_SCAN_INTERVAL);
-        if (value == null) return DEFAULT_SCAN_INTERVAL;
-        return Long.parseLong(value);
+        return getLong(ENV_SCAN_INTERVAL, EchoConfig.DEFAULT_SCAN_INTERVAL);
     }
 
     /**
@@ -171,6 +162,11 @@ public class EnvUtils {
     public static boolean isHealthcheckCleanupEnabled() {
         final String value = System.getenv(ENV_HEALTHCHECK_CLEANUP_ENABLED);
         return Boolean.parseBoolean(value);
+    }
+
+    private static long getLong(final String name, final long defaultValue) {
+        final String value = System.getenv(name);
+        return value == null ? defaultValue : Long.parseLong(value);
     }
 
 }

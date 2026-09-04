@@ -1,5 +1,10 @@
 /.idea/
 /.gradle
-/build
+**/build/
+**/bin/
+**/.settings/
+**/.classpath
+**/.project
+**/.factorypath
 /test-servers
 .DS_Store

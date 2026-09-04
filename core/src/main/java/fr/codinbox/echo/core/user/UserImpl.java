@@ -68,7 +68,7 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
             final var client = Echo.getClient();
             request.setReplyTopic(client.getLocalTopic());
             request.setTransferDeadlineEpochMillis(deadline);
-            final MessageTarget target = client.newMessageTargetBuilder().withProxy(proxy.getId()).build();
+            final MessageTarget target = MessageTarget.builder().withProxy(proxy.getId()).build();
             final String topic = target.getTargets().iterator().next();
             return client.getMessagingProvider().request(topic, request, ServerSwitchRequest.Response.class,
                     Duration.ofMillis(remainingMillis));
@@ -91,11 +91,6 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
                 throw new UserHasNoProxyException(this.getId());
             return Echo.getClient().getProxyById(currentProxyId.get());
         }).thenApply(proxy -> proxy.orElseThrow(UnknownProxyException::new)).toCompletableFuture();
-    }
-
-    @Override
-    public @NotNull EchoFuture<Void> cleanup() {
-        return super.cleanup();
     }
 
 }

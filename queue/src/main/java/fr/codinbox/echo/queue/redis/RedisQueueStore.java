@@ -321,10 +321,6 @@ interface QueueStore extends AutoCloseable {
 
 record QueueState(int formatVersion, long nextSequence, Map<String, StoredRequest> requests, RunRecord run,
                   boolean paused, String pauseReason) {
-    QueueState(int formatVersion, long nextSequence, Map<String, StoredRequest> requests, RunRecord run) {
-        this(formatVersion, nextSequence, requests, run, false, null);
-    }
-
     static QueueState empty() {
         return new QueueState(1, 0, Map.of(), null, false, null);
     }
@@ -342,10 +338,6 @@ record StoredRequest(long sequence, String requestId, String queueId, Set<UUID> 
                       QueueRequestStatus.State state, UUID placementId, String serverId,
                       Map<UUID, StoredPlayerResponse> responses, String failure,
                       Long createdAtEpochMillis, Long updatedAtEpochMillis) {
-
-    static StoredRequest queued(QueueRequest request, long sequence) {
-        return queued(request, sequence, null);
-    }
 
     static StoredRequest queued(QueueRequest request, long sequence, Long nowEpochMillis) {
         return new StoredRequest(sequence, request.requestId(), request.queueId().value(), request.members(),

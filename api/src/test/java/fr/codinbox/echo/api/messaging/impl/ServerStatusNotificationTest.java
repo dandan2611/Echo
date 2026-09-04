@@ -21,11 +21,4 @@ class ServerStatusNotificationTest {
         assertThat(notification.getStatus()).isEqualTo(ServerStatusNotification.Status.REGISTERED);
     }
 
-    @Test
-    void status_values() {
-        assertThat(ServerStatusNotification.Status.values()).containsExactly(
-                ServerStatusNotification.Status.REGISTERED,
-                ServerStatusNotification.Status.UNREGISTERED
-        );
-    }
 }

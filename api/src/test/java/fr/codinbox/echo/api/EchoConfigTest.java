@@ -1,8 +1,8 @@
 package fr.codinbox.echo.api;
 
-import fr.codinbox.echo.api.cache.CacheProviderFactory;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.MessagingProviderFactory;
+import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadProvider;
@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,8 +23,8 @@ class EchoConfigTest {
 
     @Test
     void build_exposesConfiguredValues() {
-        CacheProviderFactory cacheProviderFactory = mock(CacheProviderFactory.class);
-        MessagingProviderFactory messagingProviderFactory = mock(MessagingProviderFactory.class);
+        Supplier<CacheProvider> cacheProviderFactory = () -> mock(CacheProvider.class);
+        Supplier<MessagingProvider> messagingProviderFactory = () -> mock(MessagingProvider.class);
         ServerLoadProvider serverLoadProvider = () -> new ServerLoad(3, true);
         ServerPlacement serverPlacement = mock(ServerPlacement.class);
 
@@ -68,8 +69,8 @@ class EchoConfigTest {
 
     @Test
     void build_rejectsMissingRequiredValues() {
-        CacheProviderFactory cacheProviderFactory = mock(CacheProviderFactory.class);
-        MessagingProviderFactory messagingProviderFactory = mock(MessagingProviderFactory.class);
+        Supplier<CacheProvider> cacheProviderFactory = () -> mock(CacheProvider.class);
+        Supplier<MessagingProvider> messagingProviderFactory = () -> mock(MessagingProvider.class);
 
         assertThatThrownBy(() -> EchoConfig.builder().build())
                 .isInstanceOf(NullPointerException.class)
@@ -142,8 +143,8 @@ class EchoConfigTest {
 
     private EchoConfig.Builder builder() {
         return EchoConfig.builder()
-                .cacheProviderFactory(mock(CacheProviderFactory.class))
-                .messagingProviderFactory(mock(MessagingProviderFactory.class))
+                .cacheProviderFactory(() -> mock(CacheProvider.class))
+                .messagingProviderFactory(() -> mock(MessagingProvider.class))
                 .resourceType(EchoResourceType.SERVER)
                 .resourceId("test-server");
     }

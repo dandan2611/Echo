@@ -1,13 +1,9 @@
 package fr.codinbox.echo.core.integration;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.core.EchoClientImpl;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -24,11 +20,11 @@ class MessagingIntegrationTest extends RedisIntegrationTestBase {
     private EchoClientImpl client;
     private MessagingProvider messagingProvider;
 
-    @NoArgsConstructor
-    @Getter
-    @Setter
     public static class TestMessage extends EchoMessage {
-        private String payload;
+        public String payload;
+
+        public TestMessage() {
+        }
 
         public TestMessage(String payload) {
             this.payload = payload;

@@ -2,7 +2,6 @@ package fr.codinbox.echo.commands;
 
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
-import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
@@ -18,7 +17,6 @@ import org.incendo.cloud.context.CommandContext;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -47,7 +45,6 @@ final class CommandTestSupport {
         OnDemandAdministration onDemandAdministration = mock(OnDemandAdministration.class);
         ServerPlacement placement = mock(ServerPlacement.class);
         MessagingProvider messaging = mock(MessagingProvider.class);
-        MessageTarget.Builder target = mock(MessageTarget.Builder.class);
         Logger logger = logger();
         FakeAudience audience = new FakeAudience();
 
@@ -56,10 +53,6 @@ final class CommandTestSupport {
         when(echo.getServerPlacement()).thenReturn(placement);
         when(echo.getMessagingProvider()).thenReturn(messaging);
         when(echo.getLocalTopic()).thenReturn("echo:test");
-        when(echo.newMessageTargetBuilder()).thenReturn(target);
-        when(target.withServer(anyString())).thenReturn(target);
-        when(target.withProxy(anyString())).thenReturn(target);
-        when(target.build()).thenReturn(new MessageTarget(Set.of("echo:target")));
 
         @SuppressWarnings("unchecked")
         CommandContext<String> context = mock(CommandContext.class);

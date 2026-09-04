@@ -1,9 +1,10 @@
 package fr.codinbox.echo.api.messaging;
 
-import fr.codinbox.echo.api.Echo;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -27,7 +28,7 @@ import java.util.Set;
  * new AlertMessage("Broadcast!").sendTo(MessageTarget.everyone());
  *
  * // Complex target using the builder
- * MessageTarget target = client.newMessageTargetBuilder()
+ * MessageTarget target = MessageTarget.builder()
  *     .withServer("lobby-1")
  *     .withProxy("proxy-eu")
  *     .build();
@@ -78,6 +79,11 @@ public final class MessageTarget {
         return Set.copyOf(this.targets);
     }
 
+    /** Creates a builder for composing message targets. */
+    public static @NotNull Builder builder() {
+        return new Builder();
+    }
+
     /**
      * Creates a target for a single server.
      *
@@ -90,7 +96,7 @@ public final class MessageTarget {
      * @return a message target for the specified server
      */
     public static @NotNull MessageTarget server(final @NotNull String serverId) {
-        return Echo.getClient().newMessageTargetBuilder().withServer(serverId).build();
+        return builder().withServer(serverId).build();
     }
 
     /**
@@ -105,7 +111,7 @@ public final class MessageTarget {
      * @return a message target for the specified servers
      */
     public static @NotNull MessageTarget servers(final @NotNull String... serverIds) {
-        return Echo.getClient().newMessageTargetBuilder().withServers(serverIds).build();
+        return builder().withServers(serverIds).build();
     }
 
     /**
@@ -120,7 +126,7 @@ public final class MessageTarget {
      * @return a message target for the specified proxy
      */
     public static @NotNull MessageTarget proxy(final @NotNull String proxyId) {
-        return Echo.getClient().newMessageTargetBuilder().withProxy(proxyId).build();
+        return builder().withProxy(proxyId).build();
     }
 
     /**
@@ -135,7 +141,7 @@ public final class MessageTarget {
      * @return a message target for the specified proxies
      */
     public static @NotNull MessageTarget proxies(final @NotNull String... proxyIds) {
-        return Echo.getClient().newMessageTargetBuilder().withProxies(proxyIds).build();
+        return builder().withProxies(proxyIds).build();
     }
 
     /**
@@ -190,22 +196,27 @@ public final class MessageTarget {
     /**
      * Builder for constructing complex {@link MessageTarget} instances.
      *
-     * <p>Obtain a builder via {@link fr.codinbox.echo.api.EchoClient#newMessageTargetBuilder()}:</p>
+     * <p>Obtain a builder via {@link #builder()}:</p>
      *
      * <pre>{@code
-     * MessageTarget target = client.newMessageTargetBuilder()
+     * MessageTarget target = MessageTarget.builder()
      *     .withServer("lobby-1")
      *     .withServer("lobby-2")
      *     .withProxy("proxy-eu")
      *     .build();
      *
      * // Include all servers (no network call needed)
-     * MessageTarget allServers = client.newMessageTargetBuilder()
+     * MessageTarget allServers = MessageTarget.builder()
      *     .withAllServers()
      *     .build();
      * }</pre>
      */
-    public interface Builder {
+    public static final class Builder {
+
+        private final Set<String> targets = new HashSet<>();
+
+        private Builder() {
+        }
 
         /**
          * Adds a single server to the target.
@@ -213,7 +224,10 @@ public final class MessageTarget {
          * @param serverId the server identifier
          * @return this builder for chaining
          */
-        @NotNull Builder withServer(final @NotNull String serverId);
+        public @NotNull Builder withServer(final @NotNull String serverId) {
+            this.targets.add("server:" + serverId);
+            return this;
+        }
 
         /**
          * Adds multiple servers to the target.
@@ -221,7 +235,9 @@ public final class MessageTarget {
          * @param serverIds the server identifiers
          * @return this builder for chaining
          */
-        @NotNull Builder withServers(final @NotNull String... serverIds);
+        public @NotNull Builder withServers(final @NotNull String... serverIds) {
+            return this.withServers(Arrays.asList(serverIds));
+        }
 
         /**
          * Adds multiple servers to the target from a collection.
@@ -229,7 +245,10 @@ public final class MessageTarget {
          * @param serverIds the server identifiers
          * @return this builder for chaining
          */
-        @NotNull Builder withServers(final @NotNull Collection<String> serverIds);
+        public @NotNull Builder withServers(final @NotNull Collection<String> serverIds) {
+            serverIds.forEach(this::withServer);
+            return this;
+        }
 
         /**
          * Adds all servers to the target using the global servers topic.
@@ -238,14 +257,17 @@ public final class MessageTarget {
          * that all server nodes subscribe to automatically.</p>
          *
          * <pre>{@code
-         * MessageTarget target = client.newMessageTargetBuilder()
+         * MessageTarget target = MessageTarget.builder()
          *     .withAllServers()
          *     .build();
          * }</pre>
          *
          * @return this builder for chaining
          */
-        @NotNull Builder withAllServers();
+        public @NotNull Builder withAllServers() {
+            this.targets.add(SERVERS_TOPIC);
+            return this;
+        }
 
         /**
          * Adds a single proxy to the target.
@@ -253,7 +275,10 @@ public final class MessageTarget {
          * @param proxyId the proxy identifier
          * @return this builder for chaining
          */
-        @NotNull Builder withProxy(final @NotNull String proxyId);
+        public @NotNull Builder withProxy(final @NotNull String proxyId) {
+            this.targets.add("proxy:" + proxyId);
+            return this;
+        }
 
         /**
          * Adds multiple proxies to the target.
@@ -261,7 +286,9 @@ public final class MessageTarget {
          * @param proxyIds the proxy identifiers
          * @return this builder for chaining
          */
-        @NotNull Builder withProxies(final @NotNull String... proxyIds);
+        public @NotNull Builder withProxies(final @NotNull String... proxyIds) {
+            return this.withProxies(Arrays.asList(proxyIds));
+        }
 
         /**
          * Adds multiple proxies to the target from a collection.
@@ -269,7 +296,10 @@ public final class MessageTarget {
          * @param proxyIds the proxy identifiers
          * @return this builder for chaining
          */
-        @NotNull Builder withProxies(final @NotNull Collection<String> proxyIds);
+        public @NotNull Builder withProxies(final @NotNull Collection<String> proxyIds) {
+            proxyIds.forEach(this::withProxy);
+            return this;
+        }
 
         /**
          * Adds all proxies to the target using the global proxies topic.
@@ -278,14 +308,17 @@ public final class MessageTarget {
          * that all proxy nodes subscribe to automatically.</p>
          *
          * <pre>{@code
-         * MessageTarget target = client.newMessageTargetBuilder()
+         * MessageTarget target = MessageTarget.builder()
          *     .withAllProxies()
          *     .build();
          * }</pre>
          *
          * @return this builder for chaining
          */
-        @NotNull Builder withAllProxies();
+        public @NotNull Builder withAllProxies() {
+            this.targets.add(PROXIES_TOPIC);
+            return this;
+        }
 
         /**
          * Adds all servers and all proxies to the target.
@@ -295,7 +328,7 @@ public final class MessageTarget {
          *
          * @return this builder for chaining
          */
-        default @NotNull Builder withEveryone() {
+        public @NotNull Builder withEveryone() {
             return this.withAllServers().withAllProxies();
         }
 
@@ -308,14 +341,19 @@ public final class MessageTarget {
          *
          * @return this builder for chaining
          */
-        @NotNull Builder withBroadcast();
+        public @NotNull Builder withBroadcast() {
+            this.targets.add(BROADCAST_TOPIC);
+            return this;
+        }
 
         /**
          * Builds the {@link MessageTarget} from the accumulated targets.
          *
          * @return the constructed message target
          */
-        @NotNull MessageTarget build();
+        public @NotNull MessageTarget build() {
+            return new MessageTarget(this.targets);
+        }
 
     }
 

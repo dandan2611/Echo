@@ -1,11 +1,7 @@
 plugins {
-    java
     `java-library`
     id("com.gradleup.shadow") version "8.3.9"
 }
-
-group = "fr.codinbox.echo"
-version = "6.1.1"
 
 repositories {
     mavenCentral()
@@ -26,7 +22,6 @@ dependencies {
     annotationProcessor("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
 
     testImplementation("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
-    testImplementation(project(":core"))
     testImplementation("fr.codinbox.connector:commons:6.0.0")
 }
 

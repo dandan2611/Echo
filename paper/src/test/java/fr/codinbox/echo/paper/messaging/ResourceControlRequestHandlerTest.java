@@ -4,6 +4,7 @@ import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
+import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
 import fr.codinbox.echo.paper.EchoPaper;
 import org.junit.jupiter.api.BeforeEach;
@@ -211,7 +212,7 @@ class ResourceControlRequestHandlerTest {
         this.handler.onReceive(request);
 
         verify(request, never()).reply(any(ResourceControlRequest.Response.class));
-        refreshed.complete(mock(ServerLoadSnapshot.class));
+        refreshed.complete(new ServerLoadSnapshot(new ServerLoad(0, true), NOW, NOW.plusSeconds(1)));
         assertResponse(request, true, ResourceControlRequest.Status.ACCEPTED, "Server load refreshed");
     }
 

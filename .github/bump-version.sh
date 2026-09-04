@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
     echo "Usage: $0 <major|minor|patch>"
     echo ""
-    echo "Bumps the project version in all build.gradle.kts files and README.md."
+    echo "Bumps the project version in build.gradle.kts and README.md."
     echo "Examples:"
     echo "  $0 major   # 5.1.0 -> 6.0.0"
     echo "  $0 minor   # 5.1.0 -> 5.2.0"
@@ -43,25 +43,7 @@ esac
 
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 
-BUILD_FILES=(
-    "$ROOT_DIR/build.gradle.kts"
-    "$ROOT_DIR/api/build.gradle.kts"
-    "$ROOT_DIR/agones/build.gradle.kts"
-    "$ROOT_DIR/commands/build.gradle.kts"
-    "$ROOT_DIR/core/build.gradle.kts"
-    "$ROOT_DIR/ondemand/build.gradle.kts"
-    "$ROOT_DIR/paper/build.gradle.kts"
-    "$ROOT_DIR/queue/build.gradle.kts"
-    "$ROOT_DIR/velocity/build.gradle.kts"
-)
-
-for file in "${BUILD_FILES[@]}"; do
-    if [[ -f "$file" ]]; then
-        sed -i'' -e "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" "$file"
-    else
-        echo "Warning: $file not found, skipping"
-    fi
-done
+sed -i'' -e "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" "$ROOT_BUILD"
 
 README="$ROOT_DIR/README.md"
 if [[ -f "$README" ]]; then

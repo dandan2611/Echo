@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
 final class AgonesSdkClient {
@@ -46,14 +47,8 @@ final class AgonesSdkClient {
     }
 
     CompletableFuture<Boolean> isInState(final String... states) {
-        return gameServer().thenApply(gameServer -> {
-            final String current = gameServer.path("status").path("state").asText();
-            for (String state : states) {
-                if (state.equals(current))
-                    return true;
-            }
-            return false;
-        });
+        return gameServer().thenApply(gameServer -> Arrays.asList(states)
+                .contains(gameServer.path("status").path("state").asText()));
     }
 
     private CompletableFuture<JsonNode> gameServer() {

@@ -68,11 +68,6 @@ public final class RedisQueue implements QueueService, QueueAdministration {
     }
 
     RedisQueue(QueueStore store, EchoClient echo, OnDemandServers onDemand, ServerPlacement placement,
-                Collection<QueueDefinition> definitions, QueueOptions options) {
-        this(store, echo, onDemand, placement, definitions, options, Clock.systemUTC());
-    }
-
-    RedisQueue(QueueStore store, EchoClient echo, OnDemandServers onDemand, ServerPlacement placement,
                Collection<QueueDefinition> definitions, QueueOptions options, Clock clock) {
         this.store = Objects.requireNonNull(store, "store");
         this.echo = Objects.requireNonNull(echo, "echo");
@@ -357,7 +352,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                     Map.of(request.requestId(), request.members()));
             message.setReplyTopic(this.echo.getLocalTopic());
             QueuePlacementPrepareRequest.Response response = this.echo.getMessagingProvider().request(
-                    this.topicForServer(claim.run().serverId()), message,
+                    only(MessageTarget.builder().withServer(claim.run().serverId()).build()), message,
                     QueuePlacementPrepareRequest.Response.class, Duration.ofMillis(remainingMillis)).join();
             if (!claim.run().placementId().equals(response.getPlacementId())
                     || response.getRunVersion() != claim.run().revision())
@@ -461,7 +456,8 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 message.setTransferDeadlineEpochMillis(deadline);
                 message.setReplyTopic(this.echo.getLocalTopic());
                 ServerSwitchRequest.Response reply = this.echo.getMessagingProvider().request(
-                        this.topicForProxy(proxy.getKey()), message, ServerSwitchRequest.Response.class,
+                        only(MessageTarget.builder().withProxy(proxy.getKey()).build()), message,
+                        ServerSwitchRequest.Response.class,
                         Duration.ofMillis(remainingMillis)).join();
                 proxy.getValue().forEach(member -> {
                     ServerSwitchRequest.PlayerResponse player = reply.getResponses().get(member);
@@ -597,14 +593,6 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 .findFirst().orElseThrow(() -> new IllegalStateException("Queue run references a missing request"));
     }
 
-    private String topicForServer(String id) {
-        return only(this.echo.newMessageTargetBuilder().withServer(id).build());
-    }
-
-    private String topicForProxy(String id) {
-        return only(this.echo.newMessageTargetBuilder().withProxy(id).build());
-    }
-
     private static String only(MessageTarget target) {
         if (target.getTargets().size() != 1)
             throw new IllegalStateException("Queue handoff requires exactly one messaging topic");
@@ -630,14 +618,6 @@ public final class RedisQueue implements QueueService, QueueAdministration {
     }
 
     private <T> CompletableFuture<T> async(Supplier<T> operation) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        Thread.startVirtualThread(() -> {
-            try {
-                result.complete(operation.get());
-            } catch (Throwable error) {
-                result.completeExceptionally(error);
-            }
-        });
-        return result;
+        return CompletableFuture.supplyAsync(operation, Thread::startVirtualThread);
     }
 }

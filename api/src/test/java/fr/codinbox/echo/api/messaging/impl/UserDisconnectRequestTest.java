@@ -47,14 +47,6 @@ class UserDisconnectRequestTest {
     }
 
     @Test
-    void legacyConstructorRemainsSourceCompatibleButCannotDispatchWithoutASession() {
-        UserDisconnectRequest request = new UserDisconnectRequest(
-                "proxy-1", USER_ID, "maintenance", 5_000L);
-
-        assertThat(request.validationError()).isEqualTo("expected session id is required");
-    }
-
-    @Test
     void jacksonSettersExposeEveryValidationError() {
         UserDisconnectRequest request = new UserDisconnectRequest();
         assertThat(request.validationError()).isEqualTo("expected proxy id is required");

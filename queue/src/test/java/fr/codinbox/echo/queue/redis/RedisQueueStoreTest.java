@@ -157,7 +157,7 @@ class RedisQueueStoreTest {
     void purgeUsesTerminalUpdateTimeAndRetainsLegacyOrActiveRunTickets() throws Exception {
         QueueRequest legacyRequest = request("legacy", UUID.randomUUID());
         QueueRequest oldRequest = request("old", UUID.randomUUID());
-        StoredRequest legacy = StoredRequest.queued(legacyRequest, 0).withState(
+        StoredRequest legacy = StoredRequest.queued(legacyRequest, 0, null).withState(
                 QueueRequestStatus.State.CANCELLED, null, null, Map.of(), null);
         StoredRequest old = StoredRequest.queued(oldRequest, 1, NOW.minus(Duration.ofDays(2)).toEpochMilli())
                 .withState(QueueRequestStatus.State.FAILED, UUID.randomUUID(), "game-1", Map.of(), "failed")
@@ -165,12 +165,12 @@ class RedisQueueStoreTest {
         RunRecord releasing = new RunRecord(old.placementId(), 3, RunState.RELEASING, "game-1", old.requestId(),
                 null, true, 0, 0, false, null);
         this.state.set(new ObjectMapper().writeValueAsString(new QueueState(
-                1, 2, Map.of(legacy.requestId(), legacy, old.requestId(), old), releasing)));
+                1, 2, Map.of(legacy.requestId(), legacy, old.requestId(), old), releasing, false, null)));
 
         assertThat(this.store.retry(QUEUE_ID, old.requestId())).isFalse();
         assertThat(this.store.purgeTerminal(QUEUE_ID, NOW)).isZero();
         this.state.set(new ObjectMapper().writeValueAsString(new QueueState(
-                1, 2, Map.of(legacy.requestId(), legacy, old.requestId(), old), null)));
+                1, 2, Map.of(legacy.requestId(), legacy, old.requestId(), old), null, false, null)));
         assertThat(this.store.purgeTerminal(QUEUE_ID, NOW)).isOne();
         assertThat(this.store.snapshot(QUEUE_ID).requests()).singleElement()
                 .extracting(StoredRequest::requestId).isEqualTo("legacy");
@@ -302,7 +302,7 @@ class RedisQueueStoreTest {
         assertThatThrownBy(() -> this.store.commit(claimed, claimed.run(), List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("run revision");
-        StoredRequest missing = StoredRequest.queued(request("missing", UUID.randomUUID()), 10)
+        StoredRequest missing = StoredRequest.queued(request("missing", UUID.randomUUID()), 10, null)
                 .withState(QueueRequestStatus.State.FAILED, null, null, Map.of(), "failed");
         assertThatThrownBy(() -> this.store.commit(claimed, newerRevision, List.of(missing)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -345,7 +345,7 @@ class RedisQueueStoreTest {
         QueueRequest request = request("ticket-1", UUID.randomUUID());
         StoredRequest queued = StoredRequest.queued(request, 0, NOW.toEpochMilli());
         this.state.set(new ObjectMapper().writeValueAsString(
-                new QueueState(1, 1, Map.of(request.requestId(), queued), null)));
+                new QueueState(1, 1, Map.of(request.requestId(), queued), null, false, null)));
         doThrow(new IllegalStateException("write failed")).when(this.stateBucket).set(anyString());
 
         assertThatThrownBy(() -> this.store.claim(DEFINITION, "worker-1", Duration.ofSeconds(30)))

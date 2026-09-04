@@ -57,11 +57,6 @@ public class EchoPaper extends JavaPlugin {
     private Clock clock = Clock.systemUTC();
 
     @Override
-    public void onLoad() {
-
-    }
-
-    @Override
     public void onEnable() {
         try {
             final RedisConnectorService redisConnectorService = Objects.requireNonNull(this.getServer().getServicesManager().load(RedisConnectorService.class));
@@ -247,7 +242,7 @@ public class EchoPaper extends JavaPlugin {
         };
         final long remainingMillis = Math.max(0L, Duration.between(this.clock.instant(), deadline).toMillis());
         final BukkitTask deadlineTask = this.getServer().getScheduler().runTaskLater(
-                this, shutdown, (remainingMillis + 49L) / 50L);
+                this, shutdown, Math.ceilDiv(remainingMillis, 50L));
         try {
             this.getServer().getScheduler().runTaskTimer(this, () -> {
                 if (this.getServer().getOnlinePlayers().isEmpty() || !this.clock.instant().isBefore(deadline))

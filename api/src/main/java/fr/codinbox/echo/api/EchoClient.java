@@ -2,7 +2,6 @@ package fr.codinbox.echo.api;
 
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Server;
@@ -163,27 +162,6 @@ public interface EchoClient {
     }
 
     /**
-     * Creates a new {@link MessageTarget.Builder} for constructing message targets.
-     *
-     * <p>The builder allows you to compose complex targets (multiple servers, proxies, or both)
-     * before sending a message.</p>
-     *
-     * <pre>{@code
-     * MessageTarget target = client.newMessageTargetBuilder()
-     *     .withServer("lobby-1")
-     *     .withServer("lobby-2")
-     *     .withProxy("proxy-eu")
-     *     .build();
-     *
-     * new AlertMessage("Hello!").sendTo(target);
-     * }</pre>
-     *
-     * @return a new message target builder
-     * @see MessageTarget
-     */
-    @NotNull MessageTarget.Builder newMessageTargetBuilder();
-
-    /**
      * Gets all registered servers on the network.
      *
      * <p>Returns a map where keys are server identifiers and values are their registration
@@ -271,9 +249,8 @@ public interface EchoClient {
      * @throws IllegalStateException if the local resource is not a server
      */
     default @NotNull EchoFuture<Void> setLocalServerAvailability(final @NotNull ServerAvailability availability) {
-        final EchoFuture<Void> result = new EchoFuture<>();
-        result.completeExceptionally(new UnsupportedOperationException("Server availability is not supported"));
-        return result;
+        return EchoFuture.of(java.util.concurrent.CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Server availability is not supported")));
     }
 
     /**

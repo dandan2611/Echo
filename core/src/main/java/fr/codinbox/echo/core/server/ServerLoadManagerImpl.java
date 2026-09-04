@@ -75,9 +75,7 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
     }
 
     private static <T> EchoFuture<T> failedFuture(final Throwable error) {
-        final EchoFuture<T> future = new EchoFuture<>();
-        future.completeExceptionally(error);
-        return future;
+        return EchoFuture.of(java.util.concurrent.CompletableFuture.failedFuture(error));
     }
 
     private final class Registration implements ProviderRegistration {

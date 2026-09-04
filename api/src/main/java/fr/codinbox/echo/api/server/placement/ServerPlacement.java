@@ -15,6 +15,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Selects an eligible server and atomically leases seats for one indivisible group.
@@ -101,9 +102,8 @@ public interface ServerPlacement {
     }
 
     private static <T> EchoFuture<T> unsupportedMonitoring() {
-        final EchoFuture<T> result = new EchoFuture<>();
-        result.completeExceptionally(new UnsupportedOperationException("Placement monitoring is not supported"));
-        return result;
+        return EchoFuture.of(CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Placement monitoring is not supported")));
     }
 
     /** Built-in ranking policies applied after eligibility and capacity checks. */

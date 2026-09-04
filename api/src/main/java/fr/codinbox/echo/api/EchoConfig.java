@@ -1,8 +1,8 @@
 package fr.codinbox.echo.api;
 
-import fr.codinbox.echo.api.cache.CacheProviderFactory;
+import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.MessagingProviderFactory;
+import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerLoadProvider;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Configuration for initializing the Echo client.
@@ -36,8 +37,8 @@ public class EchoConfig {
     public static final long DEFAULT_HEARTBEAT_INTERVAL = 10;
     public static final long DEFAULT_SCAN_INTERVAL = 15;
 
-    private final @NotNull CacheProviderFactory cacheProviderFactory;
-    private final @NotNull MessagingProviderFactory messagingProviderFactory;
+    private final @NotNull Supplier<? extends CacheProvider> cacheProviderFactory;
+    private final @NotNull Supplier<? extends MessagingProvider> messagingProviderFactory;
     private final @NotNull EchoResourceType resourceType;
     private final @NotNull String resourceId;
     private final long heartbeatTtlSeconds;
@@ -64,11 +65,11 @@ public class EchoConfig {
         this.serverPlacement = builder.serverPlacement;
     }
 
-    public @NotNull CacheProviderFactory getCacheProviderFactory() {
+    public @NotNull Supplier<? extends CacheProvider> getCacheProviderFactory() {
         return cacheProviderFactory;
     }
 
-    public @NotNull MessagingProviderFactory getMessagingProviderFactory() {
+    public @NotNull Supplier<? extends MessagingProvider> getMessagingProviderFactory() {
         return messagingProviderFactory;
     }
 
@@ -127,8 +128,8 @@ public class EchoConfig {
      */
     public static class Builder {
 
-        private CacheProviderFactory cacheProviderFactory;
-        private MessagingProviderFactory messagingProviderFactory;
+        private Supplier<? extends CacheProvider> cacheProviderFactory;
+        private Supplier<? extends MessagingProvider> messagingProviderFactory;
         private EchoResourceType resourceType;
         private String resourceId;
         private long heartbeatTtlSeconds = DEFAULT_HEARTBEAT_TTL;
@@ -142,12 +143,14 @@ public class EchoConfig {
         private Builder() {
         }
 
-        public @NotNull Builder cacheProviderFactory(final @NotNull CacheProviderFactory factory) {
+        public @NotNull Builder cacheProviderFactory(
+                final @NotNull Supplier<? extends CacheProvider> factory) {
             this.cacheProviderFactory = factory;
             return this;
         }
 
-        public @NotNull Builder messagingProviderFactory(final @NotNull MessagingProviderFactory factory) {
+        public @NotNull Builder messagingProviderFactory(
+                final @NotNull Supplier<? extends MessagingProvider> factory) {
             this.messagingProviderFactory = factory;
             return this;
         }

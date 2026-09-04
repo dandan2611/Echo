@@ -8,8 +8,6 @@ import fr.codinbox.echo.api.messaging.Subscription;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RFuture;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
@@ -29,7 +27,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @Tag("unit")
-@ExtendWith(MockitoExtension.class)
 class RedisMessagingProviderTest {
 
     private RedisMessagingProvider provider;

@@ -81,9 +81,8 @@ public interface MessagingProvider {
             @NotNull EchoMessage request,
             @NotNull Class<R> responseType,
             @NotNull Duration timeout) {
-        final EchoFuture<R> future = new EchoFuture<>();
-        future.completeExceptionally(new UnsupportedOperationException("Bounded requests are not supported"));
-        return future;
+        return EchoFuture.of(CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Bounded requests are not supported")));
     }
 
     /**

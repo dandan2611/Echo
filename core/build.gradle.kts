@@ -1,10 +1,6 @@
 plugins {
-    java
     `java-library`
 }
-
-group = "fr.codinbox.echo"
-version = "6.1.1"
 
 repositories {
     mavenCentral()
@@ -17,8 +13,5 @@ dependencies {
     testImplementation("org.redisson:redisson:3.32.0")
     testImplementation("fr.codinbox.connector:commons:6.0.0")
     testImplementation(platform("org.testcontainers:testcontainers-bom:1.21.4"))
-    testImplementation("org.testcontainers:testcontainers")
     testImplementation("org.testcontainers:junit-jupiter")
-    testCompileOnly("org.projectlombok:lombok:1.18.32")
-    testAnnotationProcessor("org.projectlombok:lombok:1.18.32")
 }

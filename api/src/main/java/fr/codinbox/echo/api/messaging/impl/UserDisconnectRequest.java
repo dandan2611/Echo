@@ -22,20 +22,15 @@ public final class UserDisconnectRequest extends EchoMessage {
     private @NotNull String reason;
     private long deadlineEpochMillis;
 
-    public UserDisconnectRequest(@NotNull String expectedProxyId, @NotNull UUID userId,
-                                 @NotNull String reason, long deadlineEpochMillis) {
+    public UserDisconnectRequest(@NotNull String expectedProxyId, @NotNull String expectedSessionId,
+                                 @NotNull UUID userId, @NotNull String reason, long deadlineEpochMillis) {
         this.expectedProxyId = requireText(expectedProxyId, "expectedProxyId");
+        this.expectedSessionId = requireText(expectedSessionId, "expectedSessionId");
         this.userId = Objects.requireNonNull(userId, "userId");
         this.reason = requireText(reason, "reason");
         if (deadlineEpochMillis < 1)
             throw new IllegalArgumentException("deadline must be positive");
         this.deadlineEpochMillis = deadlineEpochMillis;
-    }
-
-    public UserDisconnectRequest(@NotNull String expectedProxyId, @NotNull String expectedSessionId,
-                                 @NotNull UUID userId, @NotNull String reason, long deadlineEpochMillis) {
-        this(expectedProxyId, userId, reason, deadlineEpochMillis);
-        this.expectedSessionId = requireText(expectedSessionId, "expectedSessionId");
     }
 
     /** Returns null when fields received from Jackson form a valid request. */

@@ -15,7 +15,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -23,7 +22,6 @@ import java.util.stream.StreamSupport;
 public class RedisCacheProvider implements CacheProvider {
 
     private final @NotNull RedisConnection connection;
-    private final @NotNull AtomicBoolean shutdown = new AtomicBoolean(false);
 
     public RedisCacheProvider(final @NotNull RedisConnection connection) {
         this.connection = connection;
@@ -36,7 +34,6 @@ public class RedisCacheProvider implements CacheProvider {
 
     @Override
     public @NotNull CompletableFuture<Void> shutdown() {
-        shutdown.set(true);
         return CompletableFuture.completedFuture(null);
     }
 

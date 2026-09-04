@@ -4,7 +4,6 @@ import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.exception.user.UserHasNoProxyException;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
@@ -16,7 +15,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,18 +33,15 @@ class RemoteAdministrationTest {
 
     private EchoClient echo;
     private MessagingProvider messaging;
-    private MessageTarget.Builder target;
     private RemoteAdministration administration;
 
     @BeforeEach
     void setUp() {
         this.echo = mock(EchoClient.class);
         this.messaging = mock(MessagingProvider.class);
-        this.target = mock(MessageTarget.Builder.class);
         this.administration = new RemoteAdministration(this.echo, () -> 1_000L);
         when(this.echo.getMessagingProvider()).thenReturn(this.messaging);
         when(this.echo.getLocalTopic()).thenReturn("proxy:admin");
-        when(this.echo.newMessageTargetBuilder()).thenReturn(this.target);
     }
 
     @Test
@@ -64,8 +59,6 @@ class RemoteAdministrationTest {
                 ResourceControlRequest.Action.PING, EchoResourceType.SERVER, "game-1", null);
         ResourceControlRequest.Response expected = new ResourceControlRequest.Response(
                 request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
-        when(this.target.withServer("game-1")).thenReturn(this.target);
-        when(this.target.build()).thenReturn(new MessageTarget(Set.of("server:game-1")));
         when(this.messaging.request(eq("server:game-1"), eq(request),
                 eq(ResourceControlRequest.Response.class), eq(Duration.ofSeconds(2))))
                 .thenReturn(EchoFuture.completed(expected));
@@ -98,26 +91,9 @@ class RemoteAdministrationTest {
     }
 
     @Test
-    void controlRejectsZeroOrMultipleTargetTopics() {
-        when(this.target.withServer("game-1")).thenReturn(this.target);
-        when(this.target.build()).thenReturn(
-                new MessageTarget(Set.of()),
-                new MessageTarget(Set.of("server:game-1", "server:game-2")));
-
-        assertThatThrownBy(() -> this.administration.control(validControlRequest(), Duration.ofSeconds(1)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Administration requests require exactly one target topic");
-        assertThatThrownBy(() -> this.administration.control(validControlRequest(), Duration.ofSeconds(1)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Administration requests require exactly one target topic");
-    }
-
-    @Test
     void controlPropagatesMessagingFailure() {
         ResourceControlRequest request = validControlRequest();
         IllegalStateException failure = new IllegalStateException("broker unavailable");
-        when(this.target.withServer("game-1")).thenReturn(this.target);
-        when(this.target.build()).thenReturn(new MessageTarget(Set.of("server:game-1")));
         when(this.messaging.request("server:game-1", request,
                 ResourceControlRequest.Response.class, Duration.ofSeconds(1)))
                 .thenReturn(failedFuture(failure));
@@ -134,8 +110,6 @@ class RemoteAdministrationTest {
         when(user.getId()).thenReturn(userId);
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-2")));
         when(user.getSessionId()).thenReturn(EchoFuture.completed(Optional.of("session-2")));
-        when(this.target.withProxy("proxy-2")).thenReturn(this.target);
-        when(this.target.build()).thenReturn(new MessageTarget(Set.of("proxy:proxy-2")));
         when(this.messaging.request(eq("proxy:proxy-2"), any(UserDisconnectRequest.class),
                 eq(UserDisconnectRequest.Response.class), eq(Duration.ofMillis(2_750))))
                 .thenAnswer(invocation -> {
@@ -231,8 +205,6 @@ class RemoteAdministrationTest {
 
         IllegalStateException messagingFailure = new IllegalStateException("broker unavailable");
         User user = user(EchoFuture.completed(Optional.of("proxy-1")));
-        when(this.target.withProxy("proxy-1")).thenReturn(this.target);
-        when(this.target.build()).thenReturn(new MessageTarget(Set.of("proxy:proxy-1")));
         when(this.messaging.request(eq("proxy:proxy-1"), any(UserDisconnectRequest.class),
                 eq(UserDisconnectRequest.Response.class), eq(Duration.ofSeconds(1))))
                 .thenReturn(failedFuture(messagingFailure));

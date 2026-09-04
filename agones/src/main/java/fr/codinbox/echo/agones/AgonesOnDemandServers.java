@@ -341,7 +341,10 @@ public final class AgonesOnDemandServers implements OnDemandServers, OnDemandAdm
                                     ? applyProperties(echoServer, request.properties(), deadlineNanos)
                                             .thenApply(ignored -> handle)
                                     : pollAgain(request, handle, deadlineNanos));
-        }).exceptionallyCompose(error -> retryAfterLookupFailure(request, handle, deadlineNanos));
+        }).exceptionallyCompose(error -> System.nanoTime() >= deadlineNanos
+                ? CompletableFuture.failedFuture(new TimeoutException(
+                        "Server " + handle.id() + " did not become active in Echo"))
+                : pollAgain(request, handle, deadlineNanos));
     }
 
     private CompletableFuture<Void> applyProperties(
@@ -359,16 +362,6 @@ public final class AgonesOnDemandServers implements OnDemandServers, OnDemandAdm
             final PropertyKey<?> key,
             final Object value) {
         return server.setProperty((PropertyKey<Object>) key, value);
-    }
-
-    private CompletableFuture<ServerHandle> retryAfterLookupFailure(
-            final ServerRequest request,
-            final ServerHandle handle,
-            final long deadlineNanos) {
-        if (System.nanoTime() >= deadlineNanos)
-            return CompletableFuture.failedFuture(new TimeoutException(
-                    "Server " + handle.id() + " did not become active in Echo"));
-        return pollAgain(request, handle, deadlineNanos);
     }
 
     private <T> CompletableFuture<T> beforeDeadline(

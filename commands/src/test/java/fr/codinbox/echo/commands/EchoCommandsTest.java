@@ -3,7 +3,6 @@ package fr.codinbox.echo.commands;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
@@ -47,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -271,7 +271,8 @@ class EchoCommandsTest {
         fixture.commands().proxyPing(fixture.context(), "proxy").join();
 
         ArgumentCaptor<ResourceControlRequest> requests = ArgumentCaptor.forClass(ResourceControlRequest.class);
-        verify(fixture.messaging(), times(10)).request(eq("echo:target"), requests.capture(),
+        verify(fixture.messaging(), times(10)).request(
+                argThat(topic -> topic.equals("server:server") || topic.equals("proxy:proxy")), requests.capture(),
                 eq(ResourceControlRequest.Response.class), eq(Duration.ofSeconds(10)));
         assertThat(requests.getAllValues()).extracting(ResourceControlRequest::getAction)
                 .contains(ResourceControlRequest.Action.PING, ResourceControlRequest.Action.REFRESH_LOAD,
@@ -297,15 +298,11 @@ class EchoCommandsTest {
                 .thenReturn(echoFailed(new CompletionException(new IllegalStateException("control unavailable"))));
         fixture.commands().serverLoadRefresh(fixture.context(), "server").join();
 
-        MessageTarget.Builder target = mock(MessageTarget.Builder.class);
-        when(fixture.echo().newMessageTargetBuilder()).thenReturn(target);
-        when(target.withServer("server")).thenReturn(target);
-        when(target.build()).thenReturn(new MessageTarget(Set.of()));
         fixture.commands().serverPing(fixture.context(), "server").join();
 
         assertThat(fixture.output()).contains("ERROR: minutes must be positive",
                         "ERROR: Command failed. Reference:")
-                .doesNotContain("control unavailable", "Administration requests require exactly one target topic");
+                .doesNotContain("control unavailable");
         verify(fixture.logger(), times(2)).log(eq(Level.SEVERE), anyString(), any(Throwable.class));
         verify(fixture.logger(), times(2)).info(any(Supplier.class));
     }
@@ -376,7 +373,7 @@ class EchoCommandsTest {
 
         assertThat(fixture.output()).contains("WARN: Run: echo user disconnect Alice ", "--confirm",
                 "OK: User disconnected.", "ERROR: Player was not found.");
-        verify(fixture.messaging(), times(2)).request(eq("echo:target"), any(UserDisconnectRequest.class),
+        verify(fixture.messaging(), times(2)).request(eq("proxy:proxy"), any(UserDisconnectRequest.class),
                 eq(UserDisconnectRequest.Response.class), any(Duration.class));
     }
 

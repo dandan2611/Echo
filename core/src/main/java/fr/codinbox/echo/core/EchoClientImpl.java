@@ -7,7 +7,6 @@ import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.cache.CacheMap;
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
-import fr.codinbox.echo.api.messaging.EchoMessage;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
@@ -20,7 +19,6 @@ import fr.codinbox.echo.api.server.ServerLoadManager;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.api.utils.EnvUtils;
-import fr.codinbox.echo.core.messaging.MessageTargetBuilderImpl;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
@@ -69,8 +67,8 @@ public class EchoClientImpl implements EchoClient {
 
         Echo.initClient(this);
 
-        this.cacheProvider = config.getCacheProviderFactory().create();
-        this.messagingProvider = config.getMessagingProviderFactory().create();
+        this.cacheProvider = config.getCacheProviderFactory().get();
+        this.messagingProvider = config.getMessagingProviderFactory().get();
         this.resourceType = config.getResourceType();
         this.resourceId = config.getResourceId();
         this.initialProperties = config.getInitialProperties();
@@ -100,15 +98,15 @@ public class EchoClientImpl implements EchoClient {
             case SERVER -> ServerImpl.SERVER_TOPIC.formatted(resourceId);
         };
 
-        this.messagingProvider.subscribe(topic, this::onMessageReceive);
-        this.messagingProvider.subscribe(MessageTarget.BROADCAST_TOPIC, this::onMessageReceive);
+        this.messagingProvider.subscribe(topic, this.messagingProvider::handleReply);
+        this.messagingProvider.subscribe(MessageTarget.BROADCAST_TOPIC, this.messagingProvider::handleReply);
 
         // Subscribe to the type-specific global topic
         final String globalTopic = switch (resourceType) {
             case PROXY -> MessageTarget.PROXIES_TOPIC;
             case SERVER -> MessageTarget.SERVERS_TOPIC;
         };
-        this.messagingProvider.subscribe(globalTopic, this::onMessageReceive);
+        this.messagingProvider.subscribe(globalTopic, this.messagingProvider::handleReply);
     }
 
     @Override
@@ -187,11 +185,6 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull MessageTarget.Builder newMessageTargetBuilder() {
-        return new MessageTargetBuilderImpl();
-    }
-
-    @Override
     public @NotNull EchoFuture<@NotNull Map<String, Long>> getServers() {
         return EchoFuture.of(this.getServerMap().readAllAsync());
     }
@@ -240,11 +233,6 @@ public class EchoClientImpl implements EchoClient {
         final ServerImpl server = new ServerImpl(this.resourceId, null);
         return EchoFuture.of(server.setProperty(Server.PROPERTY_AVAILABILITY, availability.name())
                 .thenCompose(ignored -> this.publishServerAvailability(this.resourceId, availability)));
-    }
-
-    public void onMessageReceive(final @NotNull EchoMessage message) {
-        if (!this.messagingProvider.handleReply(message))
-            return;
     }
 
     public void createLocalResource(final @NotNull Address address) {
@@ -695,21 +683,15 @@ public class EchoClientImpl implements EchoClient {
     private CompletableFuture<Void> publishServerStatus(final @NotNull String serverId,
                                                          final @NotNull ServerStatusNotification.Status status) {
         final ServerImpl server = new ServerImpl(serverId, null);
-        final MessageTarget target = this.newMessageTargetBuilder()
-                .withAllProxies()
-                .build();
         final ServerStatusNotification notification = new ServerStatusNotification(server, status);
-        return server.publishMessage(target, notification).thenApply(ignored -> null);
+        return this.messagingProvider.publish(MessageTarget.PROXIES_TOPIC, notification);
     }
 
     private CompletableFuture<Void> publishServerAvailability(final @NotNull String serverId,
                                                                final @NotNull ServerAvailability availability) {
         final ServerImpl server = new ServerImpl(serverId, null);
-        final MessageTarget target = this.newMessageTargetBuilder()
-                .withAllProxies()
-                .build();
-        return server.publishMessage(target, new ServerAvailabilityNotification(server, availability))
-                .thenApply(ignored -> null);
+        return this.messagingProvider.publish(MessageTarget.PROXIES_TOPIC,
+                new ServerAvailabilityNotification(server, availability));
     }
 
 }

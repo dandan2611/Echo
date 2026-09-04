@@ -11,7 +11,6 @@ import fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Server;
-import fr.codinbox.echo.core.messaging.MessageTargetBuilderImpl;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -53,7 +52,6 @@ class UserImplTest {
         when(client.getCacheProvider()).thenReturn(cache);
         when(client.getMessagingProvider()).thenReturn(messaging);
         when(client.getLocalTopic()).thenReturn("server:origin");
-        when(client.newMessageTargetBuilder()).thenAnswer(ignored -> new MessageTargetBuilderImpl());
         Echo.initClient(client);
     }
 
