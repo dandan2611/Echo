@@ -5,10 +5,12 @@ import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerAvailability;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RBucket;
+import org.redisson.api.RBatch;
 import org.redisson.api.RLock;
 import org.redisson.api.RMap;
 import org.redisson.api.RMapCache;
@@ -46,6 +48,144 @@ class RedisServerPlacementTest {
 
     private static final Instant NOW = Instant.parse("2026-09-03T12:00:00Z");
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
+
+    @Test
+    void staffCanReserveAbovePublicLimitButNonStaffCannot() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(100, 100, 100);
+        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
+
+        assertThat(fixture.placement.reserve(staff).join()).isPresent();
+        assertThat(fixture.placement.reserve(request("public", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        assertThat(fixture.placement.inspectServer("server").join().orElseThrow().reservedNonStaffSlots()).isZero();
+    }
+
+    @Test
+    void mixedGroupMustFitBothLimitsIndivisibly() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(100, 100, 100);
+        final ServerPlacement.Request mixed = request("mixed", 2, ServerPlacement.Policy.FILL_MOST_LOADED);
+        fixture.placement.publishStaffPermissions(Map.of(mixed.members().iterator().next(), true));
+
+        assertThat(fixture.placement.reserve(mixed).join()).isEmpty();
+        assertThat(fixture.placement.listActiveReservations().join()).isEmpty();
+    }
+
+    @Test
+    void hardBoundaryAllows120AndRejects121EvenForStaff() {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(119, 100, 100);
+
+        assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isTrue();
+        assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+    }
+
+    @Test
+    void physicalSpectatorsCountEvenWhenParticipantLoadIsZero() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(120, 80, 80);
+        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
+
+        assertThat(fixture.placement.reserve(staff).join()).isEmpty();
+        assertThat(fixture.placement.inspectServer("server").join().orElseThrow().hardFreeSlots())
+                .isEqualTo(OptionalLong.of(0));
+    }
+
+    @Test
+    void unreservedDirectJoinCannotStealTheLastLeasedSeat() {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(119, 99, 100);
+        final ServerPlacement.Reservation reserved = fixture.placement.reserve(request("lease", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+
+        assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+        assertThat(fixture.placement.admit("server", reserved.members().iterator().next(), false, snapshot)).isTrue();
+    }
+
+    @Test
+    void destinationPermissionOverridesReservedStaffClassification() {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(100, 100, 100);
+        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final UUID member = staff.members().iterator().next();
+        fixture.placement.publishStaffPermissions(Map.of(member, true));
+        fixture.placement.reserve(staff).join().orElseThrow();
+
+        assertThat(fixture.placement.admit("server", member, false, snapshot)).isFalse();
+        assertThat(fixture.placement.admit("server", member, true, snapshot)).isTrue();
+    }
+
+    @Test
+    void arrivedMemberIsNotDoubleCountedAgainstTheirReservation() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(0, 0, 100);
+        final ServerPlacement.Reservation reserved = fixture.placement.reserve(request("lease", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        fixture.placement.publishAdmission("server", new ServerAdmissionSnapshot(
+                Map.of(reserved.members().iterator().next(), false), Map.of(), 100, 120, NOW, NOW.plusSeconds(5)));
+
+        final ServerPlacement.ServerStatus status = fixture.placement.inspectServer("server").join().orElseThrow();
+
+        assertThat(status.reservedSlots()).isZero();
+        assertThat(status.admission().orElseThrow().totalCount()).isEqualTo(1);
+        assertThat(status.freeSlots()).isEqualTo(OptionalLong.of(99));
+    }
+
+    @Test
+    void stalePhysicalTelemetryFailsClosedDespiteFreshParticipantLoad() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(0, 0, 100);
+        fixture.values.put("server:server:property:admission", new ServerAdmissionSnapshot(
+                Map.of(), Map.of(), 100, 120, NOW.minusSeconds(5), NOW));
+
+        assertThat(fixture.placement.reserve(request("stale", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+    }
+
+    @Test
+    void missingPhysicalTelemetryDoesNotFallBackToParticipants() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(0, 0, 100);
+        fixture.values.remove("server:server:property:admission");
+
+        assertThat(fixture.placement.reserve(request("missing", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+    }
+
+    @Test
+    void expiredStaffSampleDoesNotGrantPublicSurplus() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(100, 100, 100);
+        final ServerPlacement.Request staff = request("expired", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
+        fixture.values.remove("admission:staff:" + staff.members().iterator().next());
+
+        assertThat(fixture.placement.reserve(staff).join()).isEmpty();
+    }
+
+    @Test
+    void concurrentDestinationLoginsShareTheLastPhysicalSeat() {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(119, 99, 100);
+        final CompletableFuture<Boolean> first = CompletableFuture.supplyAsync(() ->
+                fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
+        final CompletableFuture<Boolean> second = CompletableFuture.supplyAsync(() ->
+                fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
+
+        assertThat(List.of(first.join(), second.join())).containsExactlyInAnyOrder(true, false);
+    }
+
+    @Test
+    void drainingDestinationRejectsDirectStaffJoin() {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(0, 0, 100);
+        fixture.values.put("server:server:property:availability", ServerAvailability.DRAINING.name());
+
+        assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+    }
 
     @Test
     void constructor_usesConnectionClient() {
@@ -397,6 +537,9 @@ class RedisServerPlacementTest {
                 return null;
             }).when(redisLock).unlock();
             when(client.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
+            final RBatch batch = mock(RBatch.class);
+            when(client.createBatch()).thenReturn(batch);
+            when(batch.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
             placement = new RedisServerPlacement(client, Clock.fixed(NOW, ZoneOffset.UTC));
         }
 
@@ -414,7 +557,26 @@ class RedisServerPlacementTest {
             RBucket<Object> bucket = mock(RBucket.class);
             when(bucket.get()).thenAnswer(ignored -> values.get(key));
             when(bucket.remainTimeToLive()).thenAnswer(ignored -> ttls.getOrDefault(key, -2L));
+            doAnswer(invocation -> {
+                values.put(key, invocation.getArgument(0));
+                return null;
+            }).when(bucket).set(any());
+            when(bucket.setAsync(any(), any(Duration.class))).thenAnswer(invocation -> {
+                values.put(key, invocation.getArgument(0));
+                return null;
+            });
             return bucket;
+        }
+
+        private ServerAdmissionSnapshot seedAdmission(final int total, final int nonStaff, final int publicLimit) {
+            this.seed("server", 0, publicLimit, true, NOW.plusSeconds(30), "lobby");
+            this.values.put("server:server:property:placement_hard_capacity", 120);
+            final Map<UUID, Boolean> online = java.util.stream.IntStream.range(0, total).boxed().collect(
+                    java.util.stream.Collectors.toMap(index -> new UUID(0, index + 1), index -> index >= nonStaff));
+            final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(online, Map.of(), publicLimit,
+                    120, NOW, NOW.plusSeconds(5));
+            this.placement.publishAdmission("server", snapshot);
+            return snapshot;
         }
     }
 }

@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
@@ -37,6 +38,23 @@ final class AgonesSdkClient {
 
     CompletableFuture<Void> shutdown() {
         return post("/shutdown");
+    }
+
+    CompletableFuture<Void> telemetry(final Instant sampledAt, final int connectedPlayers,
+                                      final int publicPlayers, final int publicCapacity) {
+        if (connectedPlayers < 0 || publicPlayers < 0 || publicPlayers > connectedPlayers || publicCapacity <= 0)
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid telemetry counts"));
+        final String value = JSON.createObjectNode().put("version", 1)
+                .put("sampledAt", sampledAt.getEpochSecond()).put("connectedPlayers", connectedPlayers)
+                .put("publicPlayers", publicPlayers).put("publicCapacity", publicCapacity).toString();
+        final String body = JSON.createObjectNode().put("key", "echo-telemetry").put("value", value).toString();
+        final HttpRequest request = HttpRequest.newBuilder(this.baseUri.resolve("/metadata/annotation"))
+                .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(body)).build();
+        return this.http.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenApply(response -> {
+            requireSuccess(response, "set echo-telemetry annotation");
+            return null;
+        });
     }
 
     CompletableFuture<Boolean> isDrainRequested(final String annotation) {

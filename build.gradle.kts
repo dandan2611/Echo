@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "7.0.0"
+version = "7.1.0"
 
 subprojects {
     group = rootProject.group
@@ -25,12 +25,16 @@ subprojects {
             "testImplementation"(platform("org.junit:junit-bom:5.10.2"))
             "testImplementation"("org.junit.jupiter:junit-jupiter")
             "testImplementation"("org.assertj:assertj-core:3.25.3")
-            "testImplementation"("org.mockito:mockito-core:5.11.0")
-            "testImplementation"("org.mockito:mockito-junit-jupiter:5.11.0")
+            "testImplementation"("org.mockito:mockito-core:5.23.0")
+            "testImplementation"("org.mockito:mockito-junit-jupiter:5.23.0")
+            "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
         }
 
         tasks.withType<Test> {
             useJUnitPlatform()
+            testClassesDirs = project.extensions.getByType<SourceSetContainer>()["test"].output.classesDirs
+            classpath = project.extensions.getByType<SourceSetContainer>()["test"].runtimeClasspath
+            useJUnitPlatform { excludeTags("benchmark", "load", "capacity") }
         }
 
         tasks.register<Test>("unitTest") {
@@ -50,7 +54,8 @@ subprojects {
         extensions.configure<PublishingExtension> {
             publications {
                 create<MavenPublication>("maven") {
-                    from(components["java"])
+                    if (project.name !in setOf("paper", "velocity"))
+                        from(components["java"])
                 }
             }
             repositories {

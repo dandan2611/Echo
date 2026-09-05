@@ -18,7 +18,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 
 ## Requirements
 
-- Java 21+
+- Java 21+ for the libraries and Velocity; Java 25+ and Paper 26.2 for the Paper plugin
 - Redis server
 - [Connector](https://github.com/dandan2611/Connector) library for Redis connection management
 
@@ -35,7 +35,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 | `paper` | Paper server plugin - auto-registers players and servers |
 | `velocity` | Velocity proxy plugin - handles server switching and player routing |
 
-### 7.0 API map
+### API map
 
 | Area | Public entry points |
 |------|---------------------|
@@ -57,7 +57,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 ```xml
 <repository>
     <id>codinbox-releases</id>
-    <url>https://nexus.codinbox.fr/repository/maven-releases/</url>
+    <url>https://nexus.codinbox.fr/repository/maven-public/</url>
 </repository>
 ```
 
@@ -65,7 +65,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 <dependency>
     <groupId>fr.codinbox.echo</groupId>
     <artifactId>api</artifactId>
-    <version>7.0.0</version>
+    <version>7.1.0</version>
 </dependency>
 ```
 
@@ -73,11 +73,11 @@ Echo provides a unified API to track players, servers, and proxies across your e
 
 ```kotlin
 repositories {
-    maven("https://nexus.codinbox.fr/repository/maven-releases/")
+    maven("https://nexus.codinbox.fr/repository/maven-public/")
 }
 
 dependencies {
-    implementation("fr.codinbox.echo:api:7.0.0")
+    implementation("fr.codinbox.echo:api:7.1.0")
 }
 ```
 
@@ -85,7 +85,14 @@ Replace `api` with the artifact needed by the integration: `core`, `ondemand`, `
 or `commands`. Use the `paper` and `velocity` shadow JARs as plugins rather than application
 dependencies. The platform JARs include the shared commands, queue protocol, and in-pod Agones
 lifecycle, but intentionally exclude the Fabric8 allocation client; allocation controllers must
-depend on `fr.codinbox.echo:agones:7.0.0`.
+depend on `fr.codinbox.echo:agones:7.1.0`.
+
+The Maven `paper` and `velocity` main artifacts are complete runtime plugin JARs (not API-only
+or thin JARs). For automated installation, download `paper/7.1.0/paper-7.1.0.jar` or
+`velocity/7.1.0/velocity-7.1.0.jar` beneath
+`https://nexus.codinbox.fr/repository/maven-public/fr/codinbox/echo/`.
+Each module also publishes its `-sources.jar`. Use the public group URL for anonymous reads;
+the hosted `maven-releases` endpoint requires authentication.
 
 ## Configuration
 
@@ -103,7 +110,10 @@ Echo reads its configuration from environment variables:
 
 A Redis connection named `ECHO` must be registered through the Connector library. Initial-property
 suffixes are exact and case-sensitive; empty suffixes and the reserved keys `creation_time`,
-`availability`, and `load` are rejected. Paper sets `placement_capacity` from `max-players`.
+`availability`, and `load` are rejected. Paper converts `placement_capacity` and
+`placement_hard_capacity` into integer properties, defaulting to 100 and 120 respectively,
+and sets `max-players` to the hard capacity. Set
+`ECHO_RESOURCE_PROPERTY_placement_capacity=80` for a destination with 80 public seats.
 
 Paper and Velocity enable their Agones lifecycle only when `ECHO_AGONES_ENABLED=true`. In that case,
 the Agones sidecar must inject `AGONES_SDK_HTTP_PORT`. Without the flag, Echo runs without Agones.
@@ -157,6 +167,52 @@ Use `loads.getCurrent()` to read the last snapshot. Placement rejects stale load
 provider reports `acceptingQueueAssignments=false`.
 
 ### Atomic placement
+
+On Paper, public capacity counts non-staff; hard capacity counts everyone, including spectators.
+Staff status is evaluated from `guillgames.staff` on Velocity and rechecked on the destination.
+Callers cannot pass a staff/bypass flag in a placement request. The destination gate also covers
+initial joins, manual switches, and queue transfers. Online players, pending connections, and
+unarrived reserved members share one physical occupancy count without double-counting arrivals.
+Game participant load and `acceptingQueueAssignments` remain independent game-readiness inputs.
+
+Read real occupancy with `Server.getAdmission()` and proxy counts with `Proxy.getLoad()`.
+Redis snapshots have a five-second validity window; missing or stale snapshots are unknown,
+not zero. `ServerPlacement.inspectServer()` exposes reserved non-staff seats and physical headroom.
+Velocity uses a 475-player scale-out threshold, not a 120-player admission cap.
+
+#### Agones autoscaler telemetry
+
+With Agones enabled, both runtime plugins call SDK `SetAnnotation` using key `echo-telemetry`
+once per second under normal tick/scheduler operation. The sidecar writes the GameServer annotation
+`agones.dev/sdk-echo-telemetry`. The entire value is one atomic JSON object:
+
+```json
+{"version":1,"sampledAt":1788609600,"connectedPlayers":4,"publicPlayers":3,"publicCapacity":100}
+```
+
+`sampledAt` is Unix seconds sampled with the counts, `connectedPlayers` is the real online total,
+and `publicPlayers` is the non-staff subset. Pending joins and reservations are not connected players.
+`publicCapacity` is the configured Paper public limit or the proxy's 475-player threshold.
+Redis publication is retained; SDK publishing does not require additional Kubernetes RBAC and
+does not depend on the Redis write succeeding. Only one SDK annotation request is in flight at once.
+
+Autoscaler consumers must reject missing/malformed data, unsupported versions, invalid counts,
+future timestamps (`sampledAt > now`), and samples older than 30 seconds (`now - sampledAt > 30`).
+Rejected data is unknown and must not be interpreted as an empty server.
+
+#### Coordinated upgrade from 7.0
+
+New code reads deployed six-field leases conservatively as non-staff. New leases include a
+seventh classification field that old workers cannot read. Do not mix old and new placement writers.
+
+1. Pause every placement producer, including queue workers and initial-join reservation handlers.
+2. Finish in-flight transfers and release or let their leases expire.
+3. Roll Paper destinations and all placement workers, including Velocity and standalone `core` consumers, together.
+4. Verify runtime versions, fresh admission snapshots, and the SDK annotation before resuming producers.
+
+Publication alone does not coordinate live fleets; the deployment owner must perform this sequence.
+
+#### Placement API
 
 `ServerPlacement` reserves capacity for a whole group in one Redis operation. Requests are
 idempotent by request ID, reservations expire unless renewed, and only the token-owning reservation

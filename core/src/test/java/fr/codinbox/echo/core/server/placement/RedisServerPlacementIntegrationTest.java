@@ -3,6 +3,7 @@ package fr.codinbox.echo.core.server.placement;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.core.integration.RedisIntegrationTestBase;
 import org.junit.jupiter.api.Tag;
@@ -27,6 +28,58 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
 
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
+
+    @Test
+    void permissionPublisherStoresExpiringServerTrustedClassification() {
+        final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
+        this.seedAdmission(placement);
+        final ServerPlacement.Request request = this.request("staff", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of());
+        final UUID member = request.members().iterator().next();
+        placement.publishStaffPermissions(Map.of(member, true));
+
+        final Optional<ServerPlacement.Reservation> result = placement.reserve(request).join();
+
+        assertThat(result).isPresent();
+        assertThat(placement.inspectServer("server").join().orElseThrow().reservedNonStaffSlots()).isZero();
+        assertThat(redissonClient.getBucket("admission:staff:" + member).remainTimeToLive()).isPositive();
+    }
+
+    @Test
+    void destinationAndPlacementShareTheSamePhysicalLease() {
+        final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
+        final RedisServerPlacement destination = new RedisServerPlacement(mockConnection);
+        final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
+        final ServerPlacement.Reservation lease = placement.reserve(request("handoff", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of())).join().orElseThrow();
+
+        assertThat(destination.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+        assertThat(destination.admit("server", lease.members().iterator().next(), false, snapshot)).isTrue();
+        assertThat(placement.inspectServer("server").join().orElseThrow().reservedSlots()).isZero();
+    }
+
+    @Test
+    void independentDestinationWorkersCannotBothTakeLastSeat() {
+        final RedisServerPlacement firstWorker = new RedisServerPlacement(mockConnection);
+        final RedisServerPlacement secondWorker = new RedisServerPlacement(mockConnection);
+        final ServerAdmissionSnapshot snapshot = this.seedAdmission(firstWorker);
+        final CompletableFuture<Boolean> first = CompletableFuture.supplyAsync(() ->
+                firstWorker.admit("server", UUID.randomUUID(), true, snapshot));
+        final CompletableFuture<Boolean> second = CompletableFuture.supplyAsync(() ->
+                secondWorker.admit("server", UUID.randomUUID(), true, snapshot));
+
+        assertThat(List.of(first.join(), second.join())).containsExactlyInAnyOrder(true, false);
+    }
+
+    private ServerAdmissionSnapshot seedAdmission(final RedisServerPlacement placement) {
+        final Instant now = Instant.now();
+        this.seed("server", 0, 1, true, now.plusSeconds(60),
+                Map.of(ServerPlacement.PROPERTY_HARD_CAPACITY, 2));
+        final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(Map.of(UUID.randomUUID(), true),
+                Map.of(), 1, 2, now, now.plusSeconds(60));
+        placement.publishAdmission("server", snapshot);
+        return snapshot;
+    }
 
     @Test
     void reserve_appliesBothPoliciesExactFiltersAndStableTieBreak() {

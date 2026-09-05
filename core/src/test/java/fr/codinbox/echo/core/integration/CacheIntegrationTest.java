@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,16 +68,15 @@ class CacheIntegrationTest extends RedisIntegrationTestBase {
     }
 
     @Test
-    void expireObject_keyExpiresAfterTimeout() throws InterruptedException {
+    void expireObject_keyExpiresAfterTimeout() {
         cacheProvider.setObject("test:expire", "temp").join();
 
         Instant expireAt = Instant.now().plusSeconds(1);
         cacheProvider.expireObject("test:expire", expireAt).join();
 
-        Thread.sleep(1500);
-
-        Object result = cacheProvider.getObject("test:expire").join();
-        assertThat(result).isNull();
+        org.rnorth.ducttape.unreliables.Unreliables.retryUntilTrue(5, TimeUnit.SECONDS,
+                () -> cacheProvider.getObject("test:expire").join() == null);
+        assertThat(cacheProvider.getObject("test:expire").join()).isNull();
     }
 
     @Test

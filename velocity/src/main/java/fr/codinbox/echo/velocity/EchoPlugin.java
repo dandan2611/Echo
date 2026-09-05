@@ -19,6 +19,8 @@ import fr.codinbox.connector.velocity.Connector;
 import fr.codinbox.echo.agones.AgonesGameServerLifecycle;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoConfig;
+import fr.codinbox.echo.api.proxy.Proxy;
+import fr.codinbox.echo.api.proxy.ProxyLoadSnapshot;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
@@ -33,7 +35,10 @@ import fr.codinbox.echo.commands.CommandAudience;
 import fr.codinbox.echo.commands.EchoCommands;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
+import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.velocity.listener.JoinListener;
+import fr.codinbox.echo.velocity.listener.AdmissionPermissionListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
 import fr.codinbox.echo.velocity.messaging.ResourceControlRequestHandler;
 import fr.codinbox.echo.velocity.messaging.ServerAvailabilityNotificationHandler;
@@ -52,6 +57,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,7 +71,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "echo",
         name = "Echo",
-        version = "7.0.0",
+        version = "7.1.0",
         authors = {"dandan2611"},
         dependencies = {
                 @Dependency(id = "connector", optional = false)
@@ -104,6 +111,7 @@ public class EchoPlugin {
                 throw new IllegalStateException("Failed to get Redis connection for Echo, is the " + ECHO_CONNECTOR_CONNECTION_NAME + " connection property configured?");
 
             final RedisConnection connection = echoConnection.get();
+            final RedisServerPlacement placement = new RedisServerPlacement(connection);
             final boolean agonesEnabled = Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
             if (agonesEnabled) {
                 final String drainAnnotation = Optional.ofNullable(System.getenv("ECHO_AGONES_DRAIN_ANNOTATION"))
@@ -120,13 +128,33 @@ public class EchoPlugin {
             final EchoConfig config = EchoConfig.builder()
                     .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
                     .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
-                     .serverPlacement(RedisProviderFactory.serverPlacement(connection))
+                     .serverPlacement(placement)
                      .resourceType(EchoResourceType.PROXY)
                      .resourceId(java.util.Objects.requireNonNull(EnvUtils.getResourceId()))
                      .initialProperties(EnvUtils.getInitialProperties())
                      .build();
             final EchoClient client = EchoClientImpl.autoInit(config);
             this.echoClient = client;
+            this.proxy.getScheduler().buildTask(this, () -> {
+                final Instant now = Instant.now();
+                final Map<UUID, Boolean> permissions = new HashMap<>();
+                this.proxy.getAllPlayers().forEach(player -> permissions.put(player.getUniqueId(),
+                        player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)));
+                final int publicPlayers = (int) permissions.values().stream().filter(staff -> !staff).count();
+                this.publishTelemetry(now, permissions.size(), publicPlayers);
+                try {
+                    placement.publishStaffPermissions(permissions);
+                    final ProxyLoadSnapshot load =
+                            new ProxyLoadSnapshot(permissions.size(),
+                                    publicPlayers,
+                                    ProxyLoadSnapshot.SCALE_OUT_THRESHOLD,
+                                    now, now.plusSeconds(5));
+                    client.getProxyById(config.getResourceId()).join().orElseThrow()
+                            .setProperty(Proxy.PROPERTY_LOAD, load).join();
+                } catch (RuntimeException error) {
+                    this.logger.log(Level.WARNING, "Failed to publish admission permissions", error);
+                }
+            }).repeat(Duration.ofSeconds(1)).schedule();
 
             // Dynamic server registration
             final MessagingProvider messagingProvider = client.getMessagingProvider();
@@ -159,6 +187,7 @@ public class EchoPlugin {
 
             // Register listeners
             final EventManager eventManager = this.proxy.getEventManager();
+            eventManager.register(this, new AdmissionPermissionListener(placement));
             eventManager.register(this, new JoinListener(() -> this.acceptingLogins.get()
                     && !this.stopping.get() && !this.draining.get(), this.userSessions));
 
@@ -187,6 +216,15 @@ public class EchoPlugin {
                 return source instanceof Player player ? player.getUsername() : "CONSOLE";
             }
         };
+    }
+
+    void publishTelemetry(final @NotNull Instant sampledAt, final int total, final int publicPlayers) {
+        if (this.agonesLifecycle != null)
+            this.agonesLifecycle.publishTelemetry(sampledAt, total, publicPlayers,
+                    ProxyLoadSnapshot.SCALE_OUT_THRESHOLD).exceptionally(error -> {
+                this.logger.log(Level.WARNING, "Failed to publish Agones telemetry", error);
+                return null;
+            });
     }
 
     public boolean beginDrain() {

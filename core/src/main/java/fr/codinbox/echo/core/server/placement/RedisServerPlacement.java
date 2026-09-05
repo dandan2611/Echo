@@ -4,11 +4,13 @@ import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RBucket;
+import org.redisson.api.RBatch;
 import org.redisson.api.RLock;
 import org.redisson.api.RMap;
 import org.redisson.api.RMapCache;
@@ -57,6 +59,78 @@ public final class RedisServerPlacement implements ServerPlacement {
         this.clock = clock;
     }
 
+    /** Trusted proxy publisher only. Missing/expired permission samples always classify as non-staff. */
+    public void publishStaffPermissions(final @NotNull Map<UUID, Boolean> permissions) {
+        final RBatch batch = this.client.createBatch();
+        permissions.forEach((member, staff) -> batch.<Boolean>getBucket("admission:staff:" + member)
+                .setAsync(staff, Duration.ofSeconds(5)));
+        batch.execute();
+    }
+
+    /** Called synchronously by the destination's single occupancy owner, never by transfer callers. */
+    public void publishAdmission(final @NotNull String serverId, final @NotNull ServerAdmissionSnapshot snapshot) {
+        this.withLock(() -> {
+            this.writeAdmission(serverId, snapshot);
+            return null;
+        });
+    }
+
+    /**
+     * Final destination gate. The permission and occupancy arguments must come from the local server,
+     * not a message payload. Shares the placement lock so direct joins cannot steal leased seats.
+     */
+    public boolean admit(final @NotNull String serverId, final @NotNull UUID member, final boolean staff,
+                         final @NotNull ServerAdmissionSnapshot snapshot) {
+        return this.withLock(() -> {
+            if (snapshot.isStale(this.clock.instant()))
+                return false;
+            final Object availability = this.value("server:" + serverId + ":property:availability");
+            if (availability != null && !ServerAvailability.ACTIVE.name().equals(availability))
+                return false;
+            final Map<UUID, Boolean> joining = new java.util.HashMap<>(snapshot.joiningMembers());
+            final Object previous = this.value("server:" + serverId + ":property:admission");
+            if (previous instanceof ServerAdmissionSnapshot current && !current.isStale(this.clock.instant()))
+                current.joiningMembers().forEach(joining::putIfAbsent);
+            snapshot.onlineMembers().keySet().forEach(joining::remove);
+            final ServerAdmissionSnapshot current = new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
+                    snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil());
+            final Map<UUID, Boolean> occupied = this.occupied(serverId, current);
+            occupied.put(member, staff); // Destination permission overrides any earlier reservation classification.
+            if (!current.fits(occupied.size(), nonStaff(occupied), !staff))
+                return false;
+            if (!snapshot.onlineMembers().containsKey(member))
+                joining.put(member, staff);
+            this.writeAdmission(serverId, new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
+                    snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil()));
+            return true;
+        });
+    }
+
+    private void writeAdmission(final String serverId, final ServerAdmissionSnapshot snapshot) {
+        this.client.<ServerAdmissionSnapshot>getBucket("server:" + serverId + ":property:admission").set(snapshot);
+    }
+
+    private Set<UUID> staffMembers(final Set<UUID> members) {
+        return members.stream().filter(member -> Boolean.TRUE.equals(this.value("admission:staff:" + member)))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private Map<UUID, Boolean> occupied(final String serverId, final ServerAdmissionSnapshot snapshot) {
+        final Map<UUID, Boolean> occupied = new java.util.HashMap<>();
+        this.reservations().readAllMap().values().stream().map(RedisServerPlacement::decodeRequired)
+                .filter(stored -> stored.reservation().serverId().equals(serverId))
+                .filter(stored -> this.clock.instant().isBefore(stored.reservation().expiresAt()))
+                .forEach(stored -> stored.reservation().members().forEach(member ->
+                        occupied.merge(member, stored.staffMembers().contains(member), (left, right) -> left && right)));
+        occupied.putAll(snapshot.joiningMembers());
+        occupied.putAll(snapshot.onlineMembers());
+        return occupied;
+    }
+
+    private static long nonStaff(final Map<UUID, Boolean> members) {
+        return members.values().stream().filter(staff -> !staff).count();
+    }
+
     @Override
     public @NotNull EchoFuture<@NotNull Optional<Reservation>> reserve(final @NotNull Request request) {
         return this.async(() -> this.withLock(() -> this.reserveLocked(request)));
@@ -76,7 +150,8 @@ public final class RedisServerPlacement implements ServerPlacement {
             final Reservation renewed = new Reservation(current.reservation().requestId(),
                     current.reservation().token(), current.reservation().serverId(),
                     current.reservation().members(), this.expiresAt(lease));
-            reservations.put(renewed.requestId(), encode(new StoredReservation(current.fingerprint(), renewed)),
+            reservations.put(renewed.requestId(), encode(new StoredReservation(current.fingerprint(), renewed,
+                            current.staffMembers())),
                     lease.toMillis(), TimeUnit.MILLISECONDS);
             return Optional.of(renewed);
         }));
@@ -144,19 +219,25 @@ public final class RedisServerPlacement implements ServerPlacement {
             return Optional.of(existing.reservation());
         }
 
-        final Explanation explanation = this.explainLocked(request);
+        final Set<UUID> staff = this.staffMembers(request.members());
+        final Explanation explanation = this.explainLocked(request, staff);
         if (explanation.selectedServerId().isEmpty())
             return Optional.empty();
 
         final Reservation reservation = new Reservation(request.requestId(), UUID.randomUUID().toString(),
                 explanation.selectedServerId().orElseThrow(), request.members(), this.expiresAt(request.lease()));
-        reservations.put(request.requestId(), encode(new StoredReservation(fingerprint, reservation)),
+        reservations.put(request.requestId(), encode(new StoredReservation(fingerprint, reservation,
+                        staff)),
                 request.lease().toMillis(), TimeUnit.MILLISECONDS);
         return Optional.of(reservation);
     }
 
     private Explanation explainLocked(Request request) {
-        // ponytail: one global lock and one O(reservations) scan; replace with an indexed Lua model if measured throughput requires it.
+        return this.explainLocked(request, this.staffMembers(request.members()));
+    }
+
+    private Explanation explainLocked(final Request request, final Set<UUID> staff) {
+        // ponytail: one global lock and per-candidate reservation scans; index in Lua if throughput requires it.
         final Map<String, Long> reservedByServer = this.reservedByServer();
         final Set<String> registered = this.servers().readAllKeySet();
         final List<String> serverIds = new ArrayList<>(request.candidateServerIds().isEmpty()
@@ -167,7 +248,7 @@ public final class RedisServerPlacement implements ServerPlacement {
         final Instant now = this.clock.instant();
         for (String serverId : serverIds) {
             final CandidateEvaluation evaluation = registered.contains(serverId)
-                    ? this.evaluate(serverId, request, now, reservedByServer.getOrDefault(serverId, 0L))
+                    ? this.evaluate(serverId, request, now, reservedByServer.getOrDefault(serverId, 0L), staff)
                     : new CandidateEvaluation(serverId, Optional.empty(), RejectionReason.SERVER_NOT_REGISTERED,
                     OptionalLong.empty());
             evaluations.add(evaluation);
@@ -180,7 +261,8 @@ public final class RedisServerPlacement implements ServerPlacement {
         return new Explanation(Optional.ofNullable(selected).map(Candidate::serverId), evaluations);
     }
 
-    private CandidateEvaluation evaluate(String serverId, Request request, Instant now, long reserved) {
+    private CandidateEvaluation evaluate(String serverId, Request request, Instant now, long reserved,
+                                         final Set<UUID> staff) {
         final ServerStatus status = this.serverStatus(serverId, now, reserved);
         final Optional<ServerStatus> statusView = Optional.of(status);
         if (!status.heartbeatAlive())
@@ -192,6 +274,9 @@ public final class RedisServerPlacement implements ServerPlacement {
             return rejected(serverId, statusView, RejectionReason.INVALID_CAPACITY);
         if (status.participantLoad().isEmpty())
             return rejected(serverId, statusView, RejectionReason.INVALID_LOAD);
+        if (status.admission().isEmpty()
+                && this.value("server:" + serverId + ":property:" + PROPERTY_HARD_CAPACITY.key()) != null)
+            return rejected(serverId, statusView, RejectionReason.INVALID_LOAD);
         if (!status.loadFresh())
             return rejected(serverId, statusView, RejectionReason.STALE_LOAD);
         if (!status.acceptingQueueAssignments())
@@ -200,6 +285,24 @@ public final class RedisServerPlacement implements ServerPlacement {
             if (!filter.getValue().equals(this.value(
                     "server:" + serverId + ":property:" + filter.getKey().key())))
                 return rejected(serverId, statusView, RejectionReason.PROPERTY_MISMATCH);
+        }
+        if (this.value("server:" + serverId + ":property:" + PROPERTY_HARD_CAPACITY.key()) != null) {
+            final Object value = this.value("server:" + serverId + ":property:admission");
+            if (!(value instanceof ServerAdmissionSnapshot admission))
+                return rejected(serverId, statusView, RejectionReason.INVALID_LOAD);
+            if (admission.isStale(now))
+                return rejected(serverId, statusView, RejectionReason.STALE_LOAD);
+            if (!Integer.valueOf(admission.hardCapacity()).equals(this.value(
+                    "server:" + serverId + ":property:" + PROPERTY_HARD_CAPACITY.key()))
+                    || status.capacity().orElseThrow() != admission.publicCapacity())
+                return rejected(serverId, statusView, RejectionReason.INVALID_CAPACITY);
+            final Map<UUID, Boolean> occupied = this.occupied(serverId, admission);
+            final long effective = occupied.size();
+            request.members().forEach(member -> occupied.putIfAbsent(member, staff.contains(member)));
+            return new CandidateEvaluation(serverId, statusView,
+                    admission.fits(occupied.size(), nonStaff(occupied), staff.size() != request.members().size())
+                            ? RejectionReason.NONE : RejectionReason.INSUFFICIENT_CAPACITY,
+                    OptionalLong.of(effective));
         }
         final long effectiveLoad = Math.addExact(status.participantLoad().orElseThrow(), reserved);
         if (Math.addExact(effectiveLoad, request.members().size()) > status.capacity().orElseThrow())
@@ -230,6 +333,23 @@ public final class RedisServerPlacement implements ServerPlacement {
                 ? OptionalLong.of(Math.max(0L,
                 capacity.getAsInt() - reserved - participantLoad.getAsInt()))
                 : OptionalLong.empty();
+        final Object admissionValue = this.value("server:" + serverId + ":property:admission");
+        if (admissionValue instanceof ServerAdmissionSnapshot admission) {
+            final Map<UUID, Boolean> occupied = this.occupied(serverId, admission);
+            final long hardFree = Math.max(0L, admission.hardCapacity() - occupied.size());
+            final long publicFree = Math.max(0L, admission.publicCapacity() - nonStaff(occupied));
+            final Map<UUID, Boolean> outstanding = new java.util.HashMap<>(occupied);
+            admission.onlineMembers().keySet().forEach(outstanding::remove);
+            admission.joiningMembers().keySet().forEach(outstanding::remove);
+            return new ServerStatus(serverId, heartbeatAlive, availability, participantLoad,
+                    outstanding.size(), capacity, OptionalLong.of(Math.min(hardFree, publicFree)),
+                    snapshot != null && !snapshot.isStale(now) && !admission.isStale(now),
+                    snapshot != null && snapshot.load().acceptingQueueAssignments(),
+                    Optional.of(admission), nonStaff(outstanding), OptionalLong.of(hardFree));
+        }
+        if (this.value("server:" + serverId + ":property:" + PROPERTY_HARD_CAPACITY.key()) != null)
+            return new ServerStatus(serverId, heartbeatAlive, availability, participantLoad, reserved, capacity,
+                    OptionalLong.empty(), false, snapshot != null && snapshot.load().acceptingQueueAssignments());
         return new ServerStatus(serverId, heartbeatAlive, availability, participantLoad, reserved, capacity,
                 freeSlots, snapshot != null && !snapshot.isStale(now),
                 snapshot != null && snapshot.load().acceptingQueueAssignments());
@@ -344,7 +464,9 @@ public final class RedisServerPlacement implements ServerPlacement {
                 reservation.token(),
                 Base64.getUrlEncoder().withoutPadding().encodeToString(
                         reservation.serverId().getBytes(StandardCharsets.UTF_8)),
-                Long.toString(reservation.expiresAt().toEpochMilli()), members);
+                Long.toString(reservation.expiresAt().toEpochMilli()), members,
+                stored.staffMembers().stream().map(UUID::toString).sorted()
+                        .collect(java.util.stream.Collectors.joining(",")));
     }
 
     private static StoredReservation decode(String value) {
@@ -353,7 +475,7 @@ public final class RedisServerPlacement implements ServerPlacement {
 
     private static StoredReservation decodeRequired(String value) {
         final String[] fields = value.split("\n", -1);
-        if (fields.length != 6)
+        if (fields.length != 6 && fields.length != 7)
             throw new IllegalStateException("Corrupt placement reservation");
         final Set<UUID> members = new LinkedHashSet<>();
         for (String member : fields[5].split(","))
@@ -362,7 +484,12 @@ public final class RedisServerPlacement implements ServerPlacement {
                 new String(Base64.getUrlDecoder().decode(fields[1]), StandardCharsets.UTF_8), fields[2],
                 new String(Base64.getUrlDecoder().decode(fields[3]), StandardCharsets.UTF_8),
                 members, Instant.ofEpochMilli(Long.parseLong(fields[4])));
-        return new StoredReservation(fields[0], reservation);
+        final Set<UUID> staff = fields.length == 7 && !fields[6].isEmpty()
+                ? java.util.Arrays.stream(fields[6].split(",")).map(UUID::fromString)
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()) : Set.of();
+        if (!members.containsAll(staff))
+            throw new IllegalStateException("Reservation staff must be members");
+        return new StoredReservation(fields[0], reservation, staff);
     }
 
     private static ActiveReservation view(Reservation reservation) {
@@ -373,6 +500,6 @@ public final class RedisServerPlacement implements ServerPlacement {
     private record Candidate(String serverId, long effectiveLoad) {
     }
 
-    private record StoredReservation(String fingerprint, Reservation reservation) {
+    private record StoredReservation(String fingerprint, Reservation reservation, Set<UUID> staffMembers) {
     }
 }

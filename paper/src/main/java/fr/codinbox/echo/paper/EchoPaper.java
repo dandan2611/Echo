@@ -9,6 +9,7 @@ import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadManager;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
@@ -20,6 +21,8 @@ import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.paper.event.ServerDrainEvent;
 import fr.codinbox.echo.paper.listener.JoinListener;
+import fr.codinbox.echo.paper.listener.AdmissionListener;
+import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
 import fr.codinbox.echo.paper.messaging.QueuePlacementPrepareRequestHandler;
 import fr.codinbox.echo.paper.messaging.ResourceControlRequestHandler;
 import fr.codinbox.echo.queue.QueuePlacementPreparer;
@@ -66,14 +69,16 @@ public class EchoPaper extends JavaPlugin {
                 throw new IllegalStateException("Failed to get Redis connection for Echo, is the " + ECHO_CONNECTOR_CONNECTION_NAME + " connection property configured?");
 
             final RedisConnection connection = echoConnection.get();
+            final RedisServerPlacement placement = new RedisServerPlacement(connection);
+            final Map<PropertyKey<?>, Object> properties = initialProperties(EnvUtils.getInitialProperties(), 120);
+            this.getServer().setMaxPlayers((Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
             final EchoConfig config = EchoConfig.builder()
                     .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
                     .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
-                     .serverPlacement(RedisProviderFactory.serverPlacement(connection))
+                     .serverPlacement(placement)
                      .resourceType(EchoResourceType.SERVER)
                      .resourceId(Objects.requireNonNull(EnvUtils.getResourceId()))
-                     .initialProperties(initialProperties(
-                             EnvUtils.getInitialProperties(), this.getServer().getMaxPlayers()))
+                     .initialProperties(properties)
                      .serverLoadProvider(() -> new ServerLoad(this.getServer().getOnlinePlayers().size(), true))
                      .build();
             final boolean agonesEnabled = Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
@@ -84,6 +89,12 @@ public class EchoPaper extends JavaPlugin {
 
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();
+            final AdmissionListener admission = new AdmissionListener(this, placement,
+                    config.getResourceId(), (Integer) properties.get(ServerPlacement.PROPERTY_CAPACITY),
+                    (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
+            pluginManager.registerEvents(admission, this);
+            admission.refresh();
+            this.getServer().getScheduler().runTaskTimer(this, admission::refresh, 20L, 20L);
             pluginManager.registerEvents(new JoinListener(this, serverLoadManager), this);
             this.echoClient.getMessagingProvider().subscribe(this.echoClient.getLocalTopic(),
                     QueuePlacementPrepareRequest.class, new QueuePlacementPrepareRequestHandler(
@@ -137,7 +148,14 @@ public class EchoPaper extends JavaPlugin {
             throw new IllegalArgumentException("placement capacity must be positive");
         final Map<PropertyKey<?>, Object> properties = new HashMap<>();
         configured.forEach(properties::put);
-        properties.put(ServerPlacement.PROPERTY_CAPACITY, capacity);
+        final int hard = Integer.parseInt(properties.getOrDefault(
+                ServerPlacement.PROPERTY_HARD_CAPACITY, capacity).toString());
+        final int publicLimit = Integer.parseInt(properties.getOrDefault(
+                ServerPlacement.PROPERTY_CAPACITY, Math.min(100, hard)).toString());
+        if (publicLimit <= 0 || hard < publicLimit || hard > 120)
+            throw new IllegalArgumentException("Require 0 < public capacity <= hard capacity <= 120");
+        properties.put(ServerPlacement.PROPERTY_CAPACITY, publicLimit);
+        properties.put(ServerPlacement.PROPERTY_HARD_CAPACITY, hard);
         return Map.copyOf(properties);
     }
 
@@ -211,6 +229,15 @@ public class EchoPaper extends JavaPlugin {
             refreshed.completeExceptionally(error);
         }
         return refreshed;
+    }
+
+    public void publishTelemetry(final @NotNull ServerAdmissionSnapshot snapshot) {
+        if (this.agonesLifecycle != null)
+            this.agonesLifecycle.publishTelemetry(snapshot.sampledAt(), snapshot.totalCount(),
+                    snapshot.nonStaffCount(), snapshot.publicCapacity()).exceptionally(error -> {
+                this.getLogger().log(Level.WARNING, "Failed to publish Agones telemetry", error);
+                return null;
+            });
     }
 
     public CompletableFuture<Boolean> activate() {

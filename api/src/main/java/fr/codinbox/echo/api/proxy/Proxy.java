@@ -4,6 +4,7 @@ import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.id.Identifiable;
 import fr.codinbox.echo.api.messaging.MessageRouter;
 import fr.codinbox.echo.api.property.PropertyHolder;
+import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.Joinable;
 import fr.codinbox.echo.api.user.UserHolder;
 import fr.codinbox.echo.api.utils.Cleanable;
@@ -34,6 +35,13 @@ import org.jetbrains.annotations.NotNull;
  * @see fr.codinbox.echo.api.EchoClient#getProxies()
  */
 public interface Proxy extends Identifiable<String>, UserHolder, PropertyHolder, MessageRouter, Joinable, Cleanable {
+
+    @NotNull PropertyKey<ProxyLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
+
+    /** Real online counts for autoscaling, not a backend capacity limit. */
+    default @NotNull EchoFuture<java.util.Optional<ProxyLoadSnapshot>> getLoad() {
+        return this.getProperty(PROPERTY_LOAD);
+    }
 
     /**
      * Checks whether this proxy still exists in the network.

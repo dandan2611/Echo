@@ -1,7 +1,7 @@
 plugins {
     `java-library`
-    id("io.papermc.paperweight.userdev") version "1.7.1"
-    id("com.gradleup.shadow") version "8.3.9"
+    `maven-publish`
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 repositories {
@@ -19,12 +19,19 @@ dependencies {
     implementation("org.incendo:cloud-paper:2.0.0")
     compileOnlyApi("fr.codinbox.connector:paper:6.0.0")
 
-    paperweight.paperDevBundle("1.20.6-R0.1-SNAPSHOT")
+    compileOnlyApi("io.papermc.paper:paper-api:26.2.build.121-stable")
+    testImplementation("io.papermc.paper:paper-api:26.2.build.121-stable")
 
     testImplementation("fr.codinbox.connector:commons:6.0.0")
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.21.4"))
+    testImplementation("org.testcontainers:junit-jupiter")
 }
 
 tasks {
+    withType<Test>().configureEach {
+        dependsOn(shadowJar)
+        doFirst { systemProperty("echo.paper.jar", shadowJar.get().archiveFile.get().asFile.absolutePath) }
+    }
     build {
         dependsOn("shadowJar")
     }
@@ -40,10 +47,22 @@ tasks {
         relocate("org.incendo.cloud", "fr.codinbox.echo.paper.libs.cloud")
         relocate("io.leangen.geantyref", "fr.codinbox.echo.paper.libs.geantyref")
         mergeServiceFiles()
+        filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
         doLast {
             check(zipTree(archiveFile.get().asFile).matching {
                 include("com/fasterxml/jackson/**")
             }.files.isEmpty()) { "Echo must use Connector's Jackson classes" }
         }
     }
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    withSourcesJar()
+}
+
+publishing.publications.named<MavenPublication>("maven") {
+    setArtifacts(listOf(tasks.shadowJar))
+    artifact(tasks.named("sourcesJar"))
+    artifacts.matching { it.classifier == "all" }.all { classifier = null }
 }

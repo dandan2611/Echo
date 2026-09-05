@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -33,6 +34,7 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     private final AtomicBoolean drainSignalled = new AtomicBoolean();
     private final AtomicBoolean drainInProgress = new AtomicBoolean();
     private final AtomicBoolean drainPolling = new AtomicBoolean();
+    private final AtomicBoolean telemetryInProgress = new AtomicBoolean();
 
     /**
      * Creates a lifecycle using the Agones sidecar port injected into the pod.
@@ -95,6 +97,23 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
                 .thenCompose(ignored -> this.longLived
                         ? ensureAllocated(deadline)
                         : waitForExternalAllocation());
+    }
+
+    /**
+     * Publishes one atomic SDK annotation, without Kubernetes API credentials. Call every 1-5 seconds
+     * using real local occupancy. Only one SDK write is in flight at a time.
+     */
+    public @NotNull CompletableFuture<Void> publishTelemetry(final @NotNull Instant sampledAt,
+            final int connectedPlayers, final int publicPlayers, final int publicCapacity) {
+        if (this.scheduler.isShutdown() || !this.telemetryInProgress.compareAndSet(false, true))
+            return CompletableFuture.completedFuture(null);
+        try {
+            return this.sdk.telemetry(sampledAt, connectedPlayers, publicPlayers, publicCapacity)
+                    .whenComplete((ignored, error) -> this.telemetryInProgress.set(false));
+        } catch (RuntimeException error) {
+            this.telemetryInProgress.set(false);
+            return CompletableFuture.failedFuture(error);
+        }
     }
 
     private CompletableFuture<Void> waitForReadyOrAllocated(final long deadline) {

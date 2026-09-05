@@ -1,6 +1,9 @@
 plugins {
     `java-library`
+    `maven-publish`
 }
+
+java { withSourcesJar() }
 
 repositories {
     mavenCentral()

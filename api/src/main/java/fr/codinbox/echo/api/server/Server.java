@@ -63,6 +63,11 @@ public interface Server extends Identifiable<String>, UserHolder, PropertyHolder
         return this.getProperty(PROPERTY_LOAD);
     }
 
+    /** Destination-owned real total/non-staff occupancy. Check its validity deadline before use. */
+    default @NotNull EchoFuture<java.util.Optional<ServerAdmissionSnapshot>> getAdmission() {
+        return this.getProperty(ServerAdmissionSnapshot.PROPERTY);
+    }
+
     /**
      * Checks whether this server still exists in the network.
      *

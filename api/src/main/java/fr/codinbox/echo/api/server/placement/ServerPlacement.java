@@ -26,8 +26,11 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ServerPlacement {
 
-    /** Integer server property defining the maximum participant capacity used by placement. */
+    /** Public non-staff capacity on admission-enabled servers; legacy participant capacity otherwise. */
     @NotNull PropertyKey<Integer> PROPERTY_CAPACITY = new PropertyKey<>("placement_capacity");
+
+    /** Physical capacity for everyone. Setting this requires fresh destination admission telemetry. */
+    @NotNull PropertyKey<Integer> PROPERTY_HARD_CAPACITY = new PropertyKey<>("placement_hard_capacity");
 
     /**
      * Selects an eligible server and atomically reserves capacity for every request member.
@@ -169,7 +172,7 @@ public interface ServerPlacement {
             @NotNull Duration lease) {
 
         private static final Set<String> RESERVED_FILTERS =
-                Set.of("availability", "load", PROPERTY_CAPACITY.key());
+                Set.of("availability", "load", "admission", PROPERTY_CAPACITY.key(), PROPERTY_HARD_CAPACITY.key());
 
         /** Validates and snapshots all request collections. */
         public Request {
@@ -271,11 +274,14 @@ public interface ServerPlacement {
      * @param heartbeatAlive whether the server heartbeat is live
      * @param availability interpreted availability property
      * @param participantLoad reported participant count, if the load is valid
-     * @param reservedSlots seats held by active placement reservations
-     * @param capacity positive placement capacity, if valid
-     * @param freeSlots non-negative unreserved capacity, if load and capacity are valid
+     * @param reservedSlots unarrived seats held by active reservations, excluding online/pending members
+     * @param capacity positive public capacity (legacy servers: participant capacity), if valid
+     * @param freeSlots non-staff headroom constrained by both limits, if inputs are valid
      * @param loadFresh whether the load snapshot has not reached its validity deadline
      * @param acceptingQueueAssignments whether the reported load accepts queue assignments
+     * @param admission destination physical counts and pending joins, independent of participantLoad
+     * @param reservedNonStaffSlots non-staff portion of reservedSlots
+     * @param hardFreeSlots physical headroom for staff; not an admission authorization
      */
     record ServerStatus(
             @NotNull String serverId,
@@ -286,7 +292,20 @@ public interface ServerPlacement {
             @NotNull OptionalInt capacity,
             @NotNull OptionalLong freeSlots,
             boolean loadFresh,
-            boolean acceptingQueueAssignments) {
+            boolean acceptingQueueAssignments,
+            @NotNull Optional<fr.codinbox.echo.api.server.ServerAdmissionSnapshot> admission,
+            long reservedNonStaffSlots,
+            @NotNull OptionalLong hardFreeSlots) {
+
+        /** Compatibility constructor for existing placement monitoring providers. */
+        public ServerStatus(final @NotNull String serverId, final boolean heartbeatAlive,
+                            final @NotNull AvailabilityState availability,
+                            final @NotNull OptionalInt participantLoad, final long reservedSlots,
+                            final @NotNull OptionalInt capacity, final @NotNull OptionalLong freeSlots,
+                            final boolean loadFresh, final boolean acceptingQueueAssignments) {
+            this(serverId, heartbeatAlive, availability, participantLoad, reservedSlots, capacity,
+                    freeSlots, loadFresh, acceptingQueueAssignments, Optional.empty(), reservedSlots, freeSlots);
+        }
 
         /** Validates the status snapshot. */
         public ServerStatus {
@@ -296,6 +315,8 @@ public interface ServerPlacement {
             Objects.requireNonNull(participantLoad, "participantLoad");
             Objects.requireNonNull(capacity, "capacity");
             Objects.requireNonNull(freeSlots, "freeSlots");
+            Objects.requireNonNull(admission, "admission");
+            Objects.requireNonNull(hardFreeSlots, "hardFreeSlots");
             if (participantLoad.isPresent() && participantLoad.getAsInt() < 0)
                 throw new IllegalArgumentException("participantLoad must not be negative");
             if (reservedSlots < 0)
@@ -304,6 +325,10 @@ public interface ServerPlacement {
                 throw new IllegalArgumentException("capacity must be positive");
             if (freeSlots.isPresent() && freeSlots.getAsLong() < 0)
                 throw new IllegalArgumentException("freeSlots must not be negative");
+            if (reservedNonStaffSlots < 0 || reservedNonStaffSlots > reservedSlots)
+                throw new IllegalArgumentException("Invalid reserved non-staff slots");
+            if (hardFreeSlots.isPresent() && hardFreeSlots.getAsLong() < 0)
+                throw new IllegalArgumentException("hardFreeSlots must not be negative");
         }
     }
 
@@ -313,7 +338,8 @@ public interface ServerPlacement {
      * @param serverId candidate Echo server ID
      * @param status server status, or empty when the candidate is not registered
      * @param rejectionReason explicit eligibility result
-     * @param effectiveLoad participant load plus reserved slots, when calculable
+     * @param effectiveLoad physical online/pending/reserved union for admission-enabled servers;
+     *                      participant load plus reservations for legacy servers
      */
     record CandidateEvaluation(
             @NotNull String serverId,

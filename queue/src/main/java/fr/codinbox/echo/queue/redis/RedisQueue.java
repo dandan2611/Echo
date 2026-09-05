@@ -579,7 +579,8 @@ public final class RedisQueue implements QueueService, QueueAdministration {
             QueueDefinition definition, StoredRequest request, String serverId) {
         Map<PropertyKey<?>, Object> filters = new LinkedHashMap<>();
         definition.serverProperties().forEach((key, value) -> {
-            if (!Set.of("availability", "load", ServerPlacement.PROPERTY_CAPACITY.key()).contains(key.key()))
+            if (!Set.of("availability", "load", "admission", ServerPlacement.PROPERTY_CAPACITY.key(),
+                    ServerPlacement.PROPERTY_HARD_CAPACITY.key()).contains(key.key()))
                 filters.put(key, value);
         });
         return new ServerPlacement.Request(

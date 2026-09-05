@@ -52,10 +52,11 @@ class EchoPaperTest {
     void initialPropertiesIncludeTypedPlacementCapacity() {
         PropertyKey<String> serverType = PropertyKey.of("server_type", String.class);
 
-        var properties = EchoPaper.initialProperties(Map.of(serverType, "lobby"), 500);
+        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(Map.of(serverType, "lobby"), 120);
 
         assertThat(properties).containsEntry(serverType, "lobby")
-                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, 500);
+                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, 100)
+                .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, 120);
         assertThat(properties.get(ServerPlacement.PROPERTY_CAPACITY)).isInstanceOf(Integer.class);
     }
 
@@ -64,6 +65,15 @@ class EchoPaperTest {
         assertThatThrownBy(() -> EchoPaper.initialProperties(Map.of(), 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("placement capacity must be positive");
+    }
+
+    @Test
+    void survivalGamesUsesConfiguredPublicLimitAndPhysicalLimit() {
+        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(
+                Map.of(new PropertyKey<String>("placement_capacity"), "80"), 120);
+
+        assertThat(properties).containsEntry(ServerPlacement.PROPERTY_CAPACITY, 80)
+                .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, 120);
     }
 
     @Test

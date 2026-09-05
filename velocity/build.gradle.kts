@@ -1,6 +1,7 @@
 plugins {
     `java-library`
-    id("com.gradleup.shadow") version "8.3.9"
+    `maven-publish`
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 repositories {
@@ -41,10 +42,19 @@ tasks {
         relocate("org.incendo.cloud", "fr.codinbox.echo.velocity.libs.cloud")
         relocate("io.leangen.geantyref", "fr.codinbox.echo.velocity.libs.geantyref")
         mergeServiceFiles()
+        filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
         doLast {
             check(zipTree(archiveFile.get().asFile).matching {
                 include("com/fasterxml/jackson/**")
             }.files.isEmpty()) { "Echo must use Connector's Jackson classes" }
         }
     }
+}
+
+java { withSourcesJar() }
+
+publishing.publications.named<MavenPublication>("maven") {
+    setArtifacts(listOf(tasks.shadowJar))
+    artifact(tasks.named("sourcesJar"))
+    artifacts.matching { it.classifier == "all" }.all { classifier = null }
 }
