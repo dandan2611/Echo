@@ -54,6 +54,15 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
+    public @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value,
+                                                         final @NotNull Duration duration) {
+        if (duration.isNegative() || duration.isZero())
+            throw new IllegalArgumentException("Cache TTL must be positive");
+        final RBucket<T> bucket = client().getBucket(key);
+        return bucket.setAsync(value, duration).toCompletableFuture();
+    }
+
+    @Override
     public @NotNull CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Instant instant) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.expireAsync(instant).toCompletableFuture();

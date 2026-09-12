@@ -22,6 +22,6 @@ public record ProxyLoadSnapshot(int totalCount, int nonStaffCount, int scaleOutT
     }
 
     public boolean isStale(final @NotNull Instant now) {
-        return !now.isBefore(validUntil);
+        return now.isBefore(sampledAt) || !now.isBefore(validUntil);
     }
 }

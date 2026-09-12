@@ -68,7 +68,7 @@ class EchoPaperTest {
     }
 
     @Test
-    void survivalGamesUsesConfiguredPublicLimitAndPhysicalLimit() {
+    void usesConfiguredPublicLimitAndPhysicalLimit() {
         final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(
                 Map.of(new PropertyKey<String>("placement_capacity"), "80"), 120);
 

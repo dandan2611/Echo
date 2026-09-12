@@ -50,6 +50,18 @@ class RedisServerPlacementTest {
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
 
     @Test
+    void contendedAdmissionDoesNotUseAnUnboundedLock() throws Exception {
+        final Fixture fixture = new Fixture();
+        final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(0, 0, 100);
+        doThrow(new AssertionError("Unbounded lock acquisition")).when(fixture.redisLock).lock();
+        when(fixture.redisLock.tryLock(0, TimeUnit.MILLISECONDS)).thenReturn(false);
+
+        final boolean admitted = fixture.placement.admit("server", UUID.randomUUID(), true, snapshot);
+
+        assertThat(admitted).isFalse();
+    }
+
+    @Test
     void staffCanReserveAbovePublicLimitButNonStaffCannot() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(100, 100, 100);
@@ -143,6 +155,22 @@ class RedisServerPlacementTest {
 
         assertThat(fixture.placement.reserve(request("stale", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+    }
+
+    @Test
+    void futurePhysicalTelemetryRejectsReservationsAndDirectAdmission() {
+        final Fixture fixture = new Fixture();
+        fixture.seedAdmission(0, 0, 100);
+        final ServerAdmissionSnapshot future = new ServerAdmissionSnapshot(
+                Map.of(), Map.of(), 100, 120, NOW.plusSeconds(1), NOW.plusSeconds(6));
+        fixture.placement.publishAdmission("server", future);
+
+        final Optional<ServerPlacement.Reservation> reservation = fixture.placement.reserve(
+                request("future", 1, ServerPlacement.Policy.FILL_MOST_LOADED)).join();
+        final boolean admitted = fixture.placement.admit("server", UUID.randomUUID(), true, future);
+
+        assertThat(reservation).isEmpty();
+        assertThat(admitted).isFalse();
     }
 
     @Test
@@ -352,7 +380,7 @@ class RedisServerPlacementTest {
     }
 
     @Test
-    void monitoring_listsFindsAndInspectsWithoutExposingOwnershipTokens() {
+    void monitoring_listsFindsAndInspectsWithoutExposingOwnershipTokens() throws Exception {
         Fixture fixture = new Fixture();
         fixture.seed("server", 2, 10, true, NOW.plusSeconds(30), "lobby");
         ServerPlacement.Reservation first = fixture.placement.reserve(request("b-request", 2,
@@ -382,12 +410,12 @@ class RedisServerPlacementTest {
         assertThat(status.loadFresh()).isTrue();
         assertThat(status.acceptingQueueAssignments()).isTrue();
         assertThat(fixture.placement.inspectServer("missing").join()).isEmpty();
-        verify(fixture.redisLock, times(5)).lock();
+        verify(fixture.redisLock, times(5)).tryLock(1000, TimeUnit.MILLISECONDS);
         verify(fixture.redisLock, times(5)).unlock();
     }
 
     @Test
-    void explain_isReadOnlyReportsRejectionsAndUsesPlacementPolicy() {
+    void explain_isReadOnlyReportsRejectionsAndUsesPlacementPolicy() throws Exception {
         Fixture fixture = new Fixture();
         fixture.seed("eligible-low", 2, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.seed("eligible-high", 4, 10, true, NOW.plusSeconds(30), "lobby");
@@ -432,7 +460,7 @@ class RedisServerPlacementTest {
                 .contains("eligible-low");
         assertThat(fixture.reservationValues).isEmpty();
         verify(fixture.reservations, never()).put(anyString(), anyString(), anyLong(), any(TimeUnit.class));
-        verify(fixture.redisLock, times(2)).lock();
+        verify(fixture.redisLock, times(2)).tryLock(1000, TimeUnit.MILLISECONDS);
         verify(fixture.redisLock, times(2)).unlock();
     }
 
@@ -528,10 +556,12 @@ class RedisServerPlacementTest {
             when(reservations.remove(anyString())).thenAnswer(invocation ->
                     reservationValues.remove(invocation.getArgument(0)));
             when(client.getLock(RedisServerPlacement.PLACEMENT_LOCK)).thenReturn(redisLock);
-            doAnswer(ignored -> {
-                lock.lock();
-                return null;
-            }).when(redisLock).lock();
+            try {
+                when(redisLock.tryLock(anyLong(), any(TimeUnit.class))).thenAnswer(invocation ->
+                        lock.tryLock(invocation.getArgument(0), invocation.getArgument(1)));
+            } catch (InterruptedException impossible) {
+                throw new AssertionError(impossible);
+            }
             doAnswer(ignored -> {
                 lock.unlock();
                 return null;

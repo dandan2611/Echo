@@ -7,3 +7,8 @@ main: fr.codinbox.echo.paper.EchoPaper
 
 depend:
   - 'Connector'
+
+permissions:
+  echo.staff:
+    description: 'Use public-capacity surplus without bypassing physical capacity.'
+    default: false

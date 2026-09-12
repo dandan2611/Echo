@@ -54,6 +54,7 @@ public class EchoPaper extends JavaPlugin {
     private static final Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
     private static final long DRAIN_CHECK_PERIOD_TICKS = 20L;
     private EchoClient echoClient;
+    private AdmissionListener admission;
     private AgonesGameServerLifecycle agonesLifecycle;
     private final AtomicBoolean stopping = new AtomicBoolean();
     private final AtomicBoolean draining = new AtomicBoolean();
@@ -89,7 +90,7 @@ public class EchoPaper extends JavaPlugin {
 
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();
-            final AdmissionListener admission = new AdmissionListener(this, placement,
+            this.admission = new AdmissionListener(this, placement,
                     config.getResourceId(), (Integer) properties.get(ServerPlacement.PROPERTY_CAPACITY),
                     (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
             pluginManager.registerEvents(admission, this);
@@ -285,6 +286,8 @@ public class EchoPaper extends JavaPlugin {
     public void onDisable() {
         this.stopping.set(true);
         this.draining.set(true);
+        if (this.admission != null)
+            this.admission.close();
         if (this.echoClient != null && this.agonesLifecycle != null) {
             try {
                 this.echoClient.setLocalServerAvailability(ServerAvailability.DRAINING).join();

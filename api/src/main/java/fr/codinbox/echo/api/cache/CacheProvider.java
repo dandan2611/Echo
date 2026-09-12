@@ -89,6 +89,18 @@ public interface CacheProvider {
     @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value);
 
     /**
+     * Atomically stores a value and its expiration, including when replacing an existing key.
+     *
+     * @param key the key
+     * @param value the value to store
+     * @param duration the positive time-to-live duration
+     * @param <T> the value type
+     * @return a future that completes when the value and expiration are stored
+     */
+    @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value,
+                                                  final @NotNull Duration duration);
+
+    /**
      * Sets an expiration time on a key.
      *
      * @param key     the key

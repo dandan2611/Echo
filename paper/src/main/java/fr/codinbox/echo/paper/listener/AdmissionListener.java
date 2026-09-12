@@ -22,10 +22,18 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
 /** One main-thread occupancy owner for every Paper ingress, including direct and initial joins. */
-public final class AdmissionListener implements Listener {
+public final class AdmissionListener implements Listener, AutoCloseable {
+    private final long admissionWaitNanos;
     private final EchoPaper plugin;
     private final RedisServerPlacement placement;
     private final String serverId;
@@ -33,14 +41,24 @@ public final class AdmissionListener implements Listener {
     private final int hardCapacity;
     private final ConcurrentMap<PlayerConnection, UUID> connections = new ConcurrentHashMap<>();
     private final Map<UUID, Player> joining = new HashMap<>();
+    private final ThreadPoolExecutor writer;
 
     public AdmissionListener(final @NotNull EchoPaper plugin, final @NotNull RedisServerPlacement placement,
-                             final @NotNull String serverId, final int publicCapacity, final int hardCapacity) {
+                              final @NotNull String serverId, final int publicCapacity, final int hardCapacity) {
+        this(plugin, placement, serverId, publicCapacity, hardCapacity, TimeUnit.MILLISECONDS.toNanos(100));
+    }
+
+    AdmissionListener(final EchoPaper plugin, final RedisServerPlacement placement, final String serverId,
+                      final int publicCapacity, final int hardCapacity, final long admissionWaitNanos) {
+        this.admissionWaitNanos = admissionWaitNanos;
         this.plugin = plugin;
         this.placement = placement;
         this.serverId = serverId;
         this.publicCapacity = publicCapacity;
         this.hardCapacity = hardCapacity;
+        this.writer = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(2), Thread.ofPlatform().daemon().name("echo-admission-" + serverId).factory());
+        this.writer.prestartCoreThread();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -57,8 +75,7 @@ public final class AdmissionListener implements Listener {
         try {
             if (this.plugin.isDraining() || this.joining.containsKey(player.getUniqueId())
                     || this.plugin.getServer().getPlayer(player.getUniqueId()) != null
-                    || !this.placement.admit(this.serverId, player.getUniqueId(),
-                    player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION), this.snapshot(null))) {
+                    || !this.admit(player, null)) {
                 event.disallow(PlayerLoginEvent.Result.KICK_FULL, Component.text("This server has no available slot."));
                 return;
             }
@@ -81,8 +98,7 @@ public final class AdmissionListener implements Listener {
         final Player player = event.getPlayer();
         try {
             // Recheck permission after configuration, before game listeners assign a role.
-            if (!this.placement.admit(this.serverId, player.getUniqueId(),
-                    player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION), this.snapshot(player.getUniqueId())))
+            if (this.plugin.isDraining() || !this.admit(player, player.getUniqueId()))
                 player.kick(Component.text("This server has no available slot."));
         } catch (RuntimeException error) {
             player.kick(Component.text("Admission is unavailable. Please retry."));
@@ -111,6 +127,29 @@ public final class AdmissionListener implements Listener {
         return true;
     }
 
+    private boolean admit(final Player player, final UUID excluded) {
+        final UUID member = player.getUniqueId();
+        final boolean staff = player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION);
+        final ServerAdmissionSnapshot snapshot = this.snapshot(excluded);
+        final long deadline = System.nanoTime() + this.admissionWaitNanos;
+        final Future<Boolean> result = this.writer.submit(() -> !this.writer.isShutdown() && System.nanoTime() < deadline
+                && this.placement.admit(this.serverId, member, staff, snapshot));
+        try {
+            return result.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException interrupted) {
+            result.cancel(false);
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Admission interrupted", interrupted);
+        } catch (TimeoutException timeout) {
+            // Do not interrupt an in-flight Redis transaction. A late write only holds a denied seat
+            // conservatively until the next ordered snapshot replaces it; it never authorizes login.
+            result.cancel(false);
+            throw new IllegalStateException("Admission deadline exceeded", timeout);
+        } catch (ExecutionException error) {
+            throw new IllegalStateException("Admission failed", error.getCause());
+        }
+    }
+
     public void refresh() {
         try {
             // Close events identify only UUID, not connection. A rejected duplicate must not free
@@ -119,10 +158,26 @@ public final class AdmissionListener implements Listener {
             this.joining.keySet().removeIf(id -> !this.connections.containsValue(id));
             final ServerAdmissionSnapshot snapshot = this.snapshot(null);
             this.plugin.publishTelemetry(snapshot);
-            this.placement.publishAdmission(this.serverId, snapshot);
+            try {
+                this.writer.execute(() -> {
+                    try {
+                        if (!this.writer.isShutdown() && !snapshot.isStale(Instant.now()))
+                            this.placement.publishAdmission(this.serverId, snapshot);
+                    } catch (RuntimeException error) {
+                        this.plugin.getLogger().log(Level.WARNING, "Failed to publish Echo admission", error);
+                    }
+                });
+            } catch (RejectedExecutionException busy) {
+                // One in-flight operation and two queued operations at most; retry on the next tick sample.
+            }
         } catch (RuntimeException error) {
             this.plugin.getLogger().log(Level.WARNING, "Failed to publish Echo admission", error);
         }
+    }
+
+    @Override
+    public void close() {
+        this.writer.shutdown();
     }
 
     private ServerAdmissionSnapshot snapshot(final UUID excluded) {

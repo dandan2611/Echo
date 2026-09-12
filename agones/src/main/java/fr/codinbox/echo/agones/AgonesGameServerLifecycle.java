@@ -13,6 +13,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -22,6 +23,7 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
 
     /** Default annotation used by Fleet allocation overflow to request draining. */
     public static final String DEFAULT_DRAIN_ANNOTATION = "echo.codinbox.fr/draining";
+    private static final long TELEMETRY_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(15);
 
     private final AgonesSdkClient sdk;
     private final boolean longLived;
@@ -35,6 +37,8 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     private final AtomicBoolean drainInProgress = new AtomicBoolean();
     private final AtomicBoolean drainPolling = new AtomicBoolean();
     private final AtomicBoolean telemetryInProgress = new AtomicBoolean();
+    private final LongSupplier nanoTime;
+    private long lastTelemetryNanos;
 
     /**
      * Creates a lifecycle using the Agones sidecar port injected into the pod.
@@ -68,6 +72,19 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
             final Duration healthInterval,
             final Duration drainInterval,
             final Duration startupTimeout) {
+        this(sdk, longLived, drainAnnotation, onDrain, healthInterval, drainInterval, startupTimeout,
+                System::nanoTime);
+    }
+
+    AgonesGameServerLifecycle(
+            final AgonesSdkClient sdk,
+            final boolean longLived,
+            final String drainAnnotation,
+            final Supplier<CompletableFuture<Void>> onDrain,
+            final Duration healthInterval,
+            final Duration drainInterval,
+            final Duration startupTimeout,
+            final LongSupplier nanoTime) {
         this.sdk = sdk;
         this.longLived = longLived;
         this.drainAnnotation = drainAnnotation;
@@ -75,6 +92,8 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
         this.healthInterval = healthInterval;
         this.drainInterval = drainInterval;
         this.startupTimeout = startupTimeout;
+        this.nanoTime = nanoTime;
+        this.lastTelemetryNanos = nanoTime.getAsLong() - TELEMETRY_INTERVAL_NANOS;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "echo-agones-lifecycle");
             thread.setDaemon(true);
@@ -100,14 +119,21 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     }
 
     /**
-     * Publishes one atomic SDK annotation, without Kubernetes API credentials. Call every 1-5 seconds
-     * using real local occupancy. Only one SDK write is in flight at a time.
+     * Publishes one atomic SDK annotation, without Kubernetes API credentials. Call with fresh local
+     * occupancy; attempts are limited to once every 15 seconds, with only one SDK write in flight.
+     * Skipped samples are not queued. The first attempt is immediate; failures also consume the interval.
      */
     public @NotNull CompletableFuture<Void> publishTelemetry(final @NotNull Instant sampledAt,
             final int connectedPlayers, final int publicPlayers, final int publicCapacity) {
         if (this.scheduler.isShutdown() || !this.telemetryInProgress.compareAndSet(false, true))
             return CompletableFuture.completedFuture(null);
         try {
+            final long now = this.nanoTime.getAsLong();
+            if (now - this.lastTelemetryNanos < TELEMETRY_INTERVAL_NANOS) {
+                this.telemetryInProgress.set(false);
+                return CompletableFuture.completedFuture(null);
+            }
+            this.lastTelemetryNanos = now;
             return this.sdk.telemetry(sampledAt, connectedPlayers, publicPlayers, publicCapacity)
                     .whenComplete((ignored, error) -> this.telemetryInProgress.set(false));
         } catch (RuntimeException error) {

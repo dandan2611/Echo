@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,8 +52,8 @@ class EchoClientImplTest {
             }
             return CompletableFuture.completedFuture(null);
         });
-        when(cache.expireObject(anyString(), any(java.time.Duration.class)))
-                .thenReturn(CompletableFuture.completedFuture(true));
+        when(cache.setObject(anyString(), any(), any(Duration.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
         EchoClientImpl client = createClient(cache, Map.of(new PropertyKey<>("server_type"), "lobby"));
         CompletableFuture<Void> creation = CompletableFuture.runAsync(
@@ -60,11 +61,14 @@ class EchoClientImplTest {
 
         assertThat(propertyStarted.await(1, TimeUnit.SECONDS)).isTrue();
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
 
         propertyWrite.complete(null);
         creation.join();
 
-        verify(cache).setObject(eq("heartbeat:server:test-server"), any());
+        verify(cache).setObject(eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
+        verify(cache, never()).expireObject(eq("heartbeat:server:test-server"), any(Duration.class));
     }
 
     @Test
@@ -83,6 +87,24 @@ class EchoClientImplTest {
         assertThatThrownBy(() -> client.createLocalResource(new Address("127.0.0.1", 25565)))
                 .hasRootCauseMessage("Redis unavailable");
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
+    }
+
+    @Test
+    void emitHeartbeat_writesValueAndExpirationTogether() throws Exception {
+        CacheProvider cache = mock(CacheProvider.class);
+        stubProviderLifecycle(cache);
+        when(cache.setObject(anyString(), any(), any(Duration.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        EchoClientImpl client = createClient(cache, Map.of());
+        var emitHeartbeat = EchoClientImpl.class.getDeclaredMethod("emitHeartbeat");
+        emitHeartbeat.setAccessible(true);
+
+        emitHeartbeat.invoke(client);
+
+        verify(cache).setObject(eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
+        verify(cache, never()).expireObject(anyString(), any(Duration.class));
     }
 
     @Test

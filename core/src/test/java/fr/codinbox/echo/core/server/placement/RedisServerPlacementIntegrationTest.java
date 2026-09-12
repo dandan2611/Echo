@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +29,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
 
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
+
+    @Test
+    void heldRedisLockRejectsAdmissionWithoutWaitingForItsOwner() throws Exception {
+        final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
+        final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
+        final org.redisson.api.RLock lock = redissonClient.getLock(RedisServerPlacement.PLACEMENT_LOCK);
+        lock.lock();
+        try {
+            final CompletableFuture<Boolean> admission = CompletableFuture.supplyAsync(() ->
+                    placement.admit("server", UUID.randomUUID(), true, snapshot));
+
+            assertThat(admission.get(500, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            lock.unlock();
+        }
+    }
 
     @Test
     void permissionPublisherStoresExpiringServerTrustedClassification() {

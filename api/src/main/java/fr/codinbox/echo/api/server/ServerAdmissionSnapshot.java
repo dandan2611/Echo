@@ -17,7 +17,7 @@ public record ServerAdmissionSnapshot(
         int totalCount, int nonStaffCount, int publicCapacity, int hardCapacity,
         @NotNull Instant sampledAt, @NotNull Instant validUntil) {
 
-    public static final @NotNull String STAFF_PERMISSION = "guillgames.staff";
+    public static final @NotNull String STAFF_PERMISSION = "echo.staff";
     public static final @NotNull PropertyKey<ServerAdmissionSnapshot> PROPERTY = new PropertyKey<>("admission");
 
     public ServerAdmissionSnapshot {
@@ -46,7 +46,7 @@ public record ServerAdmissionSnapshot(
     }
 
     public boolean isStale(final @NotNull Instant now) {
-        return !now.isBefore(validUntil);
+        return now.isBefore(sampledAt) || !now.isBefore(validUntil);
     }
 
     /** Staff may exceed the public limit, never the physical limit. */

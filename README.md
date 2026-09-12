@@ -169,15 +169,27 @@ provider reports `acceptingQueueAssignments=false`.
 ### Atomic placement
 
 On Paper, public capacity counts non-staff; hard capacity counts everyone, including spectators.
-Staff status is evaluated from `guillgames.staff` on Velocity and rechecked on the destination.
+Staff status is evaluated from `echo.staff` on Velocity and rechecked on the destination.
+Grant it explicitly on both platforms; Paper does not grant it to operators by default.
 Callers cannot pass a staff/bypass flag in a placement request. The destination gate also covers
 initial joins, manual switches, and queue transfers. Online players, pending connections, and
 unarrived reserved members share one physical occupancy count without double-counting arrivals.
 Game participant load and `acceptingQueueAssignments` remain independent game-readiness inputs.
 
+Paper captures immutable occupancy and permission snapshots on its main thread. An ordered Redis
+worker runs admission and snapshot writes off-thread, with at most two operations queued. Periodic
+publication never waits for Redis; a saturated queue drops that sample and retries on the next sample.
+Login and join wait at most 100 ms for Redis work before refusing admission. A late completion never
+authorizes the refused connection; the next ordered snapshot clears its conservatively held seat.
+Destination lock acquisition does not wait for contention. Other placement operations wait at most
+one second for lock contention and fail exceptionally when busy. Redis command/network timeouts
+still come from the Connector client, independently of these limits; the lock watchdog remains enabled
+so a slow command cannot outlive a fixed lease and break mutual exclusion. Worker shutdown does not wait.
+
 Read real occupancy with `Server.getAdmission()` and proxy counts with `Proxy.getLoad()`.
 Redis snapshots have a five-second validity window; missing or stale snapshots are unknown,
-not zero. `ServerPlacement.inspectServer()` exposes reserved non-staff seats and physical headroom.
+not zero. Future-dated snapshots are also invalid. `ServerPlacement.inspectServer()` exposes
+reserved non-staff seats and physical headroom; check freshness before using those values.
 Velocity uses a 475-player scale-out threshold, not a 120-player admission cap.
 
 #### Agones autoscaler telemetry
@@ -199,6 +211,10 @@ does not depend on the Redis write succeeding. Only one SDK annotation request i
 Autoscaler consumers must reject missing/malformed data, unsupported versions, invalid counts,
 future timestamps (`sampledAt > now`), and samples older than 30 seconds (`now - sampledAt > 30`).
 Rejected data is unknown and must not be interpreted as an empty server.
+
+Echo publishes measurements, not fleet-scaling decisions. Fleet selection, aggregation, thresholds,
+cooldowns, and scale-in policy belong to the external controller. Admission requires trusted Redis
+writers, authenticated player forwarding, and the destination plugin on every backend.
 
 #### Coordinated upgrade from 7.0
 

@@ -40,6 +40,17 @@ class ServerLoadCodecTest {
         assertThat(snapshot.scaleOutThreshold()).isEqualTo(475);
     }
 
+    @Test
+    void proxySamplesAreUsableOnlyWithinTheirValidityWindow() {
+        final Instant sampledAt = Instant.parse("2026-09-05T12:00:00Z");
+        final Instant validUntil = sampledAt.plusSeconds(5);
+        final ProxyLoadSnapshot snapshot = new ProxyLoadSnapshot(0, 0, 475, sampledAt, validUntil);
+
+        assertThat(snapshot.isStale(sampledAt.minusSeconds(1))).isTrue();
+        assertThat(snapshot.isStale(sampledAt)).isFalse();
+        assertThat(snapshot.isStale(validUntil)).isTrue();
+    }
+
     private Object roundTrip(final Object value) throws Exception {
         final JsonJacksonConnectorCodec codec = new JsonJacksonConnectorCodec();
         final ByteBuf encoded = codec.getValueEncoder().encode(value);

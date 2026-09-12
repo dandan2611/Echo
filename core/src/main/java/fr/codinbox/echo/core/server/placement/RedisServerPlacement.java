@@ -38,6 +38,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 /** Redis-backed atomic placement for modest server fleets. */
@@ -67,9 +68,9 @@ public final class RedisServerPlacement implements ServerPlacement {
         batch.execute();
     }
 
-    /** Called synchronously by the destination's single occupancy owner, never by transfer callers. */
+    /** Blocking Redis I/O: invoke on the destination's ordered background writer, never its tick thread. */
     public void publishAdmission(final @NotNull String serverId, final @NotNull ServerAdmissionSnapshot snapshot) {
-        this.withLock(() -> {
+        this.withLock(0, () -> {
             this.writeAdmission(serverId, snapshot);
             return null;
         });
@@ -78,32 +79,38 @@ public final class RedisServerPlacement implements ServerPlacement {
     /**
      * Final destination gate. The permission and occupancy arguments must come from the local server,
      * not a message payload. Shares the placement lock so direct joins cannot steal leased seats.
+     * Lock contention denies immediately; Redis commands still use the client's network timeouts.
+     * Invoke off the tick thread and bound the caller's wait independently.
      */
     public boolean admit(final @NotNull String serverId, final @NotNull UUID member, final boolean staff,
                          final @NotNull ServerAdmissionSnapshot snapshot) {
-        return this.withLock(() -> {
-            if (snapshot.isStale(this.clock.instant()))
-                return false;
-            final Object availability = this.value("server:" + serverId + ":property:availability");
-            if (availability != null && !ServerAvailability.ACTIVE.name().equals(availability))
-                return false;
-            final Map<UUID, Boolean> joining = new java.util.HashMap<>(snapshot.joiningMembers());
-            final Object previous = this.value("server:" + serverId + ":property:admission");
-            if (previous instanceof ServerAdmissionSnapshot current && !current.isStale(this.clock.instant()))
-                current.joiningMembers().forEach(joining::putIfAbsent);
-            snapshot.onlineMembers().keySet().forEach(joining::remove);
-            final ServerAdmissionSnapshot current = new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
-                    snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil());
-            final Map<UUID, Boolean> occupied = this.occupied(serverId, current);
-            occupied.put(member, staff); // Destination permission overrides any earlier reservation classification.
-            if (!current.fits(occupied.size(), nonStaff(occupied), !staff))
-                return false;
-            if (!snapshot.onlineMembers().containsKey(member))
-                joining.put(member, staff);
-            this.writeAdmission(serverId, new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
-                    snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil()));
-            return true;
-        });
+        try {
+            return this.withLock(0, () -> {
+                if (snapshot.isStale(this.clock.instant()))
+                    return false;
+                final Object availability = this.value("server:" + serverId + ":property:availability");
+                if (availability != null && !ServerAvailability.ACTIVE.name().equals(availability))
+                    return false;
+                final Map<UUID, Boolean> joining = new java.util.HashMap<>(snapshot.joiningMembers());
+                final Object previous = this.value("server:" + serverId + ":property:admission");
+                if (previous instanceof ServerAdmissionSnapshot current && !current.isStale(this.clock.instant()))
+                    current.joiningMembers().forEach(joining::putIfAbsent);
+                snapshot.onlineMembers().keySet().forEach(joining::remove);
+                final ServerAdmissionSnapshot current = new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
+                        snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil());
+                final Map<UUID, Boolean> occupied = this.occupied(serverId, current);
+                occupied.put(member, staff); // Destination permission overrides any earlier reservation classification.
+                if (!current.fits(occupied.size(), nonStaff(occupied), !staff))
+                    return false;
+                if (!snapshot.onlineMembers().containsKey(member))
+                    joining.put(member, staff);
+                this.writeAdmission(serverId, new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
+                        snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil()));
+                return true;
+            });
+        } catch (RejectedExecutionException busy) {
+            return false;
+        }
     }
 
     private void writeAdmission(final String serverId, final ServerAdmissionSnapshot snapshot) {
@@ -433,8 +440,19 @@ public final class RedisServerPlacement implements ServerPlacement {
     }
 
     private <T> T withLock(Supplier<T> action) {
+        return this.withLock(1000, action);
+    }
+
+    private <T> T withLock(long waitMillis, Supplier<T> action) {
         final RLock lock = this.client.getLock(PLACEMENT_LOCK);
-        lock.lock();
+        try {
+            // Keep the watchdog: a fixed lease could expire midway through a Redis transaction.
+            if (!lock.tryLock(waitMillis, TimeUnit.MILLISECONDS))
+                throw new RejectedExecutionException("Placement is busy");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Placement interrupted", interrupted);
+        }
         try {
             return action.get();
         } finally {

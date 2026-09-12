@@ -266,9 +266,8 @@ public class EchoClientImpl implements EchoClient {
         }
 
         // Emit first heartbeat
-        this.cacheProvider.setObject(heartbeatKey, Instant.now().toEpochMilli())
-                .thenCompose(v -> this.cacheProvider.expireObject(heartbeatKey,
-                        Duration.ofSeconds(this.heartbeatTtlSeconds)))
+        this.cacheProvider.setObject(heartbeatKey, Instant.now().toEpochMilli(),
+                        Duration.ofSeconds(this.heartbeatTtlSeconds))
                 .join();
     }
 
@@ -520,9 +519,8 @@ public class EchoClientImpl implements EchoClient {
     private void emitHeartbeat() {
         try {
             final String key = getHeartbeatKey(this.resourceType, this.resourceId);
-            this.cacheProvider.setObject(key, Instant.now().toEpochMilli())
-                    .thenCompose(v -> this.cacheProvider.expireObject(key,
-                            Duration.ofSeconds(this.heartbeatTtlSeconds)))
+            this.cacheProvider.setObject(key, Instant.now().toEpochMilli(),
+                            Duration.ofSeconds(this.heartbeatTtlSeconds))
                     .join();
         } catch (final Exception e) {
             this.logger.log(Level.SEVERE, "Failed to emit heartbeat", e);

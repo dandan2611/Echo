@@ -3,21 +3,54 @@ package fr.codinbox.echo.core.cache;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.redisson.misc.CompletableFutureWrapper;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @Tag("unit")
 class RedisCacheProviderTest {
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    void setObjectWithTtl_rejectsNonPositiveDuration(long milliseconds) {
+        RedisCacheProvider provider = new RedisCacheProvider(mock(RedisConnection.class));
+
+        assertThatThrownBy(() -> provider.setObject("heartbeat", 1L, Duration.ofMillis(milliseconds)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Cache TTL must be positive");
+    }
+
+    @Test
+    void setObjectWithTtl_usesOneRedisWrite() {
+        RedisConnection connection = mock(RedisConnection.class);
+        RedissonClient client = mock(RedissonClient.class);
+        RBucket<Long> bucket = mock(RBucket.class);
+        Duration ttl = Duration.ofSeconds(30);
+        when(connection.getClient()).thenReturn(client);
+        when(client.<Long>getBucket("heartbeat")).thenReturn(bucket);
+        when(bucket.setAsync(1L, ttl)).thenReturn(new CompletableFutureWrapper<>((Void) null));
+
+        new RedisCacheProvider(connection).setObject("heartbeat", 1L, ttl).join();
+
+        verify(bucket).setAsync(1L, ttl);
+        verifyNoMoreInteractions(bucket);
+    }
 
     @Test
     void withLock_releasesLockFromTheAcquiringThread() throws Exception {
