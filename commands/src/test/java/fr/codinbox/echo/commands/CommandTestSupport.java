@@ -144,6 +144,12 @@ final class CommandTestSupport {
 
     static final class FakeAudience implements CommandAudience<String> {
         private final List<Component> messages = new ArrayList<>();
+        java.util.UUID playerId;
+
+        @Override
+        public java.util.Optional<java.util.UUID> playerId(String sender) {
+            return java.util.Optional.ofNullable(this.playerId);
+        }
 
         @Override
         public void send(String sender, Component message) {

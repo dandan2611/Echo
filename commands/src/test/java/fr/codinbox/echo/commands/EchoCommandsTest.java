@@ -66,7 +66,7 @@ class EchoCommandsTest {
         assertThat(commands).allSatisfy(method -> {
             Permission permission = method.getAnnotation(Permission.class);
             assertThat(permission).isNotNull();
-            assertThat(permission.value()).singleElement().asString()
+            assertThat(permission.value()[0])
                     .isNotBlank().startsWith("echo.command.");
             assertThat(method.getAnnotation(Command.class).value()).startsWith("${root}");
             assertThat(method.getReturnType()).isEqualTo(CompletableFuture.class);
@@ -338,18 +338,21 @@ class EchoCommandsTest {
         ServerSwitchRequest.PlayerResponse failure = new ServerSwitchRequest.PlayerResponse(
                 false, ServerSwitchRequest.ServerSwitchRequestStatus.TARGET_SERVER_UNAVAILABLE, null);
         when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
+        UUID id = UUID.randomUUID();
+        when(user.getId()).thenReturn(id);
+        when(fixture.echo().getUserById(id)).thenReturn(EchoFuture.completed(Optional.of(user)));
+        when(fixture.echo().getServerById(anyString())).thenReturn(EchoFuture.completed(Optional.of(mock(Server.class))));
         when(user.tryConnectToServer("one", Duration.ofSeconds(10))).thenReturn(EchoFuture.completed(success));
         when(user.tryConnectToServer("two", Duration.ofSeconds(10))).thenReturn(EchoFuture.completed(failure));
         when(user.tryConnectToServer("three", Duration.ofSeconds(10)))
                 .thenReturn(echoFailed(new IllegalStateException("transfer broke")));
 
-        fixture.commands().userSend(fixture.context(), "Alice", "one").join();
-        fixture.commands().userSend(fixture.context(), "Alice", "two").join();
-        fixture.commands().userSend(fixture.context(), "Alice", "three").join();
+        fixture.commands().userSend(fixture.context(), "Alice", "one", null).join();
+        fixture.commands().userSend(fixture.context(), "Alice", "two", null).join();
+        fixture.commands().userSend(fixture.context(), "Alice", "three", null).join();
 
-        assertThat(fixture.output()).contains("OK: User sent to one.",
-                        "ERROR: User transfer failed: TARGET_SERVER_UNAVAILABLE.",
-                        "ERROR: Command failed. Reference:")
+        assertThat(fixture.output()).contains("transferred=1 already_connected=0 failed=0",
+                        "TARGET_SERVER_UNAVAILABLE", "Command failed. Reference:")
                 .doesNotContain("transfer broke");
         verify(fixture.logger(), times(3)).info(any(Supplier.class));
     }
@@ -474,13 +477,17 @@ class EchoCommandsTest {
         controlResponse(fixture, true, ResourceControlRequest.Status.ACCEPTED, "accepted");
         User user = mock(User.class);
         when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
+        UUID id = UUID.randomUUID();
+        when(user.getId()).thenReturn(id);
+        when(fixture.echo().getUserById(id)).thenReturn(EchoFuture.completed(Optional.of(user)));
+        when(fixture.echo().getServerById("game-2")).thenReturn(EchoFuture.completed(Optional.of(mock(Server.class))));
         when(user.tryConnectToServer("game-2", Duration.ofSeconds(10))).thenReturn(EchoFuture.completed(
                 new ServerSwitchRequest.PlayerResponse(true,
                         ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null)));
 
         fixture.commands().serverDrain(fixture.context(), "game-1", 30, true).join();
         fixture.commands().proxyDrain(fixture.context(), "proxy-1", 15, true).join();
-        fixture.commands().userSend(fixture.context(), "Alice", "game-2").join();
+        fixture.commands().userSend(fixture.context(), "Alice", "game-2", null).join();
 
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<Supplier> entries = ArgumentCaptor.forClass(Supplier.class);
@@ -488,7 +495,7 @@ class EchoCommandsTest {
         assertThat(entries.getAllValues().stream().map(entry -> (String) entry.get()).toList()).contains(
                 "echo_audit sender=audit_console_user action=server.drain target=server/game-1_duration=30m outcome=ACCEPTED",
                 "echo_audit sender=audit_console_user action=proxy.drain target=proxy/proxy-1_duration=15m outcome=ACCEPTED",
-                "echo_audit sender=audit_console_user action=user.send target=Alice->game-2 outcome=SUCCESS");
+                "echo_audit sender=audit_console_user action=user.send target=Alice->game-2_proxy=all outcome=transferred=1_already_connected=0_failed=0");
     }
 
     private static User user(UUID id, Optional<String> username, Optional<String> proxy, Optional<String> server) {

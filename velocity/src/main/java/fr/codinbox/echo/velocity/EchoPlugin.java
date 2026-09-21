@@ -71,7 +71,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "echo",
         name = "Echo",
-        version = "7.1.0",
+        version = "7.2.0",
         authors = {"dandan2611"},
         dependencies = {
                 @Dependency(id = "connector", optional = false)
@@ -170,9 +170,13 @@ public class EchoPlugin {
 
             final VelocityCommandManager<CommandSource> commandManager = new VelocityCommandManager<>(
                     this.pluginContainer, this.proxy, ExecutionCoordinator.simpleCoordinator(), SenderMapper.identity());
+            configureCommands(commandManager);
             final AnnotationParser<CommandSource> commandParser =
                     new AnnotationParser<>(commandManager, CommandSource.class);
-            new EchoCommands<>(client, commandAudience(), COMMAND_ROOT).register(commandParser);
+            final EchoCommands<CommandSource> commands = new EchoCommands<>(client, commandAudience(), COMMAND_ROOT);
+            commands.register(commandParser);
+            this.proxy.getCommandManager().unregister("send");
+            commands.registerSend(commandParser);
 
             // Load existing servers
             client.getServers().thenAccept(servers -> {
@@ -204,6 +208,14 @@ public class EchoPlugin {
         }
     }
 
+    static void configureCommands(VelocityCommandManager<CommandSource> manager) {
+        // Let Cloud parse resource IDs (notably server:<id>) and report incomplete command usage.
+        manager.brigadierManager().settings().set(org.incendo.cloud.brigadier.BrigadierSetting.FORCE_EXECUTABLE, true);
+        manager.brigadierManager().registerMapping(
+                new io.leangen.geantyref.TypeToken<org.incendo.cloud.parser.standard.StringParser<CommandSource>>() {},
+                mapping -> mapping.toConstant(com.mojang.brigadier.arguments.StringArgumentType.greedyString()).cloudSuggestions());
+    }
+
     static CommandAudience<CommandSource> commandAudience() {
         return new CommandAudience<>() {
             @Override
@@ -214,6 +226,12 @@ public class EchoPlugin {
             @Override
             public String identity(CommandSource source) {
                 return source instanceof Player player ? player.getUsername() : "CONSOLE";
+            }
+
+            @Override
+            public java.util.Optional<java.util.UUID> playerId(CommandSource source) {
+                return source instanceof Player player ? java.util.Optional.of(player.getUniqueId())
+                        : java.util.Optional.empty();
             }
         };
     }

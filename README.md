@@ -65,7 +65,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 <dependency>
     <groupId>fr.codinbox.echo</groupId>
     <artifactId>api</artifactId>
-    <version>7.1.0</version>
+    <version>7.2.0</version>
 </dependency>
 ```
 
@@ -77,7 +77,7 @@ repositories {
 }
 
 dependencies {
-    implementation("fr.codinbox.echo:api:7.1.0")
+    implementation("fr.codinbox.echo:api:7.2.0")
 }
 ```
 
@@ -85,11 +85,11 @@ Replace `api` with the artifact needed by the integration: `core`, `ondemand`, `
 or `commands`. Use the `paper` and `velocity` shadow JARs as plugins rather than application
 dependencies. The platform JARs include the shared commands, queue protocol, and in-pod Agones
 lifecycle, but intentionally exclude the Fabric8 allocation client; allocation controllers must
-depend on `fr.codinbox.echo:agones:7.1.0`.
+depend on `fr.codinbox.echo:agones:7.2.0`.
 
 The Maven `paper` and `velocity` main artifacts are complete runtime plugin JARs (not API-only
-or thin JARs). For automated installation, download `paper/7.1.0/paper-7.1.0.jar` or
-`velocity/7.1.0/velocity-7.1.0.jar` beneath
+or thin JARs). For automated installation, download `paper/7.2.0/paper-7.2.0.jar` or
+`velocity/7.2.0/velocity-7.2.0.jar` beneath
 `https://nexus.codinbox.fr/repository/maven-public/fr/codinbox/echo/`.
 Each module also publishes its `-sources.jar`. Use the public group URL for anonymous reads;
 the hosted `maven-releases` endpoint requires authentication.
@@ -521,8 +521,38 @@ command tree exposes:
 | Queues | list, info, tickets, enqueue, cancel, pause, resume, wake, retry, requeue, purge |
 | Placement and allocation | status/explain/reservations/reserve/renew/release and list/info/acquire/reconcile/terminate |
 
-Each command has the corresponding `echo.command.<path>` permission. State-changing and destructive
-commands print the exact retry command and require `--confirm`.
+Each command has the corresponding `echo.command.<path>` permission. Destructive resource controls
+print the exact retry command and require `--confirm`.
+
+#### Network-wide `/send` (7.2)
+
+Velocity replaces its built-in `/send`; `/echo user send` and `/echoproxy user send` use the same handler.
+Paper exposes this handler through `/echo user send` and `/echoserver user send`.
+Both `velocity.command.send` **or** `echo.command.user.send` grant access. Transfers run immediately.
+
+```text
+/send <player|UUID|all|current|server:id> <destination> [--proxy <id|local|all>]
+/echo user send <player|UUID|all|current|server:id> <destination> [--proxy <id|local|all>]
+```
+
+| Example | Source selection |
+| --- | --- |
+| `/send Steve lobby-1` | Steve anywhere on the network |
+| `/send all lobby-1` | All network users (also `--proxy all`) |
+| `/send all lobby-1 --proxy proxy-2` | Users connected through proxy-2 |
+| `/send current lobby-1 --proxy local` | Users on your current backend, through this proxy only |
+| `/send server:quake-1 lobby-1` | Users on quake-1 across all proxies; works from console |
+
+**Migration:** `all` and `current` now span all proxies by default. Add `--proxy local` for the old
+Velocity source scope. `current` requires a player connected to a backend; console uses `server:<id>`.
+`--proxy local` is available only on Velocity. The proxy flag filters the **source** users; the
+destination is always a backend server, not a proxy migration.
+
+Selections use a membership snapshot. Each transfer is routed through the user's current proxy with
+a 10-second timeout; a disconnect or failure does not abort the other transfers. Output includes
+transferred, already-connected and failed counts, grouped failure reasons, and an explicit empty
+selection message. Commands are audited with their source filter, destination and aggregate outcome.
+Completion suggests network player names, servers, selectors and proxy IDs.
 
 ### Platform lifecycle
 

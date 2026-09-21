@@ -6,6 +6,7 @@ import fr.codinbox.echo.api.exception.UnknownResourceException;
 import fr.codinbox.echo.api.exception.user.UserHasNoProxyException;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
+import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
 import fr.codinbox.echo.api.property.PropertyHolder;
 import fr.codinbox.echo.api.property.PropertyKey;
@@ -26,6 +27,8 @@ import fr.codinbox.echo.queue.QueueRequest;
 import fr.codinbox.echo.queue.QueueRequestStatus;
 import fr.codinbox.echo.queue.QueueService;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.incendo.cloud.annotations.AnnotationParser;
 import org.incendo.cloud.annotations.Argument;
 import org.incendo.cloud.annotations.Command;
@@ -56,6 +59,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -107,6 +111,22 @@ public final class EchoCommands<S> {
         var previous = parser.stringProcessor();
         parser.stringProcessor(input -> previous.processString(input).replace("${root}", this.rootSyntax));
         return parser.parse(this);
+    }
+
+    /** Registers the Velocity-only replacement after the shared command tree. */
+    public void registerSend(AnnotationParser<S> parser) {
+        parser.parse(new SendAlias());
+    }
+
+    public final class SendAlias {
+        @Command("send <user> <server>")
+        @Permission({"echo.command.user.send", "velocity.command.send"})
+        public CompletableFuture<Void> send(CommandContext<S> context,
+                                            @Argument(value = "user", suggestions = "sendTargets") String user,
+                                            @Argument(value = "server", suggestions = "sendServers") String server,
+                                            @Flag(value = "proxy", suggestions = "sendProxies") String proxy) {
+            return userSend(context, user, server, proxy);
+        }
     }
 
     @Command("${root}")
@@ -367,16 +387,95 @@ public final class EchoCommands<S> {
     }
 
     @Command("${root} user send <user> <server>")
-    @Permission("echo.command.user.send")
+    @Permission({"echo.command.user.send", "velocity.command.send"})
     public CompletableFuture<Void> userSend(CommandContext<S> context,
-                                            @Argument(value = "user", suggestions = "users") String user,
-                                            @Argument(value = "server", suggestions = "servers") String server) {
-        return mutate(context, "user.send", user + "->" + server,
-                () -> resolveUser(user).thenCompose(found -> found.tryConnectToServer(server, CONTROL_TIMEOUT)),
-                response -> response.isSuccessful()
-                        ? this.format.success("User sent to " + server + ".")
-                        : this.format.error("User transfer failed: " + response.getStatus() + "."),
-                response -> response.getStatus().name());
+                                            @Argument(value = "user", suggestions = "sendTargets") String user,
+                                            @Argument(value = "server", suggestions = "sendServers") String server,
+                                            @Flag(value = "proxy", suggestions = "sendProxies") String proxy) {
+        return mutate(context, "user.send", user + "->" + server + " proxy=" + (proxy == null ? "all" : proxy),
+                () -> requireServer(server).thenCombine(sendTargets(context, user, proxy), (target, users) -> users)
+                        .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                        .thenCompose(users -> sequence(users.stream().map(id -> transfer(id, server)).toList())),
+                results -> sendResult(server, results), this::sendSummary);
+    }
+
+    private CompletableFuture<Set<UUID>> sendTargets(CommandContext<S> context, String selector, String proxy) {
+        CompletableFuture<Set<UUID>> selected;
+        if (selector.equalsIgnoreCase("all")) {
+            selected = this.echo.getAllUsers().thenApply(users -> Set.copyOf(users.keySet()));
+        } else if (selector.equalsIgnoreCase("current")) {
+            UUID executor = this.audience.playerId(context.sender()).orElseThrow(() ->
+                    new IllegalArgumentException("Send: current requires a player; use server:<id> from console."));
+            selected = resolveUser(executor.toString()).thenCompose(User::getCurrentServerId)
+                    .thenCompose(id -> serverMembers(id.orElseThrow(() ->
+                            new IllegalArgumentException("Send: you are not connected to a server."))));
+        } else if (selector.startsWith("server:")) {
+            selected = serverMembers(selector.substring("server:".length()));
+        } else {
+            selected = resolveUser(selector).thenApply(found -> Set.of(found.getId()));
+        }
+        if (proxy == null || proxy.equalsIgnoreCase("all"))
+            return selected;
+        String proxyId = proxy;
+        if (proxy.equalsIgnoreCase("local")) {
+            if (this.echo.getCurrentResourceType() != EchoResourceType.PROXY)
+                throw new IllegalArgumentException("Send: --proxy local requires a proxy; use --proxy <id> here.");
+            proxyId = this.echo.getCurrentResourceId().orElseThrow(() ->
+                    new IllegalArgumentException("Send: local proxy is not configured."));
+        }
+        return selected.thenCombine(requireProxy(proxyId).thenCompose(Proxy::getConnectedUsers),
+                (users, members) -> users.stream().filter(members::containsKey).collect(Collectors.toSet()));
+    }
+
+    private CompletableFuture<Set<UUID>> serverMembers(String id) {
+        return requireServer(id).thenCompose(Server::getConnectedUsers)
+                .thenApply(users -> Set.copyOf(users.keySet()));
+    }
+
+    private CompletableFuture<SendResult> transfer(UUID id, String server) {
+        // Resolve and time out before dispatch: a late lookup must never start a transfer after failure.
+        return CompletableFuture.completedFuture(id).thenCompose(uuid -> resolveUser(uuid.toString()))
+                .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .thenCompose(user -> user.tryConnectToServer(server, CONTROL_TIMEOUT))
+                .handle((response, error) -> {
+                    if (error != null)
+                        return new SendResult(false, false, errorMessage(error));
+                    boolean already = response.getStatus() == ServerSwitchRequest.ServerSwitchRequestStatus.ALREADY_CONNECTED;
+                    return new SendResult(response.isSuccessful() && !already, already,
+                            response.isSuccessful() || already ? null : transferReason(response));
+                });
+    }
+
+    private String transferReason(ServerSwitchRequest.PlayerResponse response) {
+        String reason = response.getStatus().name();
+        if (response.getSerializedReason() != null) {
+            try {
+                String text = PlainTextComponentSerializer.plainText().serialize(
+                        GsonComponentSerializer.gson().deserialize(response.getSerializedReason()));
+                reason += ": " + text.substring(0, Math.min(200, text.length())).replaceAll("\\s+", " ");
+            } catch (RuntimeException ignored) {
+                // A malformed optional kick message must not hide the transfer status.
+            }
+        }
+        return reason;
+    }
+
+    private String sendSummary(List<SendResult> results) {
+        long transferred = results.stream().filter(SendResult::transferred).count();
+        long already = results.stream().filter(SendResult::already).count();
+        return "transferred=" + transferred + " already_connected=" + already
+                + " failed=" + (results.size() - transferred - already);
+    }
+
+    private Component sendResult(String server, List<SendResult> results) {
+        List<String> lines = new ArrayList<>();
+        lines.add(sendSummary(results));
+        if (results.isEmpty())
+            lines.add("No users matched the source selection.");
+        results.stream().filter(result -> result.failure() != null)
+                .collect(Collectors.groupingBy(SendResult::failure, java.util.TreeMap::new, Collectors.counting()))
+                .forEach((reason, count) -> lines.add(count + " x " + reason));
+        return this.format.list("Send -> " + server, lines);
     }
 
     @Command("${root} user disconnect <user> [reason]")
@@ -681,6 +780,41 @@ public final class EchoCommands<S> {
         return this.echo.getAllUsers().thenApply(users -> users.keySet().stream()
                         .map(UUID::toString).sorted().limit(SUGGESTION_LIMIT).toList())
                 .exceptionally(error -> List.of());
+    }
+
+    @Suggestions("sendTargets")
+    public CompletableFuture<List<String>> sendTargetSuggestions() {
+        // ponytail: one lookup per network user; use a bulk username index if completion traffic grows.
+        CompletableFuture<List<String>> names = this.echo.getAllUsers().thenCompose(users -> sequence(
+                users.keySet().stream().sorted().map(id ->
+                        resolveUser(id.toString()).thenCompose(User::getUsername)
+                                .thenApply(name -> name.orElse(id.toString()))
+                                .completeOnTimeout(id.toString(), 1, TimeUnit.SECONDS)
+                                .exceptionally(error -> id.toString())).toList()))
+                .exceptionally(error -> List.of());
+        return names.thenCombine(sendServerSuggestions(), (users, servers) -> {
+            List<String> values = new ArrayList<>(List.of("all", "current"));
+            values.addAll(users);
+            servers.forEach(id -> values.add("server:" + id));
+            return List.copyOf(values);
+        }).completeOnTimeout(List.of("all", "current"), 1, TimeUnit.SECONDS);
+    }
+
+    @Suggestions("sendProxies")
+    public CompletableFuture<List<String>> sendProxySuggestions() {
+        return this.echo.getProxies().thenApply(proxies -> {
+            List<String> values = new ArrayList<>(List.of("all"));
+            if (this.echo.getCurrentResourceType() == EchoResourceType.PROXY)
+                values.add("local");
+            values.addAll(proxies.keySet().stream().sorted().toList());
+            return List.copyOf(values);
+        }).completeOnTimeout(List.of(), 1, TimeUnit.SECONDS).exceptionally(error -> List.of());
+    }
+
+    @Suggestions("sendServers")
+    public CompletableFuture<List<String>> sendServerSuggestions() {
+        return this.echo.getServers().thenApply(servers -> servers.keySet().stream().sorted().toList())
+                .completeOnTimeout(List.of(), 1, TimeUnit.SECONDS).exceptionally(error -> List.of());
     }
 
     @Suggestions("queues")
@@ -1125,6 +1259,7 @@ public final class EchoCommands<S> {
                 || message.startsWith("Reservation is not held by this process: ")
                 || message.startsWith("Server not found: ")
                 || message.startsWith("Proxy not found: ")
+                || message.startsWith("Send: ")
                 || message.startsWith("User not found: ");
     }
 
@@ -1209,4 +1344,5 @@ public final class EchoCommands<S> {
     private record Pair(Optional<String> first, Optional<String> second) {}
     private record PropertyValue(String key, Optional<Object> value, long ttl) {}
     private record RetryResult(QueueRequestStatus.State state, boolean retried) {}
+    private record SendResult(boolean transferred, boolean already, String failure) {}
 }

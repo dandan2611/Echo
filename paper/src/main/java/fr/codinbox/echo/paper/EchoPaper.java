@@ -106,6 +106,11 @@ public class EchoPaper extends JavaPlugin {
             final PaperCommandManager<CommandSourceStack> commandManager = PaperCommandManager.builder()
                     .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                     .buildOnEnable(this);
+            // Resource IDs may contain ':'; Cloud retains token parsing and flag validation.
+            commandManager.brigadierManager().settings().set(org.incendo.cloud.brigadier.BrigadierSetting.FORCE_EXECUTABLE, true);
+            commandManager.brigadierManager().registerMapping(
+                    new io.leangen.geantyref.TypeToken<org.incendo.cloud.parser.standard.StringParser<CommandSourceStack>>() {},
+                    mapping -> mapping.toConstant(com.mojang.brigadier.arguments.StringArgumentType.greedyString()).cloudSuggestions());
             final AnnotationParser<CommandSourceStack> commandParser =
                     new AnnotationParser<>(commandManager, CommandSourceStack.class);
             new EchoCommands<>(this.echoClient, commandAudience(), COMMAND_ROOT).register(commandParser);
@@ -170,6 +175,12 @@ public class EchoPaper extends JavaPlugin {
             @Override
             public String identity(CommandSourceStack source) {
                 return source.getSender().getName();
+            }
+
+            @Override
+            public java.util.Optional<java.util.UUID> playerId(CommandSourceStack source) {
+                return source.getSender() instanceof org.bukkit.entity.Player player
+                        ? java.util.Optional.of(player.getUniqueId()) : java.util.Optional.empty();
             }
         };
     }
