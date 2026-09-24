@@ -9,11 +9,7 @@ import fr.codinbox.echo.api.server.ServerLoadSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
-import org.redisson.api.RBucket;
 import org.redisson.api.RBatch;
-import org.redisson.api.RLock;
-import org.redisson.api.RMap;
-import org.redisson.api.RMapCache;
 import org.redisson.api.RedissonClient;
 
 import java.nio.ByteBuffer;
@@ -37,27 +33,29 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 /** Redis-backed atomic placement for modest server fleets. */
 public final class RedisServerPlacement implements ServerPlacement {
 
-    static final String PLACEMENT_LOCK = "placement:lock";
-    static final String RESERVATIONS_MAP = "placement:reservations";
-    private static final String SERVERS_MAP = "servers:map";
+    static final String RESERVATIONS_MAP = RedisPlacementStore.RESERVATIONS;
 
     private final RedissonClient client;
-    private final Clock clock;
+    private final PlacementStore store;
+    private final Map<String, Publisher> publishers = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ThreadLocal<PlacementStore.Transaction> transaction = new ThreadLocal<>();
 
     public RedisServerPlacement(final @NotNull RedisConnection connection) {
         this(connection.getClient(), Clock.systemUTC());
     }
 
     RedisServerPlacement(final @NotNull RedissonClient client, final @NotNull Clock clock) {
+        this(client, new RedisPlacementStore(client, clock));
+    }
+
+    RedisServerPlacement(final RedissonClient client, final PlacementStore store) {
         this.client = client;
-        this.clock = clock;
+        this.store = store;
     }
 
     /** Trusted proxy publisher only. Missing/expired permission samples always classify as non-staff. */
@@ -68,32 +66,89 @@ public final class RedisServerPlacement implements ServerPlacement {
         batch.execute();
     }
 
+    /** Atomically register a destination and its publisher, before accepting players.
+     * A concurrent registration superseding the initial observation aborts this startup.
+     */
+    public Instant startAdmissionPublisher(final @NotNull String serverId) {
+        final Publisher publisher = new Publisher(UUID.randomUUID().toString(), new java.util.concurrent.atomic.AtomicLong());
+        if (publishers.putIfAbsent(serverId, publisher) != null)
+            throw new IllegalStateException("Admission publisher already started for " + serverId);
+        final Object[] expected = new Object[1];
+        final boolean[] observed = {false};
+        return this.atomic(() -> {
+            final Object current = this.value(publisherKey(serverId));
+            if (observed[0] && !Objects.equals(expected[0], current))
+                throw new PlacementUnavailableException("Destination registration was superseded");
+            expected[0] = current;
+            observed[0] = true;
+            final Instant registeredAt = this.transaction.get().leaseNow();
+            this.transaction.get().registerServer(serverId, registeredAt);
+            this.transaction.get().set(publisherKey(serverId), publisher.incarnation());
+            this.transaction.get().set(sequenceKey(serverId), 0L);
+            this.writeAdmission(serverId, new ServerAdmissionSnapshot(Map.of(), Map.of(), 1, 1,
+                    Instant.EPOCH, Instant.EPOCH.plusSeconds(1)));
+            return registeredAt;
+        });
+    }
+
+    private Publisher publisher(String serverId) {
+        final Publisher publisher = publishers.get(serverId);
+        if (publisher == null) throw new PlacementUnavailableException("Admission publisher has not started");
+        return publisher;
+    }
+
+    private boolean currentPublisher(String serverId, Publisher publisher, long sequence) {
+        if (!publisher.incarnation().equals(this.value(publisherKey(serverId))))
+            throw new PlacementUnavailableException("Admission publisher was replaced");
+        final Object previous = this.value(sequenceKey(serverId));
+        return previous instanceof Long last && sequence > last;
+    }
+
+    private static String publisherKey(String serverId) { return "placement:v2:publisher:" + serverId; }
+    private static String sequenceKey(String serverId) { return "placement:v2:sequence:" + serverId; }
+    private record Publisher(String incarnation, java.util.concurrent.atomic.AtomicLong sequence) { }
+
     /** Blocking Redis I/O: invoke on the destination's ordered background writer, never its tick thread. */
     public void publishAdmission(final @NotNull String serverId, final @NotNull ServerAdmissionSnapshot snapshot) {
-        this.withLock(0, () -> {
-            this.writeAdmission(serverId, snapshot);
+        final Publisher publisher = publisher(serverId);
+        final long sequence = publisher.sequence().incrementAndGet();
+        this.atomic(1000, () -> {
+            if (!currentPublisher(serverId, publisher, sequence)) return null;
+            final Object previous = this.value("server:" + serverId + ":property:admission");
+            if (!(previous instanceof ServerAdmissionSnapshot current)
+                    || current.sampledAt().isBefore(snapshot.sampledAt())) {
+                if (!snapshot.isStale(this.now())) this.transaction.get().validUntil(snapshot.validUntil());
+                this.writeAdmission(serverId, snapshot);
+                this.transaction.get().set(sequenceKey(serverId), sequence);
+            }
             return null;
         });
     }
 
     /**
      * Final destination gate. The permission and occupancy arguments must come from the local server,
-     * not a message payload. Shares the placement lock so direct joins cannot steal leased seats.
-     * Lock contention denies immediately; Redis commands still use the client's network timeouts.
+     * not a message payload. Commits against the same state as reserved seats.
+     * Technical unavailability throws instead of pretending the destination is full.
      * Invoke off the tick thread and bound the caller's wait independently.
      */
     public boolean admit(final @NotNull String serverId, final @NotNull UUID member, final boolean staff,
-                         final @NotNull ServerAdmissionSnapshot snapshot) {
-        try {
-            return this.withLock(0, () -> {
-                if (snapshot.isStale(this.clock.instant()))
+                          final @NotNull ServerAdmissionSnapshot snapshot) {
+            final Publisher publisher = publisher(serverId);
+            final long sequence = publisher.sequence().incrementAndGet();
+            return this.atomic(100, () -> {
+                if (!currentPublisher(serverId, publisher, sequence))
+                    throw new PlacementUnavailableException("Admission operation superseded");
+                if (snapshot.isStale(this.now()))
                     return false;
+                this.transaction.get().validUntil(snapshot.validUntil());
                 final Object availability = this.value("server:" + serverId + ":property:availability");
                 if (availability != null && !ServerAvailability.ACTIVE.name().equals(availability))
                     return false;
                 final Map<UUID, Boolean> joining = new java.util.HashMap<>(snapshot.joiningMembers());
                 final Object previous = this.value("server:" + serverId + ":property:admission");
-                if (previous instanceof ServerAdmissionSnapshot current && !current.isStale(this.clock.instant()))
+                if (previous instanceof ServerAdmissionSnapshot latest && latest.sampledAt().isAfter(snapshot.sampledAt()))
+                    throw new PlacementUnavailableException("Admission snapshot superseded");
+                if (previous instanceof ServerAdmissionSnapshot current && !current.isStale(this.now()))
                     current.joiningMembers().forEach(joining::putIfAbsent);
                 snapshot.onlineMembers().keySet().forEach(joining::remove);
                 final ServerAdmissionSnapshot current = new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
@@ -106,15 +161,13 @@ public final class RedisServerPlacement implements ServerPlacement {
                     joining.put(member, staff);
                 this.writeAdmission(serverId, new ServerAdmissionSnapshot(snapshot.onlineMembers(), joining,
                         snapshot.publicCapacity(), snapshot.hardCapacity(), snapshot.sampledAt(), snapshot.validUntil()));
+                this.transaction.get().set(sequenceKey(serverId), sequence);
                 return true;
             });
-        } catch (RejectedExecutionException busy) {
-            return false;
-        }
     }
 
     private void writeAdmission(final String serverId, final ServerAdmissionSnapshot snapshot) {
-        this.client.<ServerAdmissionSnapshot>getBucket("server:" + serverId + ":property:admission").set(snapshot);
+        this.transaction.get().set("server:" + serverId + ":property:admission", snapshot);
     }
 
     private Set<UUID> staffMembers(final Set<UUID> members) {
@@ -124,9 +177,9 @@ public final class RedisServerPlacement implements ServerPlacement {
 
     private Map<UUID, Boolean> occupied(final String serverId, final ServerAdmissionSnapshot snapshot) {
         final Map<UUID, Boolean> occupied = new java.util.HashMap<>();
-        this.reservations().readAllMap().values().stream().map(RedisServerPlacement::decodeRequired)
+        this.reservations().values().stream().map(RedisServerPlacement::decodeRequired)
                 .filter(stored -> stored.reservation().serverId().equals(serverId))
-                .filter(stored -> this.clock.instant().isBefore(stored.reservation().expiresAt()))
+                .filter(stored -> this.transaction.get().leaseNow().isBefore(stored.reservation().expiresAt()))
                 .forEach(stored -> stored.reservation().members().forEach(member ->
                         occupied.merge(member, stored.staffMembers().contains(member), (left, right) -> left && right)));
         occupied.putAll(snapshot.joiningMembers());
@@ -140,7 +193,7 @@ public final class RedisServerPlacement implements ServerPlacement {
 
     @Override
     public @NotNull EchoFuture<@NotNull Optional<Reservation>> reserve(final @NotNull Request request) {
-        return this.async(() -> this.withLock(() -> this.reserveLocked(request)));
+        return this.async(() -> this.atomic(() -> this.reserveAtomic(request)));
     }
 
     @Override
@@ -148,8 +201,8 @@ public final class RedisServerPlacement implements ServerPlacement {
             final @NotNull Reservation reservation, final @NotNull Duration lease) {
         if (lease.isNegative() || lease.isZero() || lease.toMillis() == 0)
             throw new IllegalArgumentException("lease must be at least one millisecond");
-        return this.async(() -> this.withLock(() -> {
-            final RMapCache<String, String> reservations = this.reservations();
+        return this.async(() -> this.atomic(() -> {
+            final Map<String, String> reservations = this.reservations();
             final StoredReservation current = decode(reservations.get(reservation.requestId()));
             if (current == null || !current.reservation().token().equals(reservation.token()))
                 return Optional.empty();
@@ -158,16 +211,16 @@ public final class RedisServerPlacement implements ServerPlacement {
                     current.reservation().token(), current.reservation().serverId(),
                     current.reservation().members(), this.expiresAt(lease));
             reservations.put(renewed.requestId(), encode(new StoredReservation(current.fingerprint(), renewed,
-                            current.staffMembers())),
-                    lease.toMillis(), TimeUnit.MILLISECONDS);
+                            current.staffMembers())));
+            this.transaction.get().leaseValidUntil(renewed.expiresAt());
             return Optional.of(renewed);
         }));
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Boolean> release(final @NotNull Reservation reservation) {
-        return this.async(() -> this.withLock(() -> {
-            final RMapCache<String, String> reservations = this.reservations();
+        return this.async(() -> this.atomic(() -> {
+            final Map<String, String> reservations = this.reservations();
             final StoredReservation current = decode(reservations.get(reservation.requestId()));
             if (current == null || !current.reservation().token().equals(reservation.token()))
                 return false;
@@ -178,7 +231,7 @@ public final class RedisServerPlacement implements ServerPlacement {
 
     @Override
     public @NotNull EchoFuture<@NotNull List<ActiveReservation>> listActiveReservations() {
-        return this.async(() -> this.withLock(() -> this.reservations().readAllMap().values().stream()
+        return this.async(() -> this.atomic(() -> this.reservations().values().stream()
                 .map(RedisServerPlacement::decodeRequired)
                 .map(StoredReservation::reservation)
                 .map(RedisServerPlacement::view)
@@ -191,7 +244,7 @@ public final class RedisServerPlacement implements ServerPlacement {
             final @NotNull String requestId) {
         if (Objects.requireNonNull(requestId, "requestId").isBlank())
             throw new IllegalArgumentException("requestId must not be blank");
-        return this.async(() -> this.withLock(() -> Optional.ofNullable(
+        return this.async(() -> this.atomic(() -> Optional.ofNullable(
                         decode(this.reservations().get(requestId)))
                 .map(StoredReservation::reservation)
                 .map(RedisServerPlacement::view)));
@@ -201,10 +254,10 @@ public final class RedisServerPlacement implements ServerPlacement {
     public @NotNull EchoFuture<@NotNull Optional<ServerStatus>> inspectServer(final @NotNull String serverId) {
         if (Objects.requireNonNull(serverId, "serverId").isBlank())
             throw new IllegalArgumentException("serverId must not be blank");
-        return this.async(() -> this.withLock(() -> {
-            if (!this.servers().readAllKeySet().contains(serverId))
+        return this.async(() -> this.atomic(() -> {
+            if (!this.transaction.get().serverIds().contains(serverId))
                 return Optional.empty();
-            return Optional.of(this.serverStatus(serverId, this.clock.instant(),
+            return Optional.of(this.serverStatus(serverId, this.now(),
                     this.reservedByServer().getOrDefault(serverId, 0L)));
         }));
     }
@@ -212,11 +265,11 @@ public final class RedisServerPlacement implements ServerPlacement {
     @Override
     public @NotNull EchoFuture<@NotNull Explanation> explain(final @NotNull Request request) {
         Objects.requireNonNull(request, "request");
-        return this.async(() -> this.withLock(() -> this.explainLocked(request)));
+        return this.async(() -> this.atomic(() -> this.explainAtomic(request)));
     }
 
-    private Optional<Reservation> reserveLocked(final Request request) {
-        final RMapCache<String, String> reservations = this.reservations();
+    private Optional<Reservation> reserveAtomic(final Request request) {
+        final Map<String, String> reservations = this.reservations();
         final String fingerprint = this.fingerprint(request);
         final StoredReservation existing = decode(reservations.get(request.requestId()));
         if (existing != null) {
@@ -227,32 +280,31 @@ public final class RedisServerPlacement implements ServerPlacement {
         }
 
         final Set<UUID> staff = this.staffMembers(request.members());
-        final Explanation explanation = this.explainLocked(request, staff);
+        final Explanation explanation = this.explainAtomic(request, staff);
         if (explanation.selectedServerId().isEmpty())
             return Optional.empty();
 
         final Reservation reservation = new Reservation(request.requestId(), UUID.randomUUID().toString(),
                 explanation.selectedServerId().orElseThrow(), request.members(), this.expiresAt(request.lease()));
         reservations.put(request.requestId(), encode(new StoredReservation(fingerprint, reservation,
-                        staff)),
-                request.lease().toMillis(), TimeUnit.MILLISECONDS);
+                        staff)));
+        this.transaction.get().leaseValidUntil(reservation.expiresAt());
         return Optional.of(reservation);
     }
 
-    private Explanation explainLocked(Request request) {
-        return this.explainLocked(request, this.staffMembers(request.members()));
+    private Explanation explainAtomic(Request request) {
+        return this.explainAtomic(request, this.staffMembers(request.members()));
     }
 
-    private Explanation explainLocked(final Request request, final Set<UUID> staff) {
-        // ponytail: one global lock and per-candidate reservation scans; index in Lua if throughput requires it.
+    private Explanation explainAtomic(final Request request, final Set<UUID> staff) {
         final Map<String, Long> reservedByServer = this.reservedByServer();
-        final Set<String> registered = this.servers().readAllKeySet();
+        final Set<String> registered = this.transaction.get().serverIds();
         final List<String> serverIds = new ArrayList<>(request.candidateServerIds().isEmpty()
                 ? registered : request.candidateServerIds());
         serverIds.sort(Comparator.naturalOrder());
         final List<CandidateEvaluation> evaluations = new ArrayList<>(serverIds.size());
         Candidate selected = null;
-        final Instant now = this.clock.instant();
+        final Instant now = this.now();
         for (String serverId : serverIds) {
             final CandidateEvaluation evaluation = registered.contains(serverId)
                     ? this.evaluate(serverId, request, now, reservedByServer.getOrDefault(serverId, 0L), staff)
@@ -320,8 +372,7 @@ public final class RedisServerPlacement implements ServerPlacement {
     }
 
     private ServerStatus serverStatus(String serverId, Instant now, long reserved) {
-        final boolean heartbeatAlive = this.client.<Object>getBucket(
-                "heartbeat:server:" + serverId).remainTimeToLive() > 0;
+        final boolean heartbeatAlive = this.transaction.get().alive("heartbeat:server:" + serverId);
         final Object availabilityValue = this.value("server:" + serverId + ":property:availability");
         final AvailabilityState availability = availabilityValue == null
                 ? AvailabilityState.DEFAULT_ACTIVE
@@ -364,7 +415,7 @@ public final class RedisServerPlacement implements ServerPlacement {
 
     private Map<String, Long> reservedByServer() {
         final Map<String, Long> reservedByServer = new java.util.HashMap<>();
-        this.reservations().readAllMap().values().forEach(value -> {
+        this.reservations().values().forEach(value -> {
             final Reservation active = decodeRequired(value).reservation();
             reservedByServer.merge(active.serverId(), (long) active.members().size(),
                     (left, right) -> Math.addExact(left, right));
@@ -378,11 +429,11 @@ public final class RedisServerPlacement implements ServerPlacement {
     }
 
     private Object value(String key) {
-        return this.client.getBucket(key).get();
+        return this.transaction.get().value(key);
     }
 
     private Instant expiresAt(Duration lease) {
-        return this.clock.instant().plus(lease).truncatedTo(ChronoUnit.MILLIS);
+        return this.transaction.get().leaseNow().plus(lease).truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static boolean better(Candidate candidate, Candidate selected, Policy policy) {
@@ -431,33 +482,29 @@ public final class RedisServerPlacement implements ServerPlacement {
         digest.update(bytes);
     }
 
-    private RMap<String, Long> servers() {
-        return this.client.getMap(SERVERS_MAP);
-    }
+    private Map<String, String> reservations() { return this.transaction.get().reservations(); }
 
-    private RMapCache<String, String> reservations() {
-        return this.client.getMapCache(RESERVATIONS_MAP);
-    }
+    private Instant now() { return this.transaction.get().now(); }
 
-    private <T> T withLock(Supplier<T> action) {
-        return this.withLock(1000, action);
-    }
+    private <T> T atomic(Supplier<T> action) { return this.atomic(1000, action); }
 
-    private <T> T withLock(long waitMillis, Supplier<T> action) {
-        final RLock lock = this.client.getLock(PLACEMENT_LOCK);
-        try {
-            // Keep the watchdog: a fixed lease could expire midway through a Redis transaction.
-            if (!lock.tryLock(waitMillis, TimeUnit.MILLISECONDS))
-                throw new RejectedExecutionException("Placement is busy");
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Placement interrupted", interrupted);
-        }
-        try {
-            return action.get();
-        } finally {
-            lock.unlock();
-        }
+    private <T> T atomic(long budgetMillis, Supplier<T> action) {
+        return this.store.execute(Duration.ofMillis(budgetMillis), state -> {
+            if (this.transaction.get() != null)
+                throw new IllegalStateException("Nested placement transaction");
+            this.transaction.set(state);
+            try {
+                state.reservations().entrySet().removeIf(entry -> {
+                    final Instant expires = decodeRequired(entry.getValue()).reservation().expiresAt();
+                    if (!state.leaseNow().isBefore(expires)) return true;
+                    state.leaseValidUntil(expires);
+                    return false;
+                });
+                return action.get();
+            } finally {
+                this.transaction.remove();
+            }
+        });
     }
 
     private <T> EchoFuture<T> async(Supplier<T> action) {

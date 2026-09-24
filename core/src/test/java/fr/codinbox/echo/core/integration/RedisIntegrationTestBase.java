@@ -13,8 +13,6 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -22,22 +20,31 @@ import java.time.Instant;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Testcontainers
 public abstract class RedisIntegrationTestBase {
 
-    @Container
     protected static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:8-alpine")
                     .withExposedPorts(6379);
 
     protected static RedissonClient redissonClient;
     protected static RedisConnection mockConnection;
+    private static String namespace;
 
     @BeforeAll
     static void setupRedisson() {
+        final String local = System.getProperty("echo.test.redis");
+        if (local != null && !local.matches("redis://127\\.0\\.0\\.1:1[0-9]{4}"))
+            throw new IllegalArgumentException("External test Redis must be disposable loopback on a lab port");
+        if (local == null)
+            REDIS.start();
         Config config = new Config();
+        namespace = "echo-test:" + java.util.UUID.randomUUID() + ":";
         config.useSingleServer()
-                .setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
+                .setAddress(local == null ? "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379) : local)
+                .setNameMapper(new org.redisson.api.NameMapper() {
+                    public String map(String name) { return namespace + name; }
+                    public String unmap(String name) { return name.startsWith(namespace) ? name.substring(namespace.length()) : name; }
+                });
         redissonClient = Redisson.create(config);
         mockConnection = mock(RedisConnection.class);
         when(mockConnection.getClient()).thenReturn(redissonClient);
@@ -46,14 +53,17 @@ public abstract class RedisIntegrationTestBase {
     @BeforeEach
     void resetEcho() {
         EchoTestUtils.resetEchoClient();
-        redissonClient.getKeys().flushall();
+        redissonClient.getKeys().deleteByPattern("*"); // NameMapper confines cleanup to this test namespace.
     }
 
     @AfterAll
     static void teardown() {
         if (redissonClient != null && !redissonClient.isShutdown()) {
+            redissonClient.getKeys().deleteByPattern("*");
             redissonClient.shutdown();
         }
+        if (REDIS.isRunning())
+            REDIS.stop();
     }
 
     protected EchoClientImpl createClient(EchoResourceType type, String id) {

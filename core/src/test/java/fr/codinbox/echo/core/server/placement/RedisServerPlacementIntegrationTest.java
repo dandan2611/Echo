@@ -31,16 +31,105 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
 
     @Test
-    void heldRedisLockRejectsAdmissionWithoutWaitingForItsOwner() throws Exception {
+    void delayedStartupCannotReplaceAPublisherRegisteredDuringItsAttempt() throws Exception {
+        final var calculated = new CountDownLatch(1);
+        final var resume = new CountDownLatch(1);
+        final var delegate = new RedisPlacementStore(redissonClient);
+        final PlacementStore delayed = new PlacementStore() {
+            private boolean paused;
+            public <T> T execute(Duration budget, java.util.function.Function<Transaction, T> decision) {
+                return delegate.execute(budget, tx -> {
+                    final T result = decision.apply(tx);
+                    if (!paused) {
+                        paused = true;
+                        calculated.countDown();
+                        try { assertThat(resume.await(500, TimeUnit.MILLISECONDS)).isTrue(); }
+                        catch (InterruptedException e) { throw new RuntimeException(e); }
+                    }
+                    return result;
+                });
+            }
+        };
+        final var old = new RedisServerPlacement(redissonClient, delayed);
+        final var startup = CompletableFuture.runAsync(() -> old.startAdmissionPublisher("server"));
+        assertThat(calculated.await(1, TimeUnit.SECONDS)).isTrue();
+        final var replacement = new RedisServerPlacement(mockConnection);
+        final var snapshot = seedAdmission(replacement);
+        assertThat(replacement.admit("server", UUID.randomUUID(), true, snapshot)).isTrue();
+        resume.countDown();
+        assertThatThrownBy(startup::join).hasCauseInstanceOf(PlacementUnavailableException.class);
+        assertThat(replacement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+    }
+
+    @Test
+    void replacedDestinationCannotPublishOrAdmitEvenWithANewerSample() {
+        final RedisServerPlacement old = new RedisServerPlacement(mockConnection);
+        seedAdmission(old);
+        final RedisServerPlacement replacement = new RedisServerPlacement(mockConnection);
+        final ServerAdmissionSnapshot current = seedAdmission(replacement);
+        assertThat(replacement.admit("server", UUID.randomUUID(), true, current)).isTrue();
+        final Instant later = Instant.now().plusMillis(1);
+        final var obsolete = new ServerAdmissionSnapshot(Map.of(), Map.of(), 1, 2,
+                later, later.plusSeconds(60));
+
+        assertThatThrownBy(() -> old.publishAdmission("server", obsolete))
+                .isInstanceOf(PlacementUnavailableException.class);
+        assertThatThrownBy(() -> old.admit("server", UUID.randomUUID(), true, obsolete))
+                .isInstanceOf(PlacementUnavailableException.class);
+        assertThat(replacement.admit("server", UUID.randomUUID(), true, current)).isFalse();
+    }
+
+    @Test
+    void aFastApplicationClockCannotExpireAnotherWorkersLiveLease() {
+        seed("server", 0, 1, true, Instant.now().plusSeconds(60), Map.of());
+        final RedisServerPlacement owner = new RedisServerPlacement(mockConnection);
+        final RedisServerPlacement fast = new RedisServerPlacement(redissonClient,
+                java.time.Clock.offset(java.time.Clock.systemUTC(), Duration.ofSeconds(10)));
+        final var request = new ServerPlacement.Request("clock-owner", Set.of(UUID.randomUUID()),
+                Set.of(), Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED, Duration.ofSeconds(5));
+        final var lease = owner.reserve(request).join().orElseThrow();
+
+        assertThat(fast.findActiveReservation(lease.requestId()).join()).isPresent();
+        assertThat(fast.reserve(request("clock-competitor", 1,
+                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of())).join()).isEmpty();
+        assertThat(owner.release(lease).join()).isTrue();
+    }
+
+    @Test
+    void delayedPublicationCannotEraseAnAlreadyAdmittedMember() {
         final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
         final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
-        final org.redisson.api.RLock lock = redissonClient.getLock(RedisServerPlacement.PLACEMENT_LOCK);
+        assertThat(placement.admit("server", UUID.randomUUID(), true, snapshot)).isTrue();
+        placement.publishAdmission("server", snapshot);
+        assertThat(placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
+    }
+
+    @Test
+    void expiredLeaseIsRemovedAndCannotBeRenewedOrReleasedByItsOldToken() throws Exception {
+        seed("server", 0, 1, true, Instant.now().plusSeconds(60), Map.of());
+        final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
+        final ServerPlacement.Request request = new ServerPlacement.Request("short", Set.of(UUID.randomUUID()),
+                Set.of(), Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED, Duration.ofMillis(100));
+        final var old = placement.reserve(request).join().orElseThrow();
+        Thread.sleep(150);
+        assertThat(placement.listActiveReservations().join()).isEmpty();
+        final var replacement = placement.reserve(request).join().orElseThrow();
+        assertThat(replacement.token()).isNotEqualTo(old.token());
+        assertThat(placement.release(old).join()).isFalse();
+        assertThat(placement.renew(old, Duration.ofSeconds(30)).join()).isEmpty();
+    }
+
+    @Test
+    void orphanedLegacyLockCannotBlockAnEmptySeat() throws Exception {
+        final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
+        final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
+        final org.redisson.api.RLock lock = redissonClient.getLock("placement:lock");
         lock.lock();
         try {
             final CompletableFuture<Boolean> admission = CompletableFuture.supplyAsync(() ->
                     placement.admit("server", UUID.randomUUID(), true, snapshot));
 
-            assertThat(admission.get(500, TimeUnit.MILLISECONDS)).isFalse();
+            assertThat(admission.get(500, TimeUnit.MILLISECONDS)).isTrue();
         } finally {
             lock.unlock();
         }
@@ -65,7 +154,7 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     @Test
     void destinationAndPlacementShareTheSamePhysicalLease() {
         final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
-        final RedisServerPlacement destination = new RedisServerPlacement(mockConnection);
+        final RedisServerPlacement destination = placement;
         final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
         final ServerPlacement.Reservation lease = placement.reserve(request("handoff", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED, Map.of())).join().orElseThrow();
@@ -78,20 +167,30 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     @Test
     void independentDestinationWorkersCannotBothTakeLastSeat() {
         final RedisServerPlacement firstWorker = new RedisServerPlacement(mockConnection);
-        final RedisServerPlacement secondWorker = new RedisServerPlacement(mockConnection);
+        final RedisServerPlacement secondWorker = firstWorker;
         final ServerAdmissionSnapshot snapshot = this.seedAdmission(firstWorker);
         final CompletableFuture<Boolean> first = CompletableFuture.supplyAsync(() ->
-                firstWorker.admit("server", UUID.randomUUID(), true, snapshot));
+                admitOrSuperseded(firstWorker, snapshot));
         final CompletableFuture<Boolean> second = CompletableFuture.supplyAsync(() ->
-                secondWorker.admit("server", UUID.randomUUID(), true, snapshot));
+                admitOrSuperseded(secondWorker, snapshot));
 
         assertThat(List.of(first.join(), second.join())).containsExactlyInAnyOrder(true, false);
+    }
+
+    private boolean admitOrSuperseded(RedisServerPlacement placement, ServerAdmissionSnapshot snapshot) {
+        try {
+            return placement.admit("server", UUID.randomUUID(), true, snapshot);
+        } catch (PlacementUnavailableException error) {
+            assertThat(error).hasMessage("Admission operation superseded");
+            return false;
+        }
     }
 
     private ServerAdmissionSnapshot seedAdmission(final RedisServerPlacement placement) {
         final Instant now = Instant.now();
         this.seed("server", 0, 1, true, now.plusSeconds(60),
                 Map.of(ServerPlacement.PROPERTY_HARD_CAPACITY, 2));
+        placement.startAdmissionPublisher("server");
         final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(Map.of(UUID.randomUUID(), true),
                 Map.of(), 1, 2, now, now.plusSeconds(60));
         placement.publishAdmission("server", snapshot);
@@ -132,7 +231,7 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
                         Map.of(TYPE, "game"))).join();
 
         assertThat(result).isEmpty();
-        assertThat(redissonClient.getMapCache(RedisServerPlacement.RESERVATIONS_MAP).isEmpty()).isTrue();
+        assertThat(new RedisServerPlacement(mockConnection).listActiveReservations().join()).isEmpty();
     }
 
     @Test

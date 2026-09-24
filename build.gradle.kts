@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "7.2.0"
+version = "7.3.0"
 
 subprojects {
     group = rootProject.group
@@ -31,6 +31,9 @@ subprojects {
         }
 
         tasks.withType<Test> {
+            providers.gradleProperty("echoTestRedis").orNull?.let {
+                systemProperty("echo.test.redis", it)
+            }
             useJUnitPlatform()
             testClassesDirs = project.extensions.getByType<SourceSetContainer>()["test"].output.classesDirs
             classpath = project.extensions.getByType<SourceSetContainer>()["test"].runtimeClasspath

@@ -11,18 +11,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RBucket;
 import org.redisson.api.RBatch;
-import org.redisson.api.RLock;
-import org.redisson.api.RMap;
-import org.redisson.api.RMapCache;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.config.Config;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,15 +44,12 @@ class RedisServerPlacementTest {
     private static final PropertyKey<String> TYPE = new PropertyKey<>("server_type");
 
     @Test
-    void contendedAdmissionDoesNotUseAnUnboundedLock() throws Exception {
+    void unavailableAdmissionIsNotReportedAsAFullServer() {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(0, 0, 100);
-        doThrow(new AssertionError("Unbounded lock acquisition")).when(fixture.redisLock).lock();
-        when(fixture.redisLock.tryLock(0, TimeUnit.MILLISECONDS)).thenReturn(false);
-
-        final boolean admitted = fixture.placement.admit("server", UUID.randomUUID(), true, snapshot);
-
-        assertThat(admitted).isFalse();
+        fixture.unavailable = true;
+        assertThatThrownBy(() -> fixture.placement.admit("server", UUID.randomUUID(), true, snapshot))
+                .isInstanceOf(PlacementUnavailableException.class);
     }
 
     @Test
@@ -136,8 +127,9 @@ class RedisServerPlacementTest {
         fixture.seedAdmission(0, 0, 100);
         final ServerPlacement.Reservation reserved = fixture.placement.reserve(request("lease", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        fixture.now = NOW.plusMillis(1);
         fixture.placement.publishAdmission("server", new ServerAdmissionSnapshot(
-                Map.of(reserved.members().iterator().next(), false), Map.of(), 100, 120, NOW, NOW.plusSeconds(5)));
+                Map.of(reserved.members().iterator().next(), false), Map.of(), 100, 120, fixture.now, NOW.plusSeconds(5)));
 
         final ServerPlacement.ServerStatus status = fixture.placement.inspectServer("server").join().orElseThrow();
 
@@ -387,7 +379,6 @@ class RedisServerPlacementTest {
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
         fixture.placement.reserve(request("a-request", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
-        clearInvocations(fixture.redisLock);
 
         assertThat(fixture.placement.listActiveReservations().join())
                 .extracting(ServerPlacement.ActiveReservation::requestId)
@@ -410,8 +401,6 @@ class RedisServerPlacementTest {
         assertThat(status.loadFresh()).isTrue();
         assertThat(status.acceptingQueueAssignments()).isTrue();
         assertThat(fixture.placement.inspectServer("missing").join()).isEmpty();
-        verify(fixture.redisLock, times(5)).tryLock(1000, TimeUnit.MILLISECONDS);
-        verify(fixture.redisLock, times(5)).unlock();
     }
 
     @Test
@@ -459,20 +448,16 @@ class RedisServerPlacementTest {
                 ServerPlacement.Policy.SPREAD_LEAST_LOADED, candidates)).join().selectedServerId())
                 .contains("eligible-low");
         assertThat(fixture.reservationValues).isEmpty();
-        verify(fixture.reservations, never()).put(anyString(), anyString(), anyLong(), any(TimeUnit.class));
-        verify(fixture.redisLock, times(2)).tryLock(1000, TimeUnit.MILLISECONDS);
-        verify(fixture.redisLock, times(2)).unlock();
     }
 
     @Test
-    void reserve_reportsCorruptDataAndEncodingFailuresAndUnlocks() {
+    void reserve_reportsCorruptDataAndEncodingFailures() {
         Fixture corrupt = new Fixture();
         corrupt.reservationValues.put("corrupt", "invalid");
 
         assertThatThrownBy(() -> corrupt.placement.reserve(request("corrupt", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join())
                 .hasRootCauseMessage("Corrupt placement reservation");
-        verify(corrupt.redisLock).unlock();
 
         Fixture encoding = new Fixture();
         encoding.seed("server", 0, 10, true, NOW.plusSeconds(30), "lobby");
@@ -481,7 +466,6 @@ class RedisServerPlacementTest {
         assertThatThrownBy(() -> encoding.placement.reserve(request("encoding", 1,
                 ServerPlacement.Policy.FILL_MOST_LOADED)).join())
                 .hasRootCauseMessage("codec unavailable");
-        verify(encoding.redisLock).unlock();
     }
 
     @Test
@@ -530,10 +514,9 @@ class RedisServerPlacementTest {
     private static final class Fixture {
 
         private final RedissonClient client = mock(RedissonClient.class);
-        private final RMap<String, Long> servers = mock(RMap.class);
-        private final RMapCache<String, String> reservations = mock(RMapCache.class);
-        private final RLock redisLock = mock(RLock.class);
         private final ReentrantLock lock = new ReentrantLock();
+        private boolean unavailable;
+        private Instant now = NOW;
         private final Map<String, Object> values = new ConcurrentHashMap<>();
         private final Map<String, Long> ttls = new ConcurrentHashMap<>();
         private final Set<String> serverIds = ConcurrentHashMap.newKeySet();
@@ -545,32 +528,36 @@ class RedisServerPlacementTest {
             Config config = new Config();
             config.setCodec(StringCodec.INSTANCE);
             when(client.getConfig()).thenReturn(config);
-            when(client.getMap("servers:map")).thenReturn((RMap) servers);
-            when(servers.readAllKeySet()).thenAnswer(ignored -> Set.copyOf(serverIds));
-            when(client.getMapCache(RedisServerPlacement.RESERVATIONS_MAP)).thenReturn((RMapCache) reservations);
-            when(reservations.get(anyString())).thenAnswer(invocation ->
-                    reservationValues.get(invocation.getArgument(0)));
-            when(reservations.readAllMap()).thenAnswer(ignored -> Map.copyOf(reservationValues));
-            when(reservations.put(anyString(), anyString(), anyLong(), any(TimeUnit.class)))
-                    .thenAnswer(invocation -> reservationValues.put(invocation.getArgument(0), invocation.getArgument(1)));
-            when(reservations.remove(anyString())).thenAnswer(invocation ->
-                    reservationValues.remove(invocation.getArgument(0)));
-            when(client.getLock(RedisServerPlacement.PLACEMENT_LOCK)).thenReturn(redisLock);
-            try {
-                when(redisLock.tryLock(anyLong(), any(TimeUnit.class))).thenAnswer(invocation ->
-                        lock.tryLock(invocation.getArgument(0), invocation.getArgument(1)));
-            } catch (InterruptedException impossible) {
-                throw new AssertionError(impossible);
-            }
-            doAnswer(ignored -> {
-                lock.unlock();
-                return null;
-            }).when(redisLock).unlock();
             when(client.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
             final RBatch batch = mock(RBatch.class);
             when(client.createBatch()).thenReturn(batch);
             when(batch.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
-            placement = new RedisServerPlacement(client, Clock.fixed(NOW, ZoneOffset.UTC));
+            placement = new RedisServerPlacement(client, new PlacementStore() {
+                @Override public <T> T execute(Duration budget, java.util.function.Function<Transaction, T> decision) {
+                    if (unavailable) throw new PlacementUnavailableException("Injected unavailability");
+                    lock.lock();
+                    try {
+                        final Map<String, Object> pending = new java.util.HashMap<>(values);
+                        final Map<String, String> leases = new java.util.HashMap<>(reservationValues);
+                        final T result = decision.apply(new Transaction() {
+                            public Instant now() { return Fixture.this.now; }
+                            public boolean alive(String key) { return ttls.getOrDefault(key, -2L) > 0; }
+                            public Object value(String key) {
+                                if (key.startsWith("heartbeat:")) return ttls.getOrDefault(key, -2L) > 0 ? 1 : null;
+                                return pending.get(key);
+                            }
+                            public void set(String key, Object value) { pending.put(key, value); }
+                            public Set<String> serverIds() { return Set.copyOf(serverIds); }
+                            public void registerServer(String id, Instant at) { }
+                            public Map<String, String> reservations() { return leases; }
+                            public void validUntil(Instant deadline) { }
+                        });
+                        values.clear(); values.putAll(pending);
+                        reservationValues.clear(); reservationValues.putAll(leases);
+                        return result;
+                    } finally { lock.unlock(); }
+                }
+            });
         }
 
         private void seed(String id, int participants, int capacity, boolean accepting,
@@ -601,6 +588,7 @@ class RedisServerPlacementTest {
         private ServerAdmissionSnapshot seedAdmission(final int total, final int nonStaff, final int publicLimit) {
             this.seed("server", 0, publicLimit, true, NOW.plusSeconds(30), "lobby");
             this.values.put("server:server:property:placement_hard_capacity", 120);
+            this.placement.startAdmissionPublisher("server");
             final Map<UUID, Boolean> online = java.util.stream.IntStream.range(0, total).boxed().collect(
                     java.util.stream.Collectors.toMap(index -> new UUID(0, index + 1), index -> index >= nonStaff));
             final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(online, Map.of(), publicLimit,

@@ -339,6 +339,8 @@ public class EchoClientImpl implements EchoClient {
     }
 
     public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
+        if (this.serverPlacement instanceof fr.codinbox.echo.core.server.placement.RedisServerPlacement placement)
+            return CompletableFuture.supplyAsync(() -> placement.startAdmissionPublisher(id));
         final Instant creationTime = Instant.now();
         return this.getServerMap().putAsync(id, creationTime.toEpochMilli())
                 .thenApply(aVoid -> creationTime);

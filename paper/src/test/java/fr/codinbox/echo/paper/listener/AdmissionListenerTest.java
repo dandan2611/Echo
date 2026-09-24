@@ -1,9 +1,8 @@
 package fr.codinbox.echo.paper.listener;
 
 import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
-import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
-import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import fr.codinbox.echo.core.server.placement.AdmissionTestStore;
 import fr.codinbox.echo.paper.EchoPaper;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
@@ -16,10 +15,6 @@ import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RBucket;
-import org.redisson.api.RLock;
-import org.redisson.api.RMapCache;
-import org.redisson.api.RedissonClient;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -35,8 +30,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -97,10 +90,7 @@ class AdmissionListenerTest {
             permissionThread.set(Thread.currentThread());
             return true;
         });
-        when(fixture.redis.getBucket(anyString())).thenAnswer(invocation -> {
-            redisThread.set(Thread.currentThread());
-            return fixture.bucket(invocation.getArgument(0));
-        });
+        fixture.store.before = () -> redisThread.set(Thread.currentThread());
 
         fixture.listener.onLogin(login);
 
@@ -110,19 +100,18 @@ class AdmissionListenerTest {
     }
 
     @Test
-    void lateUnlockCannotAuthorizeLoginOrOverwriteTheFollowingSnapshot() throws Exception {
+    void lateCommitReplyCannotAuthorizeLoginOrOverwriteTheFollowingSnapshot() throws Exception {
         final Fixture fixture = new Fixture(0, 0, TimeUnit.MILLISECONDS.toNanos(100));
         final PlayerLoginEvent login = fixture.login(true);
         final CountDownLatch release = new CountDownLatch(1);
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch finished = new CountDownLatch(2);
         blockedCommands.add(release);
-        doAnswer(ignored -> {
+        fixture.store.after = () -> {
             entered.countDown();
-            release.await();
+            await(release);
             finished.countDown();
-            return null;
-        }).when(fixture.lock).unlock();
+        };
 
         fixture.listener.onLogin(login);
         fixture.listener.refresh();
@@ -130,7 +119,7 @@ class AdmissionListenerTest {
 
         assertThat(entered.await(1, TimeUnit.SECONDS) && finished.await(1, TimeUnit.SECONDS)).isTrue();
         assertThat(login.getResult()).isEqualTo(PlayerLoginEvent.Result.KICK_OTHER);
-        assertThat(((ServerAdmissionSnapshot) fixture.values.get("server:server:property:admission"))
+        assertThat(((ServerAdmissionSnapshot) fixture.store.value("server:server:property:admission"))
                 .joiningMembers()).isEmpty();
     }
 
@@ -138,12 +127,17 @@ class AdmissionListenerTest {
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch release = new CountDownLatch(1);
         blockedCommands.add(release);
-        when(fixture.redis.getBucket(anyString())).thenAnswer(invocation -> {
+        fixture.store.before = () -> {
             entered.countDown();
-            release.await();
+            await(release);
             throw new IllegalStateException("Redis unavailable");
-        });
+        };
         return entered;
+    }
+
+    private static void await(CountDownLatch latch) {
+        try { latch.await(); }
+        catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new IllegalStateException(error); }
     }
 
     @Test
@@ -175,7 +169,7 @@ class AdmissionListenerTest {
     @Test
     void sdkSampleIsStillPublishedWhenRedisFails() {
         final Fixture fixture = new Fixture(0, 0);
-        when(fixture.redis.getBucket(anyString())).thenThrow(new IllegalStateException("Redis unavailable"));
+        fixture.store.before = () -> { throw new IllegalStateException("Redis unavailable"); };
 
         fixture.listener.refresh();
 
@@ -251,7 +245,7 @@ class AdmissionListenerTest {
     @Test
     void redisFailureDeniesInsteadOfBypassingAdmission() {
         final Fixture fixture = new Fixture(0, 0);
-        when(fixture.redis.getBucket(anyString())).thenThrow(new IllegalStateException("Redis unavailable"));
+        fixture.store.before = () -> { throw new IllegalStateException("Redis unavailable"); };
         final PlayerLoginEvent event = fixture.login(true);
 
         fixture.listener.onLogin(event);
@@ -272,11 +266,9 @@ class AdmissionListenerTest {
     }
 
     private final class Fixture {
-        private final RedissonClient redis = mock(RedissonClient.class);
-        private final RLock lock = mock(RLock.class);
+        private final AdmissionTestStore store = new AdmissionTestStore();
         private final EchoPaper plugin = mock(EchoPaper.class);
         private final Server server = mock(Server.class);
-        private final Map<String, Object> values = new ConcurrentHashMap<>();
         private final AdmissionListener listener;
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -286,16 +278,6 @@ class AdmissionListenerTest {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         private Fixture(final int total, final int nonStaff, final long waitNanos) {
-            final RedisConnection connection = mock(RedisConnection.class);
-            when(connection.getClient()).thenReturn(redis);
-            when(redis.getLock(anyString())).thenReturn(lock);
-            try {
-                when(lock.tryLock(anyLong(), any(TimeUnit.class))).thenReturn(true);
-            } catch (InterruptedException impossible) {
-                throw new AssertionError(impossible);
-            }
-            when(redis.getMapCache(anyString())).thenReturn(mock(RMapCache.class));
-            when(redis.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
             when(plugin.getServer()).thenReturn(server);
             when(plugin.getLogger()).thenReturn(mock(Logger.class));
             final List<Player> online = java.util.stream.IntStream.range(0, total)
@@ -307,7 +289,7 @@ class AdmissionListenerTest {
                 invocation.<Runnable>getArgument(1).run();
                 return null;
             }).when(scheduler).runTask(any(), any(Runnable.class));
-            listener = new AdmissionListener(plugin, new RedisServerPlacement(connection), "server", 100, 120, waitNanos);
+            listener = new AdmissionListener(plugin, store.placement(), "server", 100, 120, waitNanos);
             listeners.add(listener);
         }
 
@@ -319,16 +301,6 @@ class AdmissionListenerTest {
             when(event.getUniqueId()).thenReturn(id);
             when(event.getLoginResult()).thenReturn(AsyncPlayerPreLoginEvent.Result.ALLOWED);
             listener.onPreLogin(event);
-        }
-
-        private RBucket<Object> bucket(final String key) {
-            final RBucket<Object> bucket = mock(RBucket.class);
-            when(bucket.get()).thenAnswer(ignored -> values.get(key));
-            doAnswer(invocation -> {
-                values.put(key, invocation.getArgument(0));
-                return null;
-            }).when(bucket).set(any());
-            return bucket;
         }
 
         private PlayerLoginEvent login(final boolean staff) {
