@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
-version = "7.3.0"
+version = "7.3.1"
 
 subprojects {
     group = rootProject.group

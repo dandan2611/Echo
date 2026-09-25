@@ -3,6 +3,7 @@ package fr.codinbox.echo.paper.listener;
 import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import fr.codinbox.echo.core.server.placement.PlacementUnavailableException;
 import fr.codinbox.echo.paper.EchoPaper;
 import net.kyori.adventure.text.Component;
 import io.papermc.paper.connection.PlayerConnection;
@@ -30,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
+import java.util.function.LongSupplier;
 
 /** One main-thread occupancy owner for every Paper ingress, including direct and initial joins. */
 public final class AdmissionListener implements Listener, AutoCloseable {
@@ -42,6 +44,10 @@ public final class AdmissionListener implements Listener, AutoCloseable {
     private final ConcurrentMap<PlayerConnection, UUID> connections = new ConcurrentHashMap<>();
     private final Map<UUID, Player> joining = new HashMap<>();
     private final ThreadPoolExecutor writer;
+    private final LongSupplier nanoTime;
+    private boolean expirationReported;
+    private long lastExpirationReport;
+    private long suppressedExpirations;
 
     public AdmissionListener(final @NotNull EchoPaper plugin, final @NotNull RedisServerPlacement placement,
                               final @NotNull String serverId, final int publicCapacity, final int hardCapacity) {
@@ -50,6 +56,13 @@ public final class AdmissionListener implements Listener, AutoCloseable {
 
     AdmissionListener(final EchoPaper plugin, final RedisServerPlacement placement, final String serverId,
                       final int publicCapacity, final int hardCapacity, final long admissionWaitNanos) {
+        this(plugin, placement, serverId, publicCapacity, hardCapacity, admissionWaitNanos, System::nanoTime);
+    }
+
+    AdmissionListener(final EchoPaper plugin, final RedisServerPlacement placement, final String serverId,
+                      final int publicCapacity, final int hardCapacity, final long admissionWaitNanos,
+                      final LongSupplier nanoTime) {
+        this.nanoTime = nanoTime;
         this.admissionWaitNanos = admissionWaitNanos;
         this.plugin = plugin;
         this.placement = placement;
@@ -164,15 +177,36 @@ public final class AdmissionListener implements Listener, AutoCloseable {
                         if (!this.writer.isShutdown() && !snapshot.isStale(Instant.now()))
                             this.placement.publishAdmission(this.serverId, snapshot);
                     } catch (RuntimeException error) {
-                        this.plugin.getLogger().log(Level.WARNING, "Failed to publish Echo admission", error);
+                        this.reportPublicationFailure(error);
                     }
                 });
             } catch (RejectedExecutionException busy) {
                 // One in-flight operation and two queued operations at most; retry on the next tick sample.
             }
         } catch (RuntimeException error) {
-            this.plugin.getLogger().log(Level.WARNING, "Failed to publish Echo admission", error);
+            this.reportPublicationFailure(error);
         }
+    }
+
+    private synchronized void reportPublicationFailure(final RuntimeException error) {
+        if (!(error instanceof PlacementUnavailableException)
+                || !"Placement operation expired before confirmation".equals(error.getMessage())) {
+            this.plugin.getLogger().log(Level.WARNING, "Failed to publish Echo admission", error);
+            return;
+        }
+        final long now = this.nanoTime.getAsLong();
+        if (this.expirationReported && now - this.lastExpirationReport < TimeUnit.MINUTES.toNanos(1)) {
+            this.suppressedExpirations++;
+            return;
+        }
+        this.plugin.getLogger().warning(this.expirationReported
+                ? "Echo admission publication expired; automatic retries continue. "
+                    + this.suppressedExpirations + " additional expirations suppressed since the previous warning."
+                : "Echo admission publication expired; automatic retries continue. "
+                    + "Further expirations are summarized at most once per minute.");
+        this.expirationReported = true;
+        this.lastExpirationReport = now;
+        this.suppressedExpirations = 0;
     }
 
     @Override

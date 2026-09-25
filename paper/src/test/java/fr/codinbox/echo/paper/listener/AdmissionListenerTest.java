@@ -3,6 +3,7 @@ package fr.codinbox.echo.paper.listener;
 import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.core.server.placement.AdmissionTestStore;
+import fr.codinbox.echo.core.server.placement.PlacementUnavailableException;
 import fr.codinbox.echo.paper.EchoPaper;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
@@ -21,12 +22,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +37,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.timeout;
 
 @Tag("unit")
 class AdmissionListenerTest {
@@ -44,6 +51,65 @@ class AdmissionListenerTest {
     void releaseCommands() {
         blockedCommands.forEach(CountDownLatch::countDown);
         listeners.forEach(AdmissionListener::close);
+    }
+
+    @Test
+    void repeatedPublicationExpirationsProduceOneConciseWarning() {
+        final Fixture fixture = new Fixture(0, 0);
+        doThrow(new PlacementUnavailableException("Placement operation expired before confirmation"))
+                .when(fixture.plugin).publishTelemetry(any(ServerAdmissionSnapshot.class));
+
+        for (int i = 0; i < 100; i++) fixture.listener.refresh();
+
+        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
+                + "Further expirations are summarized at most once per minute.");
+        verifyNoMoreInteractions(fixture.logger);
+    }
+
+    @Test
+    void publicationExpirySummaryRespectsMinuteBoundaryAndCountsSuppressedEvents() {
+        final Fixture fixture = new Fixture(0, 0);
+        doThrow(new PlacementUnavailableException("Placement operation expired before confirmation"))
+                .when(fixture.plugin).publishTelemetry(any(ServerAdmissionSnapshot.class));
+
+        fixture.listener.refresh();
+        fixture.nanoTime.set(TimeUnit.SECONDS.toNanos(59));
+        for (int i = 0; i < 7; i++) fixture.listener.refresh();
+        fixture.nanoTime.set(TimeUnit.MINUTES.toNanos(1));
+        fixture.listener.refresh();
+        fixture.listener.refresh();
+
+        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
+                + "Further expirations are summarized at most once per minute.");
+        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
+                + "7 additional expirations suppressed since the previous warning.");
+        verifyNoMoreInteractions(fixture.logger);
+    }
+
+    @Test
+    void writerPublicationExpiryAlsoUsesConciseWarning() {
+        final Fixture fixture = new Fixture(0, 0);
+        fixture.store.before = () -> {
+            throw new PlacementUnavailableException("Placement operation expired before confirmation");
+        };
+
+        fixture.listener.refresh();
+
+        verify(fixture.logger, timeout(1000)).warning("Echo admission publication expired; automatic retries continue. "
+                + "Further expirations are summarized at most once per minute.");
+        verifyNoMoreInteractions(fixture.logger);
+    }
+
+    @Test
+    void unexpectedPublicationFailuresRetainTheirStackTrace() {
+        final Fixture fixture = new Fixture(0, 0);
+        final RuntimeException error = new IllegalStateException("Malformed placement state");
+        doThrow(error).when(fixture.plugin).publishTelemetry(any(ServerAdmissionSnapshot.class));
+
+        fixture.listener.refresh();
+        fixture.listener.refresh();
+
+        verify(fixture.logger, times(2)).log(Level.WARNING, "Failed to publish Echo admission", error);
     }
 
     @Test
@@ -268,6 +334,8 @@ class AdmissionListenerTest {
     private final class Fixture {
         private final AdmissionTestStore store = new AdmissionTestStore();
         private final EchoPaper plugin = mock(EchoPaper.class);
+        private final Logger logger = mock(Logger.class);
+        private final AtomicLong nanoTime = new AtomicLong();
         private final Server server = mock(Server.class);
         private final AdmissionListener listener;
 
@@ -279,7 +347,7 @@ class AdmissionListenerTest {
         @SuppressWarnings({"unchecked", "rawtypes"})
         private Fixture(final int total, final int nonStaff, final long waitNanos) {
             when(plugin.getServer()).thenReturn(server);
-            when(plugin.getLogger()).thenReturn(mock(Logger.class));
+            when(plugin.getLogger()).thenReturn(logger);
             final List<Player> online = java.util.stream.IntStream.range(0, total)
                     .mapToObj(index -> player(index >= nonStaff)).toList();
             when(server.getOnlinePlayers()).thenAnswer(ignored -> online);
@@ -289,7 +357,7 @@ class AdmissionListenerTest {
                 invocation.<Runnable>getArgument(1).run();
                 return null;
             }).when(scheduler).runTask(any(), any(Runnable.class));
-            listener = new AdmissionListener(plugin, store.placement(), "server", 100, 120, waitNanos);
+            listener = new AdmissionListener(plugin, store.placement(), "server", 100, 120, waitNanos, nanoTime::get);
             listeners.add(listener);
         }
 
