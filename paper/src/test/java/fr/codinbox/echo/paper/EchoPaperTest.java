@@ -52,11 +52,13 @@ class EchoPaperTest {
     void initialPropertiesIncludeTypedPlacementCapacity() {
         PropertyKey<String> serverType = PropertyKey.of("server_type", String.class);
 
-        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(Map.of(serverType, "lobby"), 120);
+        final int serverCapacity = 512;
+
+        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(Map.of(serverType, "lobby"), serverCapacity);
 
         assertThat(properties).containsEntry(serverType, "lobby")
-                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, 100)
-                .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, 120);
+                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, serverCapacity)
+                .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, serverCapacity);
         assertThat(properties.get(ServerPlacement.PROPERTY_CAPACITY)).isInstanceOf(Integer.class);
     }
 
@@ -74,6 +76,29 @@ class EchoPaperTest {
 
         assertThat(properties).containsEntry(ServerPlacement.PROPERTY_CAPACITY, 80)
                 .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, 120);
+    }
+
+    @Test
+    void configuredCapacityHasNoEchoSpecificCeiling() {
+        final int capacity = Integer.MAX_VALUE;
+        final Map<PropertyKey<?>, Object> configured = Map.of(
+                ServerPlacement.PROPERTY_CAPACITY, Integer.toString(capacity),
+                ServerPlacement.PROPERTY_HARD_CAPACITY, Integer.toString(capacity));
+
+        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(configured, 20);
+
+        assertThat(properties).containsEntry(ServerPlacement.PROPERTY_CAPACITY, capacity)
+                .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, capacity);
+    }
+
+    @Test
+    void publicCapacityCannotExceedConfiguredHardCapacity() {
+        final Map<PropertyKey<?>, Object> configured = Map.of(
+                ServerPlacement.PROPERTY_CAPACITY, "513", ServerPlacement.PROPERTY_HARD_CAPACITY, "512");
+
+        assertThatThrownBy(() -> EchoPaper.initialProperties(configured, 512))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Require 0 < public capacity <= hard capacity");
     }
 
     @Test

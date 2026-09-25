@@ -48,12 +48,13 @@ class PaperRuntimeIntegrationTest {
 
     @Test
     void paper26PublishesSdkTelemetryAndTracksAnActualPendingConnection() throws Exception {
-        try (final Runtime runtime = new Runtime(directory)) {
+        final int serverCapacity = 512;
+        try (final Runtime runtime = new Runtime(directory, serverCapacity)) {
             final JsonNode telemetry = runtime.telemetry.poll(120, TimeUnit.SECONDS);
             assertThat(telemetry).as("Paper startup log: %s", Files.readString(directory.resolve("server.log"))).isNotNull();
             assertThat(telemetry.toString()).isEqualTo(JSON.createObjectNode().put("version", 1)
                     .put("sampledAt", telemetry.path("sampledAt").asLong())
-                    .put("connectedPlayers", 0).put("publicPlayers", 0).put("publicCapacity", 100).toString());
+                    .put("connectedPlayers", 0).put("publicPlayers", 0).put("publicCapacity", serverCapacity).toString());
             try (final Socket player = runtime.login()) {
                 assertThat(runtime.awaitPending(true).path("joiningMembers").has(Runtime.PLAYER.toString())).isTrue();
             }
@@ -69,7 +70,7 @@ class PaperRuntimeIntegrationTest {
         private final RedissonClient redis;
         private final int port;
 
-        private Runtime(final Path directory) throws Exception {
+        private Runtime(final Path directory, final int serverCapacity) throws Exception {
             Files.createDirectories(directory.resolve("plugins"));
             download("https://fill-data.papermc.io/v1/objects/0de30efb024bc8b83c9c7d507d11802897ad8056b6110ec09fe1a91d126ccb54/paper-26.2-121.jar", directory.resolve("server.jar"));
             download("https://github.com/dandan2611/Connector/releases/download/v8.1.0/connector-paper-8.1.0-all.jar", directory.resolve("plugins/Connector.jar"));
@@ -78,7 +79,8 @@ class PaperRuntimeIntegrationTest {
             try (final ServerSocket available = new ServerSocket(0)) { port = available.getLocalPort(); }
             Files.writeString(directory.resolve("server.properties"), "server-ip=127.0.0.1\nserver-port=" + port
                     + "\nonline-mode=false\nenforce-secure-profile=false\nnetwork-compression-threshold=-1\n"
-                    + "view-distance=2\nsimulation-distance=2\nspawn-protection=0\nlevel-type=minecraft:flat\n");
+                    + "view-distance=2\nsimulation-distance=2\nspawn-protection=0\nlevel-type=minecraft:flat\n"
+                    + "max-players=" + serverCapacity + "\n");
             final String redisAddress = "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379);
             Files.writeString(directory.resolve("redis.yml"), "codec: !<fr.codinbox.connector.commons.codec.JsonJacksonConnectorCodec> {}\n"
                     + "singleServerConfig:\n  address: \"" + redisAddress + "\"\n");

@@ -111,8 +111,10 @@ Echo reads its configuration from environment variables:
 A Redis connection named `ECHO` must be registered through the Connector library. Initial-property
 suffixes are exact and case-sensitive; empty suffixes and the reserved keys `creation_time`,
 `availability`, and `load` are rejected. Paper converts `placement_capacity` and
-`placement_hard_capacity` into integer properties, defaulting to 100 and 120 respectively,
-and sets `max-players` to the hard capacity. Set
+`placement_hard_capacity` into integer properties. The hard capacity defaults to the server's
+configured `max-players`; the public capacity defaults to that hard capacity. Echo imposes no
+additional numerical ceiling. Explicit public and hard capacities must be positive, with public
+capacity no greater than hard capacity. Paper sets `max-players` to the resolved hard capacity. Set
 `ECHO_RESOURCE_PROPERTY_placement_capacity=80` for a destination with 80 public seats.
 
 Paper and Velocity enable their Agones lifecycle only when `ECHO_AGONES_ENABLED=true`. In that case,

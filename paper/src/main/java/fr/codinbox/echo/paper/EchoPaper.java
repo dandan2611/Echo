@@ -71,7 +71,8 @@ public class EchoPaper extends JavaPlugin {
 
             final RedisConnection connection = echoConnection.get();
             final RedisServerPlacement placement = new RedisServerPlacement(connection);
-            final Map<PropertyKey<?>, Object> properties = initialProperties(EnvUtils.getInitialProperties(), 120);
+            final Map<PropertyKey<?>, Object> properties = initialProperties(
+                    EnvUtils.getInitialProperties(), this.getServer().getMaxPlayers());
             this.getServer().setMaxPlayers((Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
             final EchoConfig config = EchoConfig.builder()
                     .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
@@ -157,9 +158,9 @@ public class EchoPaper extends JavaPlugin {
         final int hard = Integer.parseInt(properties.getOrDefault(
                 ServerPlacement.PROPERTY_HARD_CAPACITY, capacity).toString());
         final int publicLimit = Integer.parseInt(properties.getOrDefault(
-                ServerPlacement.PROPERTY_CAPACITY, Math.min(100, hard)).toString());
-        if (publicLimit <= 0 || hard < publicLimit || hard > 120)
-            throw new IllegalArgumentException("Require 0 < public capacity <= hard capacity <= 120");
+                ServerPlacement.PROPERTY_CAPACITY, hard).toString());
+        if (publicLimit <= 0 || hard < publicLimit)
+            throw new IllegalArgumentException("Require 0 < public capacity <= hard capacity");
         properties.put(ServerPlacement.PROPERTY_CAPACITY, publicLimit);
         properties.put(ServerPlacement.PROPERTY_HARD_CAPACITY, hard);
         return Map.copyOf(properties);
