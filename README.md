@@ -556,6 +556,47 @@ transferred, already-connected and failed counts, grouped failure reasons, and a
 selection message. Commands are audited with their source filter, destination and aggregate outcome.
 Completion suggests network player names, servers, selectors and proxy IDs.
 
+#### Network-wide `/glist`
+
+Velocity replaces its built-in `/glist`. The same handler is available as `/echo user list`,
+`/echoproxy user list` on Velocity, and `/echoserver user list` on Paper.
+Either `velocity.command.glist` or `echo.command.user.list` grants access.
+
+```text
+/glist [all|current|server:<id>] [--proxy <id|local|all>] [--group <server|proxy|none>] [--count] [--page <n>]
+/echo user list [all|current|server:<id>] [--proxy <id|local|all>] [--group <server|proxy|none>] [--count] [--page <n>]
+```
+
+| Example | Result |
+| --- | --- |
+| `/glist` | Network total and counts by backend server |
+| `/glist all --group proxy` | Player names grouped by proxy |
+| `/glist all --proxy proxy-2` | Player names on proxy-2, grouped by backend server |
+| `/glist server:lobby-1 --proxy proxy-2` | Players on lobby-1 through proxy-2 |
+| `/glist current --proxy local --count` | Count on your current backend through this proxy |
+
+With no selector, the command shows counts. An explicit selector shows player names unless
+`--count` is set. A bare server ID (`/glist lobby-1`) is shorthand for `server:lobby-1`.
+`all` and `current` span **all proxies** by default. `current` requires a player connected to a
+backend; console uses `server:<id>`. `--proxy local` selects the executing Velocity proxy and
+also works from its console; it is unavailable on Paper. Unknown server or proxy IDs produce an
+error, while a valid selection with no players explicitly reports an empty result.
+
+`--group` defaults to `server`; `proxy` groups by proxy ID and `none` produces a flat list or total.
+Grouping changes presentation only; `--proxy` filters the selected population. Group IDs and player
+names are sorted alphabetically. Detailed pages contain at most 20 players; count-only pages contain
+at most 20 groups. `--page` starts at 1, and clickable Previous/Next links preserve the command's
+selector and flags. The total and each displayed group's count cover the **full selection**, not
+just the current page. Completion suggests network server IDs, selectors, proxy IDs and group values.
+
+Membership is deduplicated by UUID. Reads are asynchronous and use a non-atomic network snapshot:
+players may switch servers or disconnect while it is being read. A membership lookup failure is
+reported as an error rather than as zero players. Detail reads are limited to 32 users in flight,
+with a shared 10-second deadline. Unavailable details keep the UUID in the total, use its UUID if
+the name is unavailable, and mark the output as partial. Missing location fields appear as
+`(no server)` or `(no proxy)`; failed location reads appear as `(unknown server)` or `(unknown proxy)`.
+If the user record cannot be resolved, its location is also marked unknown.
+
 ### Platform lifecycle
 
 Paper automatically publishes player-count load and placement capacity, refreshes load on joins and

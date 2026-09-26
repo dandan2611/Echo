@@ -177,6 +177,8 @@ public class EchoPlugin {
             commands.register(commandParser);
             this.proxy.getCommandManager().unregister("send");
             commands.registerSend(commandParser);
+            this.proxy.getCommandManager().unregister("glist");
+            commands.registerGlist(commandParser);
 
             // Load existing servers
             client.getServers().thenAccept(servers -> {

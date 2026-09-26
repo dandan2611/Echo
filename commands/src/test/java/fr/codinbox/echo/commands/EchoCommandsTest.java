@@ -80,6 +80,7 @@ class EchoCommandsTest {
         CommandTestSupport.Fixture fixture = fixture();
         @SuppressWarnings("unchecked")
         AnnotationParser<String> parser = mock(AnnotationParser.class);
+        when(parser.manager()).thenReturn(mock(org.incendo.cloud.CommandManager.class, org.mockito.Mockito.RETURNS_DEEP_STUBS));
         when(parser.stringProcessor()).thenReturn(input -> "before " + input);
         when(parser.parse(any(Object[].class))).thenReturn(List.of());
 
@@ -158,8 +159,6 @@ class EchoCommandsTest {
                 EchoFuture.completed(Map.of("server-2", 2L, "server-1", 1L)));
         when(fixture.echo().getProxies()).thenReturn(EchoFuture.completed(Map.of()),
                 EchoFuture.completed(Map.of("proxy-1", 3L)));
-        when(fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(Map.of()),
-                EchoFuture.completed(Map.of(userId, 4L)));
         when(fixture.echo().getServerById("server-1")).thenReturn(EchoFuture.completed(Optional.of(server)));
         when(fixture.echo().getServerById("missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(server.getId()).thenReturn("server-1");
@@ -182,15 +181,13 @@ class EchoCommandsTest {
         fixture.commands().serverList(fixture.context()).join();
         fixture.commands().proxyList(fixture.context()).join();
         fixture.commands().proxyList(fixture.context()).join();
-        fixture.commands().userList(fixture.context()).join();
-        fixture.commands().userList(fixture.context()).join();
         fixture.commands().serverInfo(fixture.context(), "server-1").join();
         fixture.commands().serverInfo(fixture.context(), "missing").join();
         fixture.commands().proxyInfo(fixture.context(), "proxy-1").join();
         fixture.commands().proxyInfo(fixture.context(), "missing").join();
 
         assertThat(fixture.output()).contains("Servers\nNone", "server-1 1970-01-01T00:00:00.001Z",
-                "Proxies\nNone", "Users\nNone", userId.toString(), "address: 127.0.0.1:25565",
+                "Proxies\nNone", "address: 127.0.0.1:25565",
                 "availability: ACTIVE", "address: localhost:25577", "ERROR: Server not found: missing",
                 "ERROR: Proxy not found: missing");
         verify(server).getAddress();

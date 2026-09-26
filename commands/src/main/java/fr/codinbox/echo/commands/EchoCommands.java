@@ -37,6 +37,7 @@ import org.incendo.cloud.annotations.Flag;
 import org.incendo.cloud.annotations.Permission;
 import org.incendo.cloud.annotations.suggestion.Suggestions;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.setting.ManagerSetting;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -108,6 +109,8 @@ public final class EchoCommands<S> {
     /** Installs root aliases through Cloud's annotation string processor and registers all handlers. */
     public Collection<org.incendo.cloud.Command<S>> register(AnnotationParser<S> parser) {
         Objects.requireNonNull(parser, "parser");
+        // Allow flag-only invocations such as `user list --group proxy` to skip the optional selector.
+        parser.manager().settings().set(ManagerSetting.LIBERAL_FLAG_PARSING, true);
         var previous = parser.stringProcessor();
         parser.stringProcessor(input -> previous.processString(input).replace("${root}", this.rootSyntax));
         return parser.parse(this);
@@ -116,6 +119,24 @@ public final class EchoCommands<S> {
     /** Registers the Velocity-only replacement after the shared command tree. */
     public void registerSend(AnnotationParser<S> parser) {
         parser.parse(new SendAlias());
+    }
+
+    /** Registers the Velocity-only player list replacement after the shared command tree. */
+    public void registerGlist(AnnotationParser<S> parser) {
+        parser.parse(new GlistAlias());
+    }
+
+    public final class GlistAlias {
+        @Command("glist [selector]")
+        @Permission({"echo.command.user.list", "velocity.command.glist"})
+        public CompletableFuture<Void> glist(CommandContext<S> context,
+                                             @Argument(value = "selector", suggestions = "glistSelectors") String selector,
+                                             @Flag(value = "proxy", suggestions = "sendProxies") String proxy,
+                                             @Flag(value = "group", suggestions = "glistGroups") String group,
+                                             @Flag("count") boolean count,
+                                             @Flag("page") Integer page) {
+            return userList(context, selector, proxy, group, count, page);
+        }
     }
 
     public final class SendAlias {
@@ -369,12 +390,35 @@ public final class EchoCommands<S> {
                         this::controlResult, response -> response.getStatus().name()));
     }
 
-    @Command("${root} user list")
-    @Permission("echo.command.user.list")
-    public CompletableFuture<Void> userList(CommandContext<S> context) {
-        return execute(context, this.echo::getAllUsers, users -> this.format.list("Users",
-                users.entrySet().stream().sorted(Map.Entry.comparingByKey())
-                        .map(entry -> entry.getKey() + " " + this.format.instant(entry.getValue())).toList()));
+    @Command("${root} user list [selector]")
+    @Permission({"echo.command.user.list", "velocity.command.glist"})
+    public CompletableFuture<Void> userList(CommandContext<S> context,
+                                            @Argument(value = "selector", suggestions = "glistSelectors") String selector,
+                                            @Flag(value = "proxy", suggestions = "sendProxies") String proxy,
+                                            @Flag(value = "group", suggestions = "glistGroups") String group,
+                                            @Flag("count") boolean count,
+                                            @Flag("page") Integer page) {
+        String selection = selector == null ? "all" : selector;
+        if (!selection.equalsIgnoreCase("all") && !selection.equalsIgnoreCase("current")
+                && !selection.startsWith("server:"))
+            selection = "server:" + selection;
+        String source = selection;
+        return execute(context, () -> {
+            NetworkUserList.Group grouping = NetworkUserList.Group.parse(group);
+            int requestedPage = page == null ? 1 : page;
+            if (requestedPage < 1)
+                throw new IllegalArgumentException("Glist: --page must be at least 1.");
+            String invokedRoot = context.rawInput().input().stripLeading().split("\\s+", 2)[0];
+            String navigation = "/" + invokedRoot + (invokedRoot.equalsIgnoreCase("glist") ? "" : " user list")
+                    + (selector == null ? "" : " " + selector)
+                    + (proxy == null ? "" : " --proxy " + proxy)
+                    + (group == null ? "" : " --group " + group)
+                    + (count ? " --count" : "");
+            return selectUsers(context, source, proxy, "Glist")
+                    .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                    .thenCompose(users -> new NetworkUserList(this.echo).render(users, grouping,
+                            selector != null && !count, requestedPage, navigation));
+        }, Function.identity());
     }
 
     @Command("${root} user info <user>")
@@ -393,22 +437,23 @@ public final class EchoCommands<S> {
                                             @Argument(value = "server", suggestions = "sendServers") String server,
                                             @Flag(value = "proxy", suggestions = "sendProxies") String proxy) {
         return mutate(context, "user.send", user + "->" + server + " proxy=" + (proxy == null ? "all" : proxy),
-                () -> requireServer(server).thenCombine(sendTargets(context, user, proxy), (target, users) -> users)
+                () -> requireServer(server).thenCombine(selectUsers(context, user, proxy, "Send"), (target, users) -> users)
                         .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                         .thenCompose(users -> sequence(users.stream().map(id -> transfer(id, server)).toList())),
                 results -> sendResult(server, results), this::sendSummary);
     }
 
-    private CompletableFuture<Set<UUID>> sendTargets(CommandContext<S> context, String selector, String proxy) {
+    private CompletableFuture<Set<UUID>> selectUsers(CommandContext<S> context, String selector, String proxy,
+                                                    String command) {
         CompletableFuture<Set<UUID>> selected;
         if (selector.equalsIgnoreCase("all")) {
             selected = this.echo.getAllUsers().thenApply(users -> Set.copyOf(users.keySet()));
         } else if (selector.equalsIgnoreCase("current")) {
             UUID executor = this.audience.playerId(context.sender()).orElseThrow(() ->
-                    new IllegalArgumentException("Send: current requires a player; use server:<id> from console."));
+                    new IllegalArgumentException(command + ": current requires a player; use server:<id> from console."));
             selected = resolveUser(executor.toString()).thenCompose(User::getCurrentServerId)
                     .thenCompose(id -> serverMembers(id.orElseThrow(() ->
-                            new IllegalArgumentException("Send: you are not connected to a server."))));
+                            new IllegalArgumentException(command + ": you are not connected to a server."))));
         } else if (selector.startsWith("server:")) {
             selected = serverMembers(selector.substring("server:".length()));
         } else {
@@ -419,9 +464,9 @@ public final class EchoCommands<S> {
         String proxyId = proxy;
         if (proxy.equalsIgnoreCase("local")) {
             if (this.echo.getCurrentResourceType() != EchoResourceType.PROXY)
-                throw new IllegalArgumentException("Send: --proxy local requires a proxy; use --proxy <id> here.");
+                throw new IllegalArgumentException(command + ": --proxy local requires a proxy; use --proxy <id> here.");
             proxyId = this.echo.getCurrentResourceId().orElseThrow(() ->
-                    new IllegalArgumentException("Send: local proxy is not configured."));
+                    new IllegalArgumentException(command + ": local proxy is not configured."));
         }
         return selected.thenCombine(requireProxy(proxyId).thenCompose(Proxy::getConnectedUsers),
                 (users, members) -> users.stream().filter(members::containsKey).collect(Collectors.toSet()));
@@ -780,6 +825,21 @@ public final class EchoCommands<S> {
         return this.echo.getAllUsers().thenApply(users -> users.keySet().stream()
                         .map(UUID::toString).sorted().limit(SUGGESTION_LIMIT).toList())
                 .exceptionally(error -> List.of());
+    }
+
+    @Suggestions("glistSelectors")
+    public CompletableFuture<List<String>> glistSelectorSuggestions() {
+        return sendServerSuggestions().thenApply(servers -> {
+            List<String> values = new ArrayList<>(List.of("all", "current"));
+            values.addAll(servers);
+            servers.forEach(id -> values.add("server:" + id));
+            return values.stream().distinct().toList();
+        });
+    }
+
+    @Suggestions("glistGroups")
+    public List<String> glistGroupSuggestions() {
+        return List.of("server", "proxy", "none");
     }
 
     @Suggestions("sendTargets")
@@ -1260,6 +1320,7 @@ public final class EchoCommands<S> {
                 || message.startsWith("Server not found: ")
                 || message.startsWith("Proxy not found: ")
                 || message.startsWith("Send: ")
+                || message.startsWith("Glist: ")
                 || message.startsWith("User not found: ");
     }
 

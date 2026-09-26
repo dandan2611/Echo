@@ -165,5 +165,9 @@ final class CommandTestSupport {
             return this.messages.stream().map(PlainTextComponentSerializer.plainText()::serialize)
                     .collect(java.util.stream.Collectors.joining("\n"));
         }
+
+        List<Component> messages() {
+            return List.copyOf(this.messages);
+        }
     }
 }
