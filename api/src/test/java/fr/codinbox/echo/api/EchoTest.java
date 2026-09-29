@@ -1,5 +1,9 @@
 package fr.codinbox.echo.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.lang.reflect.Field;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -7,17 +11,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Field;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 @Tag("unit")
 @ExtendWith(MockitoExtension.class)
 class EchoTest {
 
-    @Mock
-    private EchoClient mockClient;
+    @Mock private EchoClient mockClient;
 
     @BeforeEach
     void setUp() throws Exception {

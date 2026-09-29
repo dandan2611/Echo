@@ -1,28 +1,29 @@
 package fr.codinbox.echo.api.utils;
 
-import fr.codinbox.echo.api.property.PropertyKey;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import fr.codinbox.echo.api.property.PropertyKey;
+import java.util.HashMap;
+import java.util.Map;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class EnvUtilsTest {
 
     @Test
     void getInitialProperties_extractsOnlyPrefixedVariables() {
-        Map<String, String> environment = Map.of(
-                "ECHO_RESOURCE_PROPERTY_server_type", "lobby",
-                "ECHO_RESOURCE_PROPERTY_region", "eu-west",
-                "ECHO_RESOURCE_ID", "lobby-1");
+        Map<String, String> environment =
+                Map.of(
+                        "ECHO_RESOURCE_PROPERTY_server_type", "lobby",
+                        "ECHO_RESOURCE_PROPERTY_region", "eu-west",
+                        "ECHO_RESOURCE_ID", "lobby-1");
 
-        assertThat(EnvUtils.getInitialProperties(environment)).containsOnly(
-                Map.entry(new PropertyKey<>("server_type"), "lobby"),
-                Map.entry(new PropertyKey<>("region"), "eu-west"));
+        assertThat(EnvUtils.getInitialProperties(environment))
+                .containsOnly(
+                        Map.entry(new PropertyKey<>("server_type"), "lobby"),
+                        Map.entry(new PropertyKey<>("region"), "eu-west"));
     }
 
     @Test
@@ -39,8 +40,10 @@ class EnvUtilsTest {
 
     @Test
     void getInitialProperties_rejectsEmptyPropertyKey() {
-        assertThatThrownBy(() -> EnvUtils.getInitialProperties(Map.of(
-                "ECHO_RESOURCE_PROPERTY_", "value")))
+        assertThatThrownBy(
+                        () ->
+                                EnvUtils.getInitialProperties(
+                                        Map.of("ECHO_RESOURCE_PROPERTY_", "value")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("property key");
     }

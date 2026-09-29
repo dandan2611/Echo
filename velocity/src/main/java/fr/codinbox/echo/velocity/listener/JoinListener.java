@@ -8,9 +8,6 @@ import com.velocitypowered.api.proxy.Player;
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.user.User;
-import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -20,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.NotNull;
 
 public class JoinListener {
 
@@ -33,12 +32,16 @@ public class JoinListener {
         this(acceptingLogins, new ConcurrentHashMap<>());
     }
 
-    public JoinListener(@NotNull BooleanSupplier acceptingLogins, @NotNull ConcurrentMap<UUID, String> userSessions) {
+    public JoinListener(
+            @NotNull BooleanSupplier acceptingLogins,
+            @NotNull ConcurrentMap<UUID, String> userSessions) {
         this(acceptingLogins, userSessions, () -> UUID.randomUUID().toString());
     }
 
-    JoinListener(@NotNull BooleanSupplier acceptingLogins, @NotNull ConcurrentMap<UUID, String> userSessions,
-                 @NotNull Supplier<String> sessionIds) {
+    JoinListener(
+            @NotNull BooleanSupplier acceptingLogins,
+            @NotNull ConcurrentMap<UUID, String> userSessions,
+            @NotNull Supplier<String> sessionIds) {
         this.acceptingLogins = acceptingLogins;
         this.userSessions = userSessions;
         this.sessionIds = sessionIds;
@@ -47,20 +50,22 @@ public class JoinListener {
     @Subscribe(order = PostOrder.FIRST)
     private void onLogin(final @NotNull LoginEvent event) {
         if (!this.acceptingLogins.getAsBoolean()) {
-            event.setResult(LoginEvent.ComponentResult.denied(
-                    Component.text("This proxy is starting or draining. Please reconnect.")));
+            event.setResult(
+                    LoginEvent.ComponentResult.denied(
+                            Component.text(
+                                    "This proxy is starting or draining. Please reconnect.")));
             return;
         }
         final Player player = event.getPlayer();
         final EchoClient client = Echo.getClient();
 
         final String currentResourceId = client.getCurrentResourceId().orElse(null);
-        if (currentResourceId == null)
-            return;
+        if (currentResourceId == null) return;
 
         final String sessionId = this.sessionIds.get();
-        final CompletableFuture<User> created = client.createUser(
-                player.getUniqueId(), player.getUsername(), currentResourceId, sessionId);
+        final CompletableFuture<User> created =
+                client.createUser(
+                        player.getUniqueId(), player.getUsername(), currentResourceId, sessionId);
         this.eventSessions.put(player, new UserSession(sessionId, created));
         this.userSessions.put(player.getUniqueId(), sessionId);
     }
@@ -69,15 +74,12 @@ public class JoinListener {
     private void onDisconnect(final @NotNull DisconnectEvent event) {
         final Player player = event.getPlayer();
         final UserSession session = this.eventSessions.remove(player);
-        if (session == null)
-            return;
+        if (session == null) return;
         this.userSessions.remove(player.getUniqueId(), session.id());
         final EchoClient client = Echo.getClient();
 
         session.created().thenCompose(user -> client.destroyUser(user, session.id()));
     }
 
-    private record UserSession(String id, CompletableFuture<User> created) {
-    }
-
+    private record UserSession(String id, CompletableFuture<User> created) {}
 }

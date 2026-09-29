@@ -1,10 +1,16 @@
 package fr.codinbox.echo.velocity.messaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
 import fr.codinbox.echo.api.server.Address;
+import java.util.Optional;
+import java.util.logging.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -13,23 +19,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Optional;
-import java.util.logging.Logger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
 @Tag("unit")
 @ExtendWith(MockitoExtension.class)
 class ServerStatusNotificationHandlerTest {
 
     private ServerStatusNotificationHandler handler;
 
-    @Mock
-    private ProxyServer mockProxy;
-    @Mock
-    private Logger mockLogger;
+    @Mock private ProxyServer mockProxy;
+    @Mock private Logger mockLogger;
 
     @BeforeEach
     void setUp() {

@@ -1,14 +1,14 @@
-name: 'Echo'
-version: '7.3.1'
+name: "Echo"
+version: "7.3.1"
 author: dandan2611
-api-version: '26.2'
+api-version: "26.2"
 
 main: fr.codinbox.echo.paper.EchoPaper
 
 depend:
-  - 'Connector'
+  - "Connector"
 
 permissions:
   echo.staff:
-    description: 'Use public-capacity surplus without bypassing physical capacity.'
+    description: "Use public-capacity surplus without bypassing physical capacity."
     default: false

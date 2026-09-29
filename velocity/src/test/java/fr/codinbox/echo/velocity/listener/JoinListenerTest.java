@@ -1,5 +1,10 @@
 package fr.codinbox.echo.velocity.listener;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.proxy.Player;
@@ -8,6 +13,12 @@ import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.user.User;
+import java.lang.reflect.Method;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -16,30 +27,15 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Method;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
 @Tag("unit")
 @ExtendWith(MockitoExtension.class)
 class JoinListenerTest {
 
     private JoinListener listener;
 
-    @Mock
-    private ProxyServer mockProxyServer;
-    @Mock
-    private EchoClient mockClient;
-    @Mock
-    private Player mockPlayer;
+    @Mock private ProxyServer mockProxyServer;
+    @Mock private EchoClient mockClient;
+    @Mock private Player mockPlayer;
     private ConcurrentMap<UUID, String> userSessions;
 
     private final UUID playerUuid = UUID.randomUUID();
@@ -70,7 +66,8 @@ class JoinListenerTest {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
-            when(mockClient.createUser(eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), eq("session-1")))
+            when(mockClient.createUser(
+                            eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), eq("session-1")))
                     .thenReturn(EchoFuture.completed(mock(User.class)));
 
             LoginEvent event = mock(LoginEvent.class);
@@ -170,8 +167,9 @@ class JoinListenerTest {
         when(replacement.getUniqueId()).thenReturn(playerUuid);
         when(replacement.getUsername()).thenReturn("TestPlayer");
         AtomicInteger token = new AtomicInteger();
-        listener = new JoinListener(() -> true, userSessions,
-                () -> "session-" + token.incrementAndGet());
+        listener =
+                new JoinListener(
+                        () -> true, userSessions, () -> "session-" + token.incrementAndGet());
 
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
@@ -179,7 +177,8 @@ class JoinListenerTest {
             User firstUser = mock(User.class);
             User replacementUser = mock(User.class);
             when(mockClient.createUser(eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), any()))
-                    .thenReturn(EchoFuture.completed(firstUser), EchoFuture.completed(replacementUser));
+                    .thenReturn(
+                            EchoFuture.completed(firstUser), EchoFuture.completed(replacementUser));
 
             LoginEvent firstLogin = mock(LoginEvent.class);
             when(firstLogin.getPlayer()).thenReturn(mockPlayer);

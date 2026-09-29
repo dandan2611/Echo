@@ -24,5 +24,4 @@ public class UnknownUserException extends UnknownResourceException {
     public UnknownUserException(final @NotNull String name) {
         super("user", name);
     }
-
 }

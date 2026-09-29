@@ -1,14 +1,13 @@
 package fr.codinbox.echo.api.messaging.impl;
 
 import fr.codinbox.echo.api.messaging.EchoMessage;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Objects;
-import java.util.UUID;
 
 /** A bounded request to disconnect one player from their current proxy. */
 @NoArgsConstructor
@@ -22,8 +21,12 @@ public final class UserDisconnectRequest extends EchoMessage {
     private @NotNull String reason;
     private long deadlineEpochMillis;
 
-    public UserDisconnectRequest(@NotNull String expectedProxyId, @NotNull String expectedSessionId,
-                                 @NotNull UUID userId, @NotNull String reason, long deadlineEpochMillis) {
+    public UserDisconnectRequest(
+            @NotNull String expectedProxyId,
+            @NotNull String expectedSessionId,
+            @NotNull UUID userId,
+            @NotNull String reason,
+            long deadlineEpochMillis) {
         this.expectedProxyId = requireText(expectedProxyId, "expectedProxyId");
         this.expectedSessionId = requireText(expectedSessionId, "expectedSessionId");
         this.userId = Objects.requireNonNull(userId, "userId");
@@ -39,12 +42,9 @@ public final class UserDisconnectRequest extends EchoMessage {
             return "expected proxy id is required";
         if (this.expectedSessionId == null || this.expectedSessionId.isBlank())
             return "expected session id is required";
-        if (this.userId == null)
-            return "user id is required";
-        if (this.reason == null || this.reason.isBlank())
-            return "reason is required";
-        if (this.deadlineEpochMillis < 1)
-            return "deadline must be positive";
+        if (this.userId == null) return "user id is required";
+        if (this.reason == null || this.reason.isBlank()) return "reason is required";
+        if (this.deadlineEpochMillis < 1) return "deadline must be positive";
         return null;
     }
 
@@ -63,8 +63,11 @@ public final class UserDisconnectRequest extends EchoMessage {
         private @NotNull Status status;
         private @NotNull String message;
 
-        public Response(@NotNull UserDisconnectRequest request, boolean accepted,
-                        @NotNull Status status, @NotNull String message) {
+        public Response(
+                @NotNull UserDisconnectRequest request,
+                boolean accepted,
+                @NotNull Status status,
+                @NotNull String message) {
             this.accepted = accepted;
             this.status = Objects.requireNonNull(status, "status");
             this.message = Objects.requireNonNull(message, "message");

@@ -1,19 +1,18 @@
 package fr.codinbox.echo.api.id;
 
 import fr.codinbox.echo.api.EchoFuture;
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Optional;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Represents a resource that has a unique identity and a creation timestamp.
  *
- * <p>All Echo network resources ({@link fr.codinbox.echo.api.user.User User},
- * {@link fr.codinbox.echo.api.server.Server Server},
- * {@link fr.codinbox.echo.api.proxy.Proxy Proxy}) implement this interface.</p>
+ * <p>All Echo network resources ({@link fr.codinbox.echo.api.user.User User}, {@link
+ * fr.codinbox.echo.api.server.Server Server}, {@link fr.codinbox.echo.api.proxy.Proxy Proxy})
+ * implement this interface.
  *
- * @param <T> the type of the identifier (e.g. {@link java.util.UUID} for users,
- *            {@link String} for servers and proxies)
+ * @param <T> the type of the identifier (e.g. {@link java.util.UUID} for users, {@link String} for
+ *     servers and proxies)
  */
 public interface Identifiable<T> {
 
@@ -30,7 +29,8 @@ public interface Identifiable<T> {
      *
      * @return the unique identifier
      */
-    @NotNull T getId();
+    @NotNull
+    T getId();
 
     /**
      * Gets the timestamp (milliseconds since epoch) at which this resource was created.
@@ -44,6 +44,6 @@ public interface Identifiable<T> {
      *
      * @return a future that completes with the creation timestamp, or empty if unknown
      */
-    @NotNull EchoFuture<@NotNull Optional<Long>> getCreationTime();
-
+    @NotNull
+    EchoFuture<@NotNull Optional<Long>> getCreationTime();
 }

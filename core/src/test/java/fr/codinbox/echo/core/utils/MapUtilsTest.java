@@ -1,14 +1,13 @@
 package fr.codinbox.echo.core.utils;
 
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class MapUtilsTest {

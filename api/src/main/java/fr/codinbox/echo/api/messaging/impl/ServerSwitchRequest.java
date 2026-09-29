@@ -1,6 +1,8 @@
 package fr.codinbox.echo.api.messaging.impl;
 
 import fr.codinbox.echo.api.messaging.EchoMessage;
+import java.util.Map;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,18 +10,15 @@ import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Map;
-import java.util.UUID;
-
 /**
  * A message requesting one or more players to be transferred to a different server.
  *
- * <p>This message is sent from a server (or any node) to the proxy that the target players
- * are connected to. The proxy handles the actual server switch and sends back a
- * {@link Response} containing the result for each player.</p>
+ * <p>This message is sent from a server (or any node) to the proxy that the target players are
+ * connected to. The proxy handles the actual server switch and sends back a {@link Response}
+ * containing the result for each player.
  *
  * <p>For most use cases, use {@link fr.codinbox.echo.api.user.User#tryConnectToServer(String)}
- * instead of constructing this message directly:</p>
+ * instead of constructing this message directly:
  *
  * <pre>{@code
  * // Preferred: use the User API
@@ -39,14 +38,10 @@ import java.util.UUID;
 @Setter
 public class ServerSwitchRequest extends EchoMessage {
 
-    /**
-     * The identifier of the target server to transfer players to.
-     */
+    /** The identifier of the target server to transfer players to. */
     private @NotNull String serverId;
 
-    /**
-     * The UUIDs of the players to transfer.
-     */
+    /** The UUIDs of the players to transfer. */
     private @NotNull UUID[] userUuids;
 
     /** Absolute transfer deadline in epoch milliseconds; zero means no protocol deadline. */
@@ -55,11 +50,10 @@ public class ServerSwitchRequest extends EchoMessage {
     /**
      * Creates a server switch request for one or more players.
      *
-     * @param serverId  the target server identifier
+     * @param serverId the target server identifier
      * @param userUuids the UUIDs of the players to transfer
      */
-    public ServerSwitchRequest(final @NotNull String serverId,
-                               final @NotNull UUID... userUuids) {
+    public ServerSwitchRequest(final @NotNull String serverId, final @NotNull UUID... userUuids) {
         this.serverId = serverId;
         this.userUuids = userUuids;
     }
@@ -70,16 +64,15 @@ public class ServerSwitchRequest extends EchoMessage {
      * @param serverId the target server identifier
      * @param userUuid the UUID of the player to transfer
      */
-    public ServerSwitchRequest(final @NotNull String serverId,
-                               final @NotNull UUID userUuid) {
+    public ServerSwitchRequest(final @NotNull String serverId, final @NotNull UUID userUuid) {
         this.serverId = serverId;
-        this.userUuids = new UUID[] { userUuid };
+        this.userUuids = new UUID[] {userUuid};
     }
 
     /**
      * The response to a {@link ServerSwitchRequest}, containing the result for each player.
      *
-     * <p>Sent by the proxy back to the requesting node after processing the switch.</p>
+     * <p>Sent by the proxy back to the requesting node after processing the switch.
      *
      * <pre>{@code
      * request.awaitReply(Response.class).thenAccept(response -> {
@@ -99,11 +92,8 @@ public class ServerSwitchRequest extends EchoMessage {
     @Setter
     public static class Response extends EchoMessage {
 
-        /**
-         * A map of player UUIDs to their individual transfer results.
-         */
+        /** A map of player UUIDs to their individual transfer results. */
         private @NotNull Map<UUID, @NotNull PlayerResponse> responses;
-
     }
 
     /**
@@ -127,46 +117,32 @@ public class ServerSwitchRequest extends EchoMessage {
     @Setter
     public static class PlayerResponse {
 
-        /**
-         * Whether the transfer was successful.
-         */
+        /** Whether the transfer was successful. */
         private boolean successful;
 
-        /**
-         * The status of the transfer attempt.
-         */
+        /** The status of the transfer attempt. */
         private @NotNull ServerSwitchRequestStatus status;
 
         /**
-         * An optional serialized disconnect/kick reason from the target server.
-         * Only set when the status is {@link ServerSwitchRequestStatus#SERVER_DISCONNECTED}.
+         * An optional serialized disconnect/kick reason from the target server. Only set when the
+         * status is {@link ServerSwitchRequestStatus#SERVER_DISCONNECTED}.
          */
         private @Nullable String serializedReason;
     }
 
-    /**
-     * The possible outcomes of a server switch attempt.
-     */
+    /** The possible outcomes of a server switch attempt. */
     public enum ServerSwitchRequestStatus {
-        /**
-         * The player was successfully connected to the server.
-         */
+        /** The player was successfully connected to the server. */
         SUCCESS,
-        /**
-         * The player is already connected to the target server.
-         */
+        /** The player is already connected to the target server. */
         ALREADY_CONNECTED,
-        /**
-         * A connection attempt to this server is already in progress for this player.
-         */
+        /** A connection attempt to this server is already in progress for this player. */
         CONNECTION_IN_PROGRESS,
-        /**
-         * A plugin on the proxy cancelled the connection attempt.
-         */
+        /** A plugin on the proxy cancelled the connection attempt. */
         CONNECTION_CANCELLED,
         /**
-         * The target server disconnected the player during the connection.
-         * A reason may be available via {@code PlayerResponse.getSerializedReason()}.
+         * The target server disconnected the player during the connection. A reason may be
+         * available via {@code PlayerResponse.getSerializedReason()}.
          */
         SERVER_DISCONNECTED,
         /** The target is absent from Echo. */
@@ -182,5 +158,4 @@ public class ServerSwitchRequest extends EchoMessage {
         /** An unexpected lookup or connection failure occurred. */
         INTERNAL_ERROR
     }
-
 }

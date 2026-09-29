@@ -19,8 +19,6 @@ import fr.codinbox.connector.velocity.Connector;
 import fr.codinbox.echo.agones.AgonesGameServerLifecycle;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoConfig;
-import fr.codinbox.echo.api.proxy.Proxy;
-import fr.codinbox.echo.api.proxy.ProxyLoadSnapshot;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.MessageTarget;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
@@ -30,15 +28,17 @@ import fr.codinbox.echo.api.messaging.impl.ServerAvailabilityNotification;
 import fr.codinbox.echo.api.messaging.impl.ServerStatusNotification;
 import fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
+import fr.codinbox.echo.api.proxy.Proxy;
+import fr.codinbox.echo.api.proxy.ProxyLoadSnapshot;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.utils.EnvUtils;
 import fr.codinbox.echo.commands.CommandAudience;
 import fr.codinbox.echo.commands.EchoCommands;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
-import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
-import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.listener.AdmissionPermissionListener;
+import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
 import fr.codinbox.echo.velocity.messaging.ResourceControlRequestHandler;
 import fr.codinbox.echo.velocity.messaging.ServerAvailabilityNotificationHandler;
@@ -46,19 +46,12 @@ import fr.codinbox.echo.velocity.messaging.ServerStatusNotificationHandler;
 import fr.codinbox.echo.velocity.messaging.ServerSwitchRequestHandler;
 import fr.codinbox.echo.velocity.messaging.UserDisconnectRequestHandler;
 import fr.codinbox.echo.velocity.utils.ProxyUtils;
-import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.NotNull;
-import org.incendo.cloud.SenderMapper;
-import org.incendo.cloud.annotations.AnnotationParser;
-import org.incendo.cloud.execution.ExecutionCoordinator;
-import org.incendo.cloud.velocity.VelocityCommandManager;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,16 +60,19 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.kyori.adventure.text.Component;
+import org.incendo.cloud.SenderMapper;
+import org.incendo.cloud.annotations.AnnotationParser;
+import org.incendo.cloud.execution.ExecutionCoordinator;
+import org.incendo.cloud.velocity.VelocityCommandManager;
+import org.jetbrains.annotations.NotNull;
 
 @Plugin(
         id = "echo",
         name = "Echo",
         version = "7.3.1",
         authors = {"dandan2611"},
-        dependencies = {
-                @Dependency(id = "connector", optional = false)
-        }
-)
+        dependencies = {@Dependency(id = "connector", optional = false)})
 public class EchoPlugin {
 
     public static final @NotNull String ECHO_CONNECTOR_CONNECTION_NAME = "ECHO";
@@ -84,14 +80,11 @@ public class EchoPlugin {
     private static final Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
     private static final Duration DRAIN_CHECK_PERIOD = Duration.ofSeconds(1);
 
-    @Inject
-    private Logger logger;
+    @Inject private Logger logger;
 
-    @Inject
-    private ProxyServer proxy;
+    @Inject private ProxyServer proxy;
 
-    @Inject
-    private PluginContainer pluginContainer;
+    @Inject private PluginContainer pluginContainer;
 
     private EchoClient echoClient;
     private AgonesGameServerLifecycle agonesLifecycle;
@@ -105,75 +98,130 @@ public class EchoPlugin {
     private void onProxyInit(final @NotNull ProxyInitializeEvent event) {
         try {
             final RedisConnectorService redisConnectorService = Connector.getRedisService();
-            final Optional<RedisConnection> echoConnection = redisConnectorService.getConnection(ECHO_CONNECTOR_CONNECTION_NAME);
+            final Optional<RedisConnection> echoConnection =
+                    redisConnectorService.getConnection(ECHO_CONNECTOR_CONNECTION_NAME);
 
             if (echoConnection.isEmpty())
-                throw new IllegalStateException("Failed to get Redis connection for Echo, is the " + ECHO_CONNECTOR_CONNECTION_NAME + " connection property configured?");
+                throw new IllegalStateException(
+                        "Failed to get Redis connection for Echo, is the "
+                                + ECHO_CONNECTOR_CONNECTION_NAME
+                                + " connection property configured?");
 
             final RedisConnection connection = echoConnection.get();
             final RedisServerPlacement placement = new RedisServerPlacement(connection);
-            final boolean agonesEnabled = Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
+            final boolean agonesEnabled =
+                    Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
             if (agonesEnabled) {
-                final String drainAnnotation = Optional.ofNullable(System.getenv("ECHO_AGONES_DRAIN_ANNOTATION"))
-                        .orElse(AgonesGameServerLifecycle.DEFAULT_DRAIN_ANNOTATION);
-                this.agonesLifecycle = AgonesGameServerLifecycle.inPod(
-                        true, drainAnnotation, this::onAgonesDrain);
-                final boolean drainRequested = this.agonesLifecycle.start()
-                        .thenCompose(ignored -> this.agonesLifecycle.watchForDrainRequests())
-                        .join();
-                if (drainRequested || this.stopping.get())
-                    return;
+                final String drainAnnotation =
+                        Optional.ofNullable(System.getenv("ECHO_AGONES_DRAIN_ANNOTATION"))
+                                .orElse(AgonesGameServerLifecycle.DEFAULT_DRAIN_ANNOTATION);
+                this.agonesLifecycle =
+                        AgonesGameServerLifecycle.inPod(true, drainAnnotation, this::onAgonesDrain);
+                final boolean drainRequested =
+                        this.agonesLifecycle
+                                .start()
+                                .thenCompose(
+                                        ignored -> this.agonesLifecycle.watchForDrainRequests())
+                                .join();
+                if (drainRequested || this.stopping.get()) return;
             }
 
-            final EchoConfig config = EchoConfig.builder()
-                    .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
-                    .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
-                     .serverPlacement(placement)
-                     .resourceType(EchoResourceType.PROXY)
-                     .resourceId(java.util.Objects.requireNonNull(EnvUtils.getResourceId()))
-                     .initialProperties(EnvUtils.getInitialProperties())
-                     .build();
+            final EchoConfig config =
+                    EchoConfig.builder()
+                            .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
+                            .messagingProviderFactory(
+                                    RedisProviderFactory.messagingFactory(connection))
+                            .serverPlacement(placement)
+                            .resourceType(EchoResourceType.PROXY)
+                            .resourceId(java.util.Objects.requireNonNull(EnvUtils.getResourceId()))
+                            .initialProperties(EnvUtils.getInitialProperties())
+                            .build();
             final EchoClient client = EchoClientImpl.autoInit(config);
             this.echoClient = client;
-            this.proxy.getScheduler().buildTask(this, () -> {
-                final Instant now = Instant.now();
-                final Map<UUID, Boolean> permissions = new HashMap<>();
-                this.proxy.getAllPlayers().forEach(player -> permissions.put(player.getUniqueId(),
-                        player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)));
-                final int publicPlayers = (int) permissions.values().stream().filter(staff -> !staff).count();
-                this.publishTelemetry(now, permissions.size(), publicPlayers);
-                try {
-                    placement.publishStaffPermissions(permissions);
-                    final ProxyLoadSnapshot load =
-                            new ProxyLoadSnapshot(permissions.size(),
-                                    publicPlayers,
-                                    ProxyLoadSnapshot.SCALE_OUT_THRESHOLD,
-                                    now, now.plusSeconds(5));
-                    client.getProxyById(config.getResourceId()).join().orElseThrow()
-                            .setProperty(Proxy.PROPERTY_LOAD, load).join();
-                } catch (RuntimeException error) {
-                    this.logger.log(Level.WARNING, "Failed to publish admission permissions", error);
-                }
-            }).repeat(Duration.ofSeconds(1)).schedule();
+            this.proxy
+                    .getScheduler()
+                    .buildTask(
+                            this,
+                            () -> {
+                                final Instant now = Instant.now();
+                                final Map<UUID, Boolean> permissions = new HashMap<>();
+                                this.proxy
+                                        .getAllPlayers()
+                                        .forEach(
+                                                player ->
+                                                        permissions.put(
+                                                                player.getUniqueId(),
+                                                                player.hasPermission(
+                                                                        ServerAdmissionSnapshot
+                                                                                .STAFF_PERMISSION)));
+                                final int publicPlayers =
+                                        (int)
+                                                permissions.values().stream()
+                                                        .filter(staff -> !staff)
+                                                        .count();
+                                this.publishTelemetry(now, permissions.size(), publicPlayers);
+                                try {
+                                    placement.publishStaffPermissions(permissions);
+                                    final ProxyLoadSnapshot load =
+                                            new ProxyLoadSnapshot(
+                                                    permissions.size(),
+                                                    publicPlayers,
+                                                    ProxyLoadSnapshot.SCALE_OUT_THRESHOLD,
+                                                    now,
+                                                    now.plusSeconds(5));
+                                    client.getProxyById(config.getResourceId())
+                                            .join()
+                                            .orElseThrow()
+                                            .setProperty(Proxy.PROPERTY_LOAD, load)
+                                            .join();
+                                } catch (RuntimeException error) {
+                                    this.logger.log(
+                                            Level.WARNING,
+                                            "Failed to publish admission permissions",
+                                            error);
+                                }
+                            })
+                    .repeat(Duration.ofSeconds(1))
+                    .schedule();
 
             // Dynamic server registration
             final MessagingProvider messagingProvider = client.getMessagingProvider();
-            messagingProvider.subscribe(MessageTarget.PROXIES_TOPIC, ServerStatusNotification.class, new ServerStatusNotificationHandler(this.logger, this.proxy));
-            messagingProvider.subscribe(MessageTarget.PROXIES_TOPIC, ServerAvailabilityNotification.class,
+            messagingProvider.subscribe(
+                    MessageTarget.PROXIES_TOPIC,
+                    ServerStatusNotification.class,
+                    new ServerStatusNotificationHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(
+                    MessageTarget.PROXIES_TOPIC,
+                    ServerAvailabilityNotification.class,
                     new ServerAvailabilityNotificationHandler(this.logger, this.proxy, client));
-            messagingProvider.subscribe(client.getLocalTopic(), ServerSwitchRequest.class, new ServerSwitchRequestHandler(this.logger, this.proxy));
-            messagingProvider.subscribe(client.getLocalTopic(), ProxySwitchRequest.class, new ProxySwitchRequestHandler(this.logger, this.proxy));
-            messagingProvider.subscribe(client.getLocalTopic(), ResourceControlRequest.class,
+            messagingProvider.subscribe(
+                    client.getLocalTopic(),
+                    ServerSwitchRequest.class,
+                    new ServerSwitchRequestHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(
+                    client.getLocalTopic(),
+                    ProxySwitchRequest.class,
+                    new ProxySwitchRequestHandler(this.logger, this.proxy));
+            messagingProvider.subscribe(
+                    client.getLocalTopic(),
+                    ResourceControlRequest.class,
                     new ResourceControlRequestHandler(this, client));
-            messagingProvider.subscribe(client.getLocalTopic(), UserDisconnectRequest.class,
+            messagingProvider.subscribe(
+                    client.getLocalTopic(),
+                    UserDisconnectRequest.class,
                     new UserDisconnectRequestHandler(this, client));
 
-            final VelocityCommandManager<CommandSource> commandManager = new VelocityCommandManager<>(
-                    this.pluginContainer, this.proxy, ExecutionCoordinator.simpleCoordinator(), SenderMapper.identity());
+            final VelocityCommandManager<CommandSource> commandManager =
+                    new VelocityCommandManager<>(
+                            this.pluginContainer,
+                            this.proxy,
+                            ExecutionCoordinator.simpleCoordinator(),
+                            SenderMapper.identity());
             configureCommands(commandManager);
             final AnnotationParser<CommandSource> commandParser =
                     new AnnotationParser<>(commandManager, CommandSource.class);
-            final EchoCommands<CommandSource> commands = new EchoCommands<>(client, commandAudience(), COMMAND_ROOT);
+            final EchoCommands<CommandSource> commands =
+                    new EchoCommands<>(client, commandAudience(), COMMAND_ROOT);
             commands.register(commandParser);
             this.proxy.getCommandManager().unregister("send");
             commands.registerSend(commandParser);
@@ -181,26 +229,40 @@ public class EchoPlugin {
             commands.registerGlist(commandParser);
 
             // Load existing servers
-            client.getServers().thenAccept(servers -> {
-                for (String s : servers.keySet()) {
-                    client.getServerById(s).thenAccept(serverOpt -> {
-                        serverOpt.ifPresent(server -> {
-                            ProxyUtils.registerServerIfActive(this.proxy, this.logger, server);
-                        });
-                    });
-                }
-            });
+            client.getServers()
+                    .thenAccept(
+                            servers -> {
+                                for (String s : servers.keySet()) {
+                                    client.getServerById(s)
+                                            .thenAccept(
+                                                    serverOpt -> {
+                                                        serverOpt.ifPresent(
+                                                                server -> {
+                                                                    ProxyUtils
+                                                                            .registerServerIfActive(
+                                                                                    this.proxy,
+                                                                                    this.logger,
+                                                                                    server);
+                                                                });
+                                                    });
+                                }
+                            });
 
             // Register listeners
             final EventManager eventManager = this.proxy.getEventManager();
             eventManager.register(this, new AdmissionPermissionListener(placement));
-            eventManager.register(this, new JoinListener(() -> this.acceptingLogins.get()
-                    && !this.stopping.get() && !this.draining.get(), this.userSessions));
+            eventManager.register(
+                    this,
+                    new JoinListener(
+                            () ->
+                                    this.acceptingLogins.get()
+                                            && !this.stopping.get()
+                                            && !this.draining.get(),
+                            this.userSessions));
 
             if (!this.stopping.get() && !this.draining.get()) {
                 this.acceptingLogins.set(true);
-                if (this.stopping.get() || this.draining.get())
-                    this.acceptingLogins.set(false);
+                if (this.stopping.get() || this.draining.get()) this.acceptingLogins.set(false);
             }
 
         } catch (Exception e) {
@@ -212,10 +274,18 @@ public class EchoPlugin {
 
     static void configureCommands(VelocityCommandManager<CommandSource> manager) {
         // Let Cloud parse resource IDs (notably server:<id>) and report incomplete command usage.
-        manager.brigadierManager().settings().set(org.incendo.cloud.brigadier.BrigadierSetting.FORCE_EXECUTABLE, true);
-        manager.brigadierManager().registerMapping(
-                new io.leangen.geantyref.TypeToken<org.incendo.cloud.parser.standard.StringParser<CommandSource>>() {},
-                mapping -> mapping.toConstant(com.mojang.brigadier.arguments.StringArgumentType.greedyString()).cloudSuggestions());
+        manager.brigadierManager()
+                .settings()
+                .set(org.incendo.cloud.brigadier.BrigadierSetting.FORCE_EXECUTABLE, true);
+        manager.brigadierManager()
+                .registerMapping(
+                        new io.leangen.geantyref.TypeToken<
+                                org.incendo.cloud.parser.standard.StringParser<CommandSource>>() {},
+                        mapping ->
+                                mapping.toConstant(
+                                                com.mojang.brigadier.arguments.StringArgumentType
+                                                        .greedyString())
+                                        .cloudSuggestions());
     }
 
     static CommandAudience<CommandSource> commandAudience() {
@@ -232,19 +302,25 @@ public class EchoPlugin {
 
             @Override
             public java.util.Optional<java.util.UUID> playerId(CommandSource source) {
-                return source instanceof Player player ? java.util.Optional.of(player.getUniqueId())
+                return source instanceof Player player
+                        ? java.util.Optional.of(player.getUniqueId())
                         : java.util.Optional.empty();
             }
         };
     }
 
-    void publishTelemetry(final @NotNull Instant sampledAt, final int total, final int publicPlayers) {
+    void publishTelemetry(
+            final @NotNull Instant sampledAt, final int total, final int publicPlayers) {
         if (this.agonesLifecycle != null)
-            this.agonesLifecycle.publishTelemetry(sampledAt, total, publicPlayers,
-                    ProxyLoadSnapshot.SCALE_OUT_THRESHOLD).exceptionally(error -> {
-                this.logger.log(Level.WARNING, "Failed to publish Agones telemetry", error);
-                return null;
-            });
+            this.agonesLifecycle
+                    .publishTelemetry(
+                            sampledAt, total, publicPlayers, ProxyLoadSnapshot.SCALE_OUT_THRESHOLD)
+                    .exceptionally(
+                            error -> {
+                                this.logger.log(
+                                        Level.WARNING, "Failed to publish Agones telemetry", error);
+                                return null;
+                            });
     }
 
     public boolean beginDrain() {
@@ -258,23 +334,20 @@ public class EchoPlugin {
 
     public boolean beginDrain(final @NotNull Instant deadline) {
         java.util.Objects.requireNonNull(deadline, "deadline");
-        if (this.stopping.get() || !this.draining.compareAndSet(false, true))
-            return false;
+        if (this.stopping.get() || !this.draining.compareAndSet(false, true)) return false;
         this.acceptingLogins.set(false);
         try {
             this.scheduleDrainShutdown(deadline);
             return true;
         } catch (RuntimeException error) {
             this.draining.set(false);
-            if (!this.stopping.get())
-                this.acceptingLogins.set(true);
+            if (!this.stopping.get()) this.acceptingLogins.set(true);
             throw error;
         }
     }
 
     public boolean activate() {
-        if (this.stopping.get() || this.draining.get())
-            return false;
+        if (this.stopping.get() || this.draining.get()) return false;
         this.acceptingLogins.set(true);
         if (this.stopping.get() || this.draining.get()) {
             this.acceptingLogins.set(false);
@@ -284,61 +357,72 @@ public class EchoPlugin {
     }
 
     public boolean requestShutdown() {
-        if (!this.stopping.compareAndSet(false, true))
-            return false;
+        if (!this.stopping.compareAndSet(false, true)) return false;
         this.acceptingLogins.set(false);
         try {
             this.proxy.getScheduler().buildTask(this, () -> this.proxy.shutdown()).schedule();
             return true;
         } catch (RuntimeException error) {
             this.stopping.set(false);
-            if (!this.draining.get())
-                this.acceptingLogins.set(true);
+            if (!this.draining.get()) this.acceptingLogins.set(true);
             throw error;
         }
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(@NotNull UUID userId, @NotNull String reason) {
+    public CompletableFuture<Boolean> disconnectPlayer(
+            @NotNull UUID userId, @NotNull String reason) {
         return this.scheduleDisconnect(userId, reason, null, Long.MAX_VALUE);
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(@NotNull UUID userId, @NotNull String reason,
-                                                        @NotNull String expectedSessionId) {
+    public CompletableFuture<Boolean> disconnectPlayer(
+            @NotNull UUID userId, @NotNull String reason, @NotNull String expectedSessionId) {
         java.util.Objects.requireNonNull(expectedSessionId, "expectedSessionId");
         return this.scheduleDisconnect(userId, reason, expectedSessionId, Long.MAX_VALUE);
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(@NotNull UUID userId, @NotNull String reason,
-                                                        @NotNull String expectedSessionId,
-                                                        long deadlineEpochMillis) {
+    public CompletableFuture<Boolean> disconnectPlayer(
+            @NotNull UUID userId,
+            @NotNull String reason,
+            @NotNull String expectedSessionId,
+            long deadlineEpochMillis) {
         java.util.Objects.requireNonNull(expectedSessionId, "expectedSessionId");
         return this.scheduleDisconnect(userId, reason, expectedSessionId, deadlineEpochMillis);
     }
 
-    private CompletableFuture<Boolean> scheduleDisconnect(UUID userId, String reason, String expectedSessionId,
-                                                           long deadlineEpochMillis) {
+    private CompletableFuture<Boolean> scheduleDisconnect(
+            UUID userId, String reason, String expectedSessionId, long deadlineEpochMillis) {
         java.util.Objects.requireNonNull(userId, "userId");
         java.util.Objects.requireNonNull(reason, "reason");
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         try {
-            this.proxy.getScheduler().buildTask(this, () -> {
-                try {
-                    if (this.clock.millis() >= deadlineEpochMillis) {
-                        result.completeExceptionally(new TimeoutException("Disconnect deadline elapsed"));
-                        return;
-                    }
-                    Optional<Player> player = this.proxy.getPlayer(userId);
-                    if (expectedSessionId != null
-                            && (player.isEmpty() || !this.userSessions.remove(userId, expectedSessionId))) {
-                        result.complete(false);
-                        return;
-                    }
-                    player.ifPresent(value -> value.disconnect(Component.text(reason)));
-                    result.complete(player.isPresent());
-                } catch (RuntimeException error) {
-                    result.completeExceptionally(error);
-                }
-            }).schedule();
+            this.proxy
+                    .getScheduler()
+                    .buildTask(
+                            this,
+                            () -> {
+                                try {
+                                    if (this.clock.millis() >= deadlineEpochMillis) {
+                                        result.completeExceptionally(
+                                                new TimeoutException(
+                                                        "Disconnect deadline elapsed"));
+                                        return;
+                                    }
+                                    Optional<Player> player = this.proxy.getPlayer(userId);
+                                    if (expectedSessionId != null
+                                            && (player.isEmpty()
+                                                    || !this.userSessions.remove(
+                                                            userId, expectedSessionId))) {
+                                        result.complete(false);
+                                        return;
+                                    }
+                                    player.ifPresent(
+                                            value -> value.disconnect(Component.text(reason)));
+                                    result.complete(player.isPresent());
+                                } catch (RuntimeException error) {
+                                    result.completeExceptionally(error);
+                                }
+                            })
+                    .schedule();
         } catch (RuntimeException error) {
             result.completeExceptionally(error);
         }
@@ -346,24 +430,40 @@ public class EchoPlugin {
     }
 
     private void scheduleDrainShutdown(Instant deadline) {
-        final Runnable shutdown = () -> {
-            if (this.stopping.compareAndSet(false, true)) {
-                this.acceptingLogins.set(false);
-                this.proxy.shutdown();
-            }
-        };
-        final ScheduledTask deadlineTask = this.proxy.getScheduler().buildTask(this, shutdown)
-                .delay(Duration.ofMillis(Math.max(0L, Duration.between(this.clock.instant(), deadline).toMillis())))
-                .schedule();
+        final Runnable shutdown =
+                () -> {
+                    if (this.stopping.compareAndSet(false, true)) {
+                        this.acceptingLogins.set(false);
+                        this.proxy.shutdown();
+                    }
+                };
+        final ScheduledTask deadlineTask =
+                this.proxy
+                        .getScheduler()
+                        .buildTask(this, shutdown)
+                        .delay(
+                                Duration.ofMillis(
+                                        Math.max(
+                                                0L,
+                                                Duration.between(this.clock.instant(), deadline)
+                                                        .toMillis())))
+                        .schedule();
         try {
-            this.proxy.getScheduler().buildTask(this, task -> {
-                if (this.stopping.get()) {
-                    task.cancel();
-                } else if (this.proxy.getPlayerCount() == 0 || !this.clock.instant().isBefore(deadline)) {
-                    task.cancel();
-                    shutdown.run();
-                }
-            }).repeat(DRAIN_CHECK_PERIOD).schedule();
+            this.proxy
+                    .getScheduler()
+                    .buildTask(
+                            this,
+                            task -> {
+                                if (this.stopping.get()) {
+                                    task.cancel();
+                                } else if (this.proxy.getPlayerCount() == 0
+                                        || !this.clock.instant().isBefore(deadline)) {
+                                    task.cancel();
+                                    shutdown.run();
+                                }
+                            })
+                    .repeat(DRAIN_CHECK_PERIOD)
+                    .schedule();
         } catch (RuntimeException error) {
             deadlineTask.cancel();
             throw error;
@@ -376,12 +476,9 @@ public class EchoPlugin {
         this.draining.set(true);
         this.acceptingLogins.set(false);
         try {
-            if (this.echoClient != null)
-                this.echoClient.shutdown();
+            if (this.echoClient != null) this.echoClient.shutdown();
         } finally {
-            if (this.agonesLifecycle != null)
-                this.agonesLifecycle.close();
+            if (this.agonesLifecycle != null) this.agonesLifecycle.close();
         }
     }
-
 }

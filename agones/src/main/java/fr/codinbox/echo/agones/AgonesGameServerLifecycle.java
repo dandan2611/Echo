@@ -1,7 +1,5 @@
 package fr.codinbox.echo.agones;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -15,14 +13,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.NotNull;
 
-/**
- * Keeps an in-pod game server synchronized with its Agones SDK sidecar.
- */
+/** Keeps an in-pod game server synchronized with its Agones SDK sidecar. */
 public final class AgonesGameServerLifecycle implements AutoCloseable {
 
     /** Default annotation used by Fleet allocation overflow to request draining. */
     public static final String DEFAULT_DRAIN_ANNOTATION = "echo.codinbox.fr/draining";
+
     private static final long TELEMETRY_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(15);
 
     private final AgonesSdkClient sdk;
@@ -52,10 +50,12 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
             final boolean longLived,
             final @NotNull String drainAnnotation,
             final @NotNull Supplier<CompletableFuture<Void>> onDrain) {
-        final String port = Objects.requireNonNull(System.getenv("AGONES_SDK_HTTP_PORT"),
-                "AGONES_SDK_HTTP_PORT is not set");
+        final String port =
+                Objects.requireNonNull(
+                        System.getenv("AGONES_SDK_HTTP_PORT"), "AGONES_SDK_HTTP_PORT is not set");
         return new AgonesGameServerLifecycle(
-                new AgonesSdkClient(HttpClient.newHttpClient(), URI.create("http://127.0.0.1:" + port)),
+                new AgonesSdkClient(
+                        HttpClient.newHttpClient(), URI.create("http://127.0.0.1:" + port)),
                 longLived,
                 drainAnnotation,
                 onDrain,
@@ -72,7 +72,14 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
             final Duration healthInterval,
             final Duration drainInterval,
             final Duration startupTimeout) {
-        this(sdk, longLived, drainAnnotation, onDrain, healthInterval, drainInterval, startupTimeout,
+        this(
+                sdk,
+                longLived,
+                drainAnnotation,
+                onDrain,
+                healthInterval,
+                drainInterval,
+                startupTimeout,
                 System::nanoTime);
     }
 
@@ -94,11 +101,13 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
         this.startupTimeout = startupTimeout;
         this.nanoTime = nanoTime;
         this.lastTelemetryNanos = nanoTime.getAsLong() - TELEMETRY_INTERVAL_NANOS;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            final Thread thread = new Thread(runnable, "echo-agones-lifecycle");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this.scheduler =
+                Executors.newSingleThreadScheduledExecutor(
+                        runnable -> {
+                            final Thread thread = new Thread(runnable, "echo-agones-lifecycle");
+                            thread.setDaemon(true);
+                            return thread;
+                        });
     }
 
     /**
@@ -109,22 +118,36 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     public @NotNull CompletableFuture<Void> start() {
         final long deadline = System.nanoTime() + this.startupTimeout.toNanos();
         scheduleHealth();
-        return retryUntil(() -> this.sdk.isInState("Allocated").thenCompose(allocated -> allocated
-                        ? CompletableFuture.completedFuture(null)
-                        : this.sdk.ready()), deadline)
+        return retryUntil(
+                        () ->
+                                this.sdk
+                                        .isInState("Allocated")
+                                        .thenCompose(
+                                                allocated ->
+                                                        allocated
+                                                                ? CompletableFuture.completedFuture(
+                                                                        null)
+                                                                : this.sdk.ready()),
+                        deadline)
                 .thenCompose(ignored -> waitForReadyOrAllocated(deadline))
-                .thenCompose(ignored -> this.longLived
-                        ? ensureAllocated(deadline)
-                        : waitForExternalAllocation());
+                .thenCompose(
+                        ignored ->
+                                this.longLived
+                                        ? ensureAllocated(deadline)
+                                        : waitForExternalAllocation());
     }
 
     /**
-     * Publishes one atomic SDK annotation, without Kubernetes API credentials. Call with fresh local
-     * occupancy; attempts are limited to once every 15 seconds, with only one SDK write in flight.
-     * Skipped samples are not queued. The first attempt is immediate; failures also consume the interval.
+     * Publishes one atomic SDK annotation, without Kubernetes API credentials. Call with fresh
+     * local occupancy; attempts are limited to once every 15 seconds, with only one SDK write in
+     * flight. Skipped samples are not queued. The first attempt is immediate; failures also consume
+     * the interval.
      */
-    public @NotNull CompletableFuture<Void> publishTelemetry(final @NotNull Instant sampledAt,
-            final int connectedPlayers, final int publicPlayers, final int publicCapacity) {
+    public @NotNull CompletableFuture<Void> publishTelemetry(
+            final @NotNull Instant sampledAt,
+            final int connectedPlayers,
+            final int publicPlayers,
+            final int publicCapacity) {
         if (this.scheduler.isShutdown() || !this.telemetryInProgress.compareAndSet(false, true))
             return CompletableFuture.completedFuture(null);
         try {
@@ -134,7 +157,8 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
                 return CompletableFuture.completedFuture(null);
             }
             this.lastTelemetryNanos = now;
-            return this.sdk.telemetry(sampledAt, connectedPlayers, publicPlayers, publicCapacity)
+            return this.sdk
+                    .telemetry(sampledAt, connectedPlayers, publicPlayers, publicCapacity)
                     .whenComplete((ignored, error) -> this.telemetryInProgress.set(false));
         } catch (RuntimeException error) {
             this.telemetryInProgress.set(false);
@@ -143,39 +167,79 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     }
 
     private CompletableFuture<Void> waitForReadyOrAllocated(final long deadline) {
-        return retryUntil(() -> this.sdk.isInState("Ready", "Allocated").thenCompose(matches -> matches
-                ? CompletableFuture.completedFuture(null)
-                : CompletableFuture.failedFuture(new IllegalStateException(
-                        "GameServer is neither Ready nor Allocated"))), deadline);
+        return retryUntil(
+                () ->
+                        this.sdk
+                                .isInState("Ready", "Allocated")
+                                .thenCompose(
+                                        matches ->
+                                                matches
+                                                        ? CompletableFuture.completedFuture(null)
+                                                        : CompletableFuture.failedFuture(
+                                                                new IllegalStateException(
+                                                                        "GameServer is neither Ready nor Allocated"))),
+                deadline);
     }
 
     private CompletableFuture<Void> ensureAllocated(final long deadline) {
-        return retryUntil(() -> this.sdk.isInState("Allocated").thenCompose(allocated -> {
-            if (allocated)
-                return CompletableFuture.completedFuture(null);
-            return this.sdk.allocate().exceptionallyCompose(error -> this.sdk.isInState("Allocated")
-                    .thenCompose(nowAllocated -> nowAllocated
-                            ? CompletableFuture.completedFuture(null)
-                            : CompletableFuture.failedFuture(error)));
-        }), deadline).thenCompose(ignored -> waitForState("Allocated", deadline));
+        return retryUntil(
+                        () ->
+                                this.sdk
+                                        .isInState("Allocated")
+                                        .thenCompose(
+                                                allocated -> {
+                                                    if (allocated)
+                                                        return CompletableFuture.completedFuture(
+                                                                null);
+                                                    return this.sdk
+                                                            .allocate()
+                                                            .exceptionallyCompose(
+                                                                    error ->
+                                                                            this.sdk
+                                                                                    .isInState(
+                                                                                            "Allocated")
+                                                                                    .thenCompose(
+                                                                                            nowAllocated ->
+                                                                                                    nowAllocated
+                                                                                                            ? CompletableFuture
+                                                                                                                    .completedFuture(
+                                                                                                                            null)
+                                                                                                            : CompletableFuture
+                                                                                                                    .failedFuture(
+                                                                                                                            error)));
+                                                }),
+                        deadline)
+                .thenCompose(ignored -> waitForState("Allocated", deadline));
     }
 
     private CompletableFuture<Void> waitForState(final String state, final long deadline) {
-        return retryUntil(() -> this.sdk.isInState(state).thenCompose(matches -> matches
-                ? CompletableFuture.completedFuture(null)
-                : CompletableFuture.failedFuture(new IllegalStateException("GameServer is not " + state))), deadline);
+        return retryUntil(
+                () ->
+                        this.sdk
+                                .isInState(state)
+                                .thenCompose(
+                                        matches ->
+                                                matches
+                                                        ? CompletableFuture.completedFuture(null)
+                                                        : CompletableFuture.failedFuture(
+                                                                new IllegalStateException(
+                                                                        "GameServer is not "
+                                                                                + state))),
+                deadline);
     }
 
     private CompletableFuture<Void> waitForExternalAllocation() {
-        return this.sdk.isInState("Allocated")
+        return this.sdk
+                .isInState("Allocated")
                 .exceptionally(ignored -> false)
-                .thenCompose(allocated -> {
-                    if (allocated)
-                        return CompletableFuture.completedFuture(null);
-                    final CompletableFuture<Void> delay = new CompletableFuture<>();
-                    this.scheduler.schedule(() -> delay.complete(null), 100, TimeUnit.MILLISECONDS);
-                    return delay.thenCompose(ignored -> waitForExternalAllocation());
-                });
+                .thenCompose(
+                        allocated -> {
+                            if (allocated) return CompletableFuture.completedFuture(null);
+                            final CompletableFuture<Void> delay = new CompletableFuture<>();
+                            this.scheduler.schedule(
+                                    () -> delay.complete(null), 100, TimeUnit.MILLISECONDS);
+                            return delay.thenCompose(ignored -> waitForExternalAllocation());
+                        });
     }
 
     private void scheduleHealth() {
@@ -194,51 +258,67 @@ public final class AgonesGameServerLifecycle implements AutoCloseable {
     public @NotNull CompletableFuture<Boolean> watchForDrainRequests() {
         if (!this.longLived || !this.drainPolling.compareAndSet(false, true))
             return CompletableFuture.completedFuture(this.drainSignalled.get());
-        return pollDrainUntilSuccess().thenApply(drained -> {
-            if (!this.scheduler.isShutdown())
-                this.scheduler.scheduleWithFixedDelay(
-                        () -> pollDrain().exceptionally(pollError -> false),
-                        this.drainInterval.toMillis(),
-                        this.drainInterval.toMillis(),
-                        TimeUnit.MILLISECONDS);
-            return drained;
-        });
+        return pollDrainUntilSuccess()
+                .thenApply(
+                        drained -> {
+                            if (!this.scheduler.isShutdown())
+                                this.scheduler.scheduleWithFixedDelay(
+                                        () -> pollDrain().exceptionally(pollError -> false),
+                                        this.drainInterval.toMillis(),
+                                        this.drainInterval.toMillis(),
+                                        TimeUnit.MILLISECONDS);
+                            return drained;
+                        });
     }
 
     private CompletableFuture<Boolean> pollDrainUntilSuccess() {
-        return pollDrain().exceptionallyCompose(error -> {
-            if (this.scheduler.isShutdown())
-                return CompletableFuture.failedFuture(error);
-            final CompletableFuture<Void> delay = new CompletableFuture<>();
-            this.scheduler.schedule(
-                    () -> delay.complete(null), this.drainInterval.toMillis(), TimeUnit.MILLISECONDS);
-            return delay.thenCompose(ignored -> pollDrainUntilSuccess());
-        });
+        return pollDrain()
+                .exceptionallyCompose(
+                        error -> {
+                            if (this.scheduler.isShutdown())
+                                return CompletableFuture.failedFuture(error);
+                            final CompletableFuture<Void> delay = new CompletableFuture<>();
+                            this.scheduler.schedule(
+                                    () -> delay.complete(null),
+                                    this.drainInterval.toMillis(),
+                                    TimeUnit.MILLISECONDS);
+                            return delay.thenCompose(ignored -> pollDrainUntilSuccess());
+                        });
     }
 
     private CompletableFuture<Boolean> pollDrain() {
         if (this.drainSignalled.get() || !this.drainInProgress.compareAndSet(false, true))
             return CompletableFuture.completedFuture(this.drainSignalled.get());
-        return this.sdk.isDrainRequested(this.drainAnnotation)
-                .thenCompose(requested -> requested
-                        ? this.onDrain.get().thenApply(ignored -> true)
-                        : CompletableFuture.completedFuture(false))
-                .thenAccept(completed -> {
-                    if (completed)
-                        this.drainSignalled.set(true);
-                })
+        return this.sdk
+                .isDrainRequested(this.drainAnnotation)
+                .thenCompose(
+                        requested ->
+                                requested
+                                        ? this.onDrain.get().thenApply(ignored -> true)
+                                        : CompletableFuture.completedFuture(false))
+                .thenAccept(
+                        completed -> {
+                            if (completed) this.drainSignalled.set(true);
+                        })
                 .thenApply(ignored -> this.drainSignalled.get())
                 .whenComplete((ignored, error) -> this.drainInProgress.set(false));
     }
 
-    private CompletableFuture<Void> retryUntil(final Supplier<CompletableFuture<Void>> operation, final long deadline) {
-        return operation.get().exceptionallyCompose(error -> {
-            if (System.nanoTime() >= deadline)
-                return CompletableFuture.failedFuture(new TimeoutException("Agones sidecar did not become available"));
-            final CompletableFuture<Void> delay = new CompletableFuture<>();
-            this.scheduler.schedule(() -> delay.complete(null), 100, TimeUnit.MILLISECONDS);
-            return delay.thenCompose(ignored -> retryUntil(operation, deadline));
-        });
+    private CompletableFuture<Void> retryUntil(
+            final Supplier<CompletableFuture<Void>> operation, final long deadline) {
+        return operation
+                .get()
+                .exceptionallyCompose(
+                        error -> {
+                            if (System.nanoTime() >= deadline)
+                                return CompletableFuture.failedFuture(
+                                        new TimeoutException(
+                                                "Agones sidecar did not become available"));
+                            final CompletableFuture<Void> delay = new CompletableFuture<>();
+                            this.scheduler.schedule(
+                                    () -> delay.complete(null), 100, TimeUnit.MILLISECONDS);
+                            return delay.thenCompose(ignored -> retryUntil(operation, deadline));
+                        });
     }
 
     @Override

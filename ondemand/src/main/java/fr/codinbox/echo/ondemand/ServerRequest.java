@@ -1,9 +1,8 @@
 package fr.codinbox.echo.ondemand;
 
 import fr.codinbox.echo.api.property.PropertyKey;
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A request for one server of a given type.
@@ -12,9 +11,10 @@ import java.util.Map;
  * @param type server type matched by the orchestrator
  * @param properties Echo properties written before the acquired server is returned
  */
-public record ServerRequest(@NotNull String requestId,
-                            @NotNull String type,
-                            @NotNull Map<? extends PropertyKey<?>, ?> properties) {
+public record ServerRequest(
+        @NotNull String requestId,
+        @NotNull String type,
+        @NotNull Map<? extends PropertyKey<?>, ?> properties) {
 
     /**
      * Creates a request without initial Echo properties.
@@ -28,10 +28,8 @@ public record ServerRequest(@NotNull String requestId,
 
     /** Validates the request and snapshots its properties. */
     public ServerRequest {
-        if (requestId.isBlank())
-            throw new IllegalArgumentException("requestId must not be blank");
-        if (type.isBlank())
-            throw new IllegalArgumentException("type must not be blank");
+        if (requestId.isBlank()) throw new IllegalArgumentException("requestId must not be blank");
+        if (type.isBlank()) throw new IllegalArgumentException("type must not be blank");
         properties = Map.copyOf(properties);
         if (properties.keySet().stream().anyMatch(key -> key.key().isBlank()))
             throw new IllegalArgumentException("property keys must not be blank");

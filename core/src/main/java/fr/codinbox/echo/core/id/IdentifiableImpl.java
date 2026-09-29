@@ -15,5 +15,4 @@ public abstract class IdentifiableImpl<T> implements Identifiable<T> {
     public @NotNull T getId() {
         return this.id;
     }
-
 }

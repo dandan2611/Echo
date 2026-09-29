@@ -3,12 +3,6 @@ package fr.codinbox.echo.core.cache;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.cache.CacheMap;
 import fr.codinbox.echo.api.cache.CacheProvider;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.redisson.api.RBucket;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -18,6 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RBucket;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 
 public class RedisCacheProvider implements CacheProvider {
 
@@ -48,14 +47,15 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value) {
+    public @NotNull <T> CompletableFuture<Void> setObject(
+            final @NotNull String key, final @NotNull T value) {
         final RBucket<T> bucket = client().getBucket(key);
         return bucket.setAsync(value).toCompletableFuture();
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value,
-                                                         final @NotNull Duration duration) {
+    public @NotNull <T> CompletableFuture<Void> setObject(
+            final @NotNull String key, final @NotNull T value, final @NotNull Duration duration) {
         if (duration.isNegative() || duration.isZero())
             throw new IllegalArgumentException("Cache TTL must be positive");
         final RBucket<T> bucket = client().getBucket(key);
@@ -63,13 +63,15 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Instant instant) {
+    public @NotNull CompletableFuture<Boolean> expireObject(
+            final @NotNull String key, final @NotNull Instant instant) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.expireAsync(instant).toCompletableFuture();
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Duration duration) {
+    public @NotNull CompletableFuture<Boolean> expireObject(
+            final @NotNull String key, final @NotNull Duration duration) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.expireAsync(duration).toCompletableFuture();
     }
@@ -81,7 +83,8 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull CompletableFuture<Long> getObjectRemainingTimeToLive(final @NotNull String key) {
+    public @NotNull CompletableFuture<Long> getObjectRemainingTimeToLive(
+            final @NotNull String key) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.remainTimeToLiveAsync().toCompletableFuture();
     }
@@ -98,41 +101,46 @@ public class RedisCacheProvider implements CacheProvider {
 
     @Override
     public @NotNull CompletableFuture<@NotNull Set<String>> getKeys(final @NotNull String pattern) {
-        return CompletableFuture.supplyAsync(() -> StreamSupport
-                .stream(client().getKeys().getKeysByPattern(pattern).spliterator(), true)
-                .collect(Collectors.toSet()));
+        return CompletableFuture.supplyAsync(
+                () ->
+                        StreamSupport.stream(
+                                        client().getKeys().getKeysByPattern(pattern).spliterator(),
+                                        true)
+                                .collect(Collectors.toSet()));
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> withLock(final @NotNull String key,
-                                                         long waitTime,
-                                                         long leaseTime,
-                                                         final @NotNull TimeUnit unit,
-                                                         final @NotNull Supplier<@NotNull CompletableFuture<Void>> action) {
-        return CompletableFuture.supplyAsync(() -> {
-            final RLock lock = client().getLock(key);
-            try {
-                final boolean acquired = leaseTime > 0
-                        ? lock.tryLock(waitTime, leaseTime, unit)
-                        : lock.tryLock(waitTime, unit);
-                if (!acquired)
-                    return false;
-                try {
-                    action.get().join();
-                    return true;
-                } finally {
+    public @NotNull CompletableFuture<Boolean> withLock(
+            final @NotNull String key,
+            long waitTime,
+            long leaseTime,
+            final @NotNull TimeUnit unit,
+            final @NotNull Supplier<@NotNull CompletableFuture<Void>> action) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    final RLock lock = client().getLock(key);
                     try {
-                        if (lock.isHeldByCurrentThread())
-                            lock.unlock();
-                    } catch (final Exception ignored) {
-                        // Best effort unlock; Redisson releases watchdog locks if this process dies.
+                        final boolean acquired =
+                                leaseTime > 0
+                                        ? lock.tryLock(waitTime, leaseTime, unit)
+                                        : lock.tryLock(waitTime, unit);
+                        if (!acquired) return false;
+                        try {
+                            action.get().join();
+                            return true;
+                        } finally {
+                            try {
+                                if (lock.isHeldByCurrentThread()) lock.unlock();
+                            } catch (final Exception ignored) {
+                                // Best effort unlock; Redisson releases watchdog locks if this
+                                // process dies.
+                            }
+                        }
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return false;
                     }
-                }
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }, runnable -> Thread.ofVirtual().name("echo-cache-lock").start(runnable));
+                },
+                runnable -> Thread.ofVirtual().name("echo-cache-lock").start(runnable));
     }
-
 }

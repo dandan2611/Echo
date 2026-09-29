@@ -1,15 +1,14 @@
 package fr.codinbox.echo.api.server;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.jetbrains.annotations.NotNull;
-
 import java.time.Instant;
 import java.util.Objects;
+import org.jetbrains.annotations.NotNull;
 
 /** A timestamped server load that becomes ineligible after its validity deadline. */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
-public record ServerLoadSnapshot(@NotNull ServerLoad load, @NotNull Instant sampledAt,
-                                 @NotNull Instant validUntil) {
+public record ServerLoadSnapshot(
+        @NotNull ServerLoad load, @NotNull Instant sampledAt, @NotNull Instant validUntil) {
 
     public ServerLoadSnapshot {
         Objects.requireNonNull(load, "load");
@@ -22,5 +21,4 @@ public record ServerLoadSnapshot(@NotNull ServerLoad load, @NotNull Instant samp
     public boolean isStale(final @NotNull Instant now) {
         return !Objects.requireNonNull(now, "now").isBefore(this.validUntil);
     }
-
 }

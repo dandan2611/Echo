@@ -1,9 +1,8 @@
 package fr.codinbox.echo.ondemand;
 
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Objects;
 
 /**
  * An acquired server and, when available, the request that owns it.
@@ -19,8 +18,7 @@ public record ServerHandle(@NotNull String id, @Nullable String requestId) {
 
     public ServerHandle {
         Objects.requireNonNull(id, "id");
-        if (id.isBlank())
-            throw new IllegalArgumentException("id must not be blank");
+        if (id.isBlank()) throw new IllegalArgumentException("id must not be blank");
         if (requestId != null && requestId.isBlank())
             throw new IllegalArgumentException("requestId must not be blank");
     }

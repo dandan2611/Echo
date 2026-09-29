@@ -1,13 +1,13 @@
 package fr.codinbox.echo.core.healthcheck;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.integration.RedisIntegrationTestBase;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("integration")
 class HeartbeatTest extends RedisIntegrationTestBase {

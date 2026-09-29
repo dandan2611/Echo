@@ -1,5 +1,16 @@
 package fr.codinbox.echo.paper.listener;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
@@ -9,6 +20,14 @@ import fr.codinbox.echo.api.server.ServerLoadManager;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.paper.EchoPaper;
+import java.lang.reflect.Method;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -22,26 +41,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.lang.reflect.Method;
-import java.time.Instant;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.Executor;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @Tag("unit")
 @ExtendWith(MockitoExtension.class)

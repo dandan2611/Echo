@@ -23,5 +23,4 @@ public class UnknownServerException extends UnknownResourceException {
     public UnknownServerException(final @NotNull String name) {
         super("server", name);
     }
-
 }

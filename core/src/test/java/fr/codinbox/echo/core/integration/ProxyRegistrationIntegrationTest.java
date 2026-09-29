@@ -1,19 +1,18 @@
 package fr.codinbox.echo.core.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.proxy.Proxy;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.proxy.ProxyImpl;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("integration")
 class ProxyRegistrationIntegrationTest extends RedisIntegrationTestBase {

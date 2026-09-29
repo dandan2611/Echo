@@ -1,14 +1,13 @@
 package fr.codinbox.echo.api.server;
 
+import java.net.InetSocketAddress;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
-
-import java.net.InetSocketAddress;
 
 /**
  * Represents a network address as a host and port pair.
  *
- * <p>Used to store the connection address of servers and proxies in the Echo network.</p>
+ * <p>Used to store the connection address of servers and proxies in the Echo network.
  *
  * <pre>{@code
  * // Create from host and port
@@ -24,19 +23,13 @@ import java.net.InetSocketAddress;
 @Getter
 public class Address {
 
-    /**
-     * The hostname or IP address (e.g. {@code "127.0.0.1"}, {@code "mc.example.com"}).
-     */
+    /** The hostname or IP address (e.g. {@code "127.0.0.1"}, {@code "mc.example.com"}). */
     private String host;
 
-    /**
-     * The port number (e.g. {@code 25565}).
-     */
+    /** The port number (e.g. {@code 25565}). */
     private int port;
 
-    /**
-     * No-arg constructor for Jackson deserialization. Not intended for direct use.
-     */
+    /** No-arg constructor for Jackson deserialization. Not intended for direct use. */
     private Address() {}
 
     /**
@@ -80,7 +73,7 @@ public class Address {
      * @param address the address string in {@code "host:port"} format
      * @return the parsed address
      * @throws IllegalArgumentException if the string is not in {@code "host:port"} format
-     * @throws NumberFormatException    if the port is not a valid integer
+     * @throws NumberFormatException if the port is not a valid integer
      */
     public static @NotNull Address fromString(final @NotNull String address) {
         final String[] parts = address.split(":");
@@ -89,5 +82,4 @@ public class Address {
             throw new IllegalArgumentException("Invalid address format: " + address);
         return new Address(parts[0], Integer.parseInt(parts[1]));
     }
-
 }

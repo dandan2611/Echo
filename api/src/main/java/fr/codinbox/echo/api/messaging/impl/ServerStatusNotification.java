@@ -11,11 +11,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A notification message broadcast when a server is registered or unregistered from the network.
  *
- * <p>This message is sent automatically by Echo when servers come online or go offline
- * (including when the healthcheck system detects a dead server). Proxies listen for these
- * notifications to update their internal server lists.</p>
+ * <p>This message is sent automatically by Echo when servers come online or go offline (including
+ * when the healthcheck system detects a dead server). Proxies listen for these notifications to
+ * update their internal server lists.
  *
- * <p>You can subscribe to these notifications to react to server status changes:</p>
+ * <p>You can subscribe to these notifications to react to server status changes:
  *
  * <pre>{@code
  * messaging.subscribe(client.getLocalTopic(), ServerStatusNotification.class, notification -> {
@@ -34,29 +34,24 @@ import org.jetbrains.annotations.NotNull;
 @Setter
 public class ServerStatusNotification extends EchoMessage {
 
-    /**
-     * The identifier of the server whose status changed.
-     */
+    /** The identifier of the server whose status changed. */
     private @NotNull String id;
 
-    /**
-     * The network address of the server.
-     */
+    /** The network address of the server. */
     private @NotNull Address address;
 
-    /**
-     * The new status of the server.
-     */
+    /** The new status of the server. */
     private @NotNull Status status;
 
     /**
      * Creates a notification with explicit server details.
      *
-     * @param id      the server identifier
+     * @param id the server identifier
      * @param address the server address
-     * @param status  the server status
+     * @param status the server status
      */
-    public ServerStatusNotification(@NotNull String id, @NotNull Address address, @NotNull Status status) {
+    public ServerStatusNotification(
+            @NotNull String id, @NotNull Address address, @NotNull Status status) {
         this.id = id;
         this.address = address;
         this.status = status;
@@ -74,19 +69,11 @@ public class ServerStatusNotification extends EchoMessage {
         this.status = status;
     }
 
-    /**
-     * The possible statuses of a server in the network.
-     */
+    /** The possible statuses of a server in the network. */
     public enum Status {
-        /**
-         * The server has been registered (came online) in the network.
-         */
+        /** The server has been registered (came online) in the network. */
         REGISTERED,
-        /**
-         * The server has been unregistered (went offline or was cleaned up) from the network.
-         */
+        /** The server has been unregistered (went offline or was cleaned up) from the network. */
         UNREGISTERED,
     }
-
-
 }

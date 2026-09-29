@@ -38,7 +38,7 @@ Diagnosis dated 2026-09-24; preprod incident/recovery recorded as 2026-09-23.
   the TTL instead of deleting the lock.
 - `RedisServerPlacement.admit()` catches contention and returns `false`
   (lines 111–112). Paper translates this into `This server has no available
-  slot.` (AdmissionListener lines 78–79, also 101–102), even with zero occupants.
+slot.` (AdmissionListener lines 78–79, also 101–102), even with zero occupants.
 
 ## Lab design and limits
 
@@ -92,14 +92,14 @@ or Redisson retry without that evidence.
 
 Initial 16-case characterization:
 
-| Configuration | Scenario | Observations |
-|---|---|---|
-| 3.29.0 and 3.32.0, fast | No fault | Both controls admit throughout, no residual lock |
-| Both versions, fast | Lost unlock, recurring publisher | 4/4 runs remain blocked with count 1 |
-| Both versions, fast | Lost acquisition response, recurring publisher | 4/4 runs remain blocked with count 1 |
-| Both versions, fast | Either fault, pause beyond TTL first | 4/4 recover; idle lock expires |
-| 3.29.0, default | One lost unlock | Recovers through retry; no leaked hold |
-| 3.29.0, default | One lost acquisition response | Publication reports success, residual hold 1, all 34 subsequent admissions denied |
+| Configuration           | Scenario                                       | Observations                                                                      |
+| ----------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| 3.29.0 and 3.32.0, fast | No fault                                       | Both controls admit throughout, no residual lock                                  |
+| Both versions, fast     | Lost unlock, recurring publisher               | 4/4 runs remain blocked with count 1                                              |
+| Both versions, fast     | Lost acquisition response, recurring publisher | 4/4 runs remain blocked with count 1                                              |
+| Both versions, fast     | Either fault, pause beyond TTL first           | 4/4 recover; idle lock expires                                                    |
+| 3.29.0, default         | One lost unlock                                | Recovers through retry; no leaked hold                                            |
+| 3.29.0, default         | One lost acquisition response                  | Publication reports success, residual hold 1, all 34 subsequent admissions denied |
 
 The original matrix expected the default lost-unlock case to fail and therefore
 exited nonzero on that case. This falsified that expectation and narrowed the

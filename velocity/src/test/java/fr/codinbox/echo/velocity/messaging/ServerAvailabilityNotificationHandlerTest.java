@@ -1,5 +1,10 @@
 package fr.codinbox.echo.velocity.messaging;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
@@ -9,16 +14,10 @@ import fr.codinbox.echo.api.messaging.impl.ServerAvailabilityNotification;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.server.ServerAvailability;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
 import java.util.Optional;
 import java.util.logging.Logger;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class ServerAvailabilityNotificationHandlerTest {
@@ -37,7 +36,8 @@ class ServerAvailabilityNotificationHandlerTest {
         when(server.getAddress()).thenReturn(new Address("127.0.0.1", 25565));
         when(server.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
 
-        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client).onReceive(notification);
+        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client)
+                .onReceive(notification);
 
         verify(proxy).registerServer(any(ServerInfo.class));
     }
@@ -54,7 +54,8 @@ class ServerAvailabilityNotificationHandlerTest {
         when(proxy.getServer("lobby-1")).thenReturn(Optional.of(registered));
         when(registered.getServerInfo()).thenReturn(info);
 
-        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client).onReceive(notification);
+        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client)
+                .onReceive(notification);
 
         verify(proxy).unregisterServer(info);
     }

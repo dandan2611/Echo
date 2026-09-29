@@ -1,46 +1,43 @@
 package fr.codinbox.echo.paper.listener;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
 import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.core.server.placement.AdmissionTestStore;
 import fr.codinbox.echo.core.server.placement.PlacementUnavailableException;
 import fr.codinbox.echo.paper.EchoPaper;
-import org.bukkit.Server;
-import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerLoginEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import net.kyori.adventure.text.Component;
-import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import io.papermc.paper.connection.PlayerLoginConnection;
-import org.bukkit.scheduler.BukkitScheduler;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-
 import java.net.InetAddress;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.logging.Logger;
-import java.util.logging.Level;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.timeout;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Server;
+import org.bukkit.entity.Player;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.scheduler.BukkitScheduler;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class AdmissionListenerTest {
@@ -56,21 +53,29 @@ class AdmissionListenerTest {
     @Test
     void repeatedPublicationExpirationsProduceOneConciseWarning() {
         final Fixture fixture = new Fixture(0, 0);
-        doThrow(new PlacementUnavailableException("Placement operation expired before confirmation"))
-                .when(fixture.plugin).publishTelemetry(any(ServerAdmissionSnapshot.class));
+        doThrow(
+                        new PlacementUnavailableException(
+                                "Placement operation expired before confirmation"))
+                .when(fixture.plugin)
+                .publishTelemetry(any(ServerAdmissionSnapshot.class));
 
         for (int i = 0; i < 100; i++) fixture.listener.refresh();
 
-        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
-                + "Further expirations are summarized at most once per minute.");
+        verify(fixture.logger)
+                .warning(
+                        "Echo admission publication expired; automatic retries continue. "
+                                + "Further expirations are summarized at most once per minute.");
         verifyNoMoreInteractions(fixture.logger);
     }
 
     @Test
     void publicationExpirySummaryRespectsMinuteBoundaryAndCountsSuppressedEvents() {
         final Fixture fixture = new Fixture(0, 0);
-        doThrow(new PlacementUnavailableException("Placement operation expired before confirmation"))
-                .when(fixture.plugin).publishTelemetry(any(ServerAdmissionSnapshot.class));
+        doThrow(
+                        new PlacementUnavailableException(
+                                "Placement operation expired before confirmation"))
+                .when(fixture.plugin)
+                .publishTelemetry(any(ServerAdmissionSnapshot.class));
 
         fixture.listener.refresh();
         fixture.nanoTime.set(TimeUnit.SECONDS.toNanos(59));
@@ -79,24 +84,32 @@ class AdmissionListenerTest {
         fixture.listener.refresh();
         fixture.listener.refresh();
 
-        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
-                + "Further expirations are summarized at most once per minute.");
-        verify(fixture.logger).warning("Echo admission publication expired; automatic retries continue. "
-                + "7 additional expirations suppressed since the previous warning.");
+        verify(fixture.logger)
+                .warning(
+                        "Echo admission publication expired; automatic retries continue. "
+                                + "Further expirations are summarized at most once per minute.");
+        verify(fixture.logger)
+                .warning(
+                        "Echo admission publication expired; automatic retries continue. "
+                                + "7 additional expirations suppressed since the previous warning.");
         verifyNoMoreInteractions(fixture.logger);
     }
 
     @Test
     void writerPublicationExpiryAlsoUsesConciseWarning() {
         final Fixture fixture = new Fixture(0, 0);
-        fixture.store.before = () -> {
-            throw new PlacementUnavailableException("Placement operation expired before confirmation");
-        };
+        fixture.store.before =
+                () -> {
+                    throw new PlacementUnavailableException(
+                            "Placement operation expired before confirmation");
+                };
 
         fixture.listener.refresh();
 
-        verify(fixture.logger, timeout(1000)).warning("Echo admission publication expired; automatic retries continue. "
-                + "Further expirations are summarized at most once per minute.");
+        verify(fixture.logger, timeout(1000))
+                .warning(
+                        "Echo admission publication expired; automatic retries continue. "
+                                + "Further expirations are summarized at most once per minute.");
         verifyNoMoreInteractions(fixture.logger);
     }
 
@@ -109,7 +122,8 @@ class AdmissionListenerTest {
         fixture.listener.refresh();
         fixture.listener.refresh();
 
-        verify(fixture.logger, times(2)).log(Level.WARNING, "Failed to publish Echo admission", error);
+        verify(fixture.logger, times(2))
+                .log(Level.WARNING, "Failed to publish Echo admission", error);
     }
 
     @Test
@@ -139,7 +153,8 @@ class AdmissionListenerTest {
         final CountDownLatch entered = blockRedis(fixture);
         final PlayerLoginEvent login = fixture.login(true);
 
-        final CompletableFuture<Void> tick = CompletableFuture.runAsync(() -> fixture.listener.onLogin(login));
+        final CompletableFuture<Void> tick =
+                CompletableFuture.runAsync(() -> fixture.listener.onLogin(login));
 
         tick.get(500, TimeUnit.MILLISECONDS);
         assertThat(entered.await(1, TimeUnit.SECONDS)).isTrue();
@@ -152,10 +167,12 @@ class AdmissionListenerTest {
         final PlayerLoginEvent login = fixture.login(true);
         final AtomicReference<Thread> permissionThread = new AtomicReference<>();
         final AtomicReference<Thread> redisThread = new AtomicReference<>();
-        when(login.getPlayer().hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)).thenAnswer(ignored -> {
-            permissionThread.set(Thread.currentThread());
-            return true;
-        });
+        when(login.getPlayer().hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION))
+                .thenAnswer(
+                        ignored -> {
+                            permissionThread.set(Thread.currentThread());
+                            return true;
+                        });
         fixture.store.before = () -> redisThread.set(Thread.currentThread());
 
         fixture.listener.onLogin(login);
@@ -173,45 +190,57 @@ class AdmissionListenerTest {
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch finished = new CountDownLatch(2);
         blockedCommands.add(release);
-        fixture.store.after = () -> {
-            entered.countDown();
-            await(release);
-            finished.countDown();
-        };
+        fixture.store.after =
+                () -> {
+                    entered.countDown();
+                    await(release);
+                    finished.countDown();
+                };
 
         fixture.listener.onLogin(login);
         fixture.listener.refresh();
         release.countDown();
 
-        assertThat(entered.await(1, TimeUnit.SECONDS) && finished.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(entered.await(1, TimeUnit.SECONDS) && finished.await(1, TimeUnit.SECONDS))
+                .isTrue();
         assertThat(login.getResult()).isEqualTo(PlayerLoginEvent.Result.KICK_OTHER);
-        assertThat(((ServerAdmissionSnapshot) fixture.store.value("server:server:property:admission"))
-                .joiningMembers()).isEmpty();
+        assertThat(
+                        ((ServerAdmissionSnapshot)
+                                        fixture.store.value("server:server:property:admission"))
+                                .joiningMembers())
+                .isEmpty();
     }
 
     private CountDownLatch blockRedis(final Fixture fixture) {
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch release = new CountDownLatch(1);
         blockedCommands.add(release);
-        fixture.store.before = () -> {
-            entered.countDown();
-            await(release);
-            throw new IllegalStateException("Redis unavailable");
-        };
+        fixture.store.before =
+                () -> {
+                    entered.countDown();
+                    await(release);
+                    throw new IllegalStateException("Redis unavailable");
+                };
         return entered;
     }
 
     private static void await(CountDownLatch latch) {
-        try { latch.await(); }
-        catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new IllegalStateException(error); }
+        try {
+            latch.await();
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(error);
+        }
     }
 
     @Test
     void rejectedDuplicateWithBukkitUuidEqualityCannotReleaseOriginalSeat() {
         final Fixture fixture = new Fixture(119, 100);
         final UUID id = UUID.randomUUID();
-        final PlayerLoginEvent original = new PlayerLoginEvent(uuidPlayer(id), "localhost", InetAddress.getLoopbackAddress());
-        final PlayerLoginEvent duplicate = new PlayerLoginEvent(uuidPlayer(id), "localhost", InetAddress.getLoopbackAddress());
+        final PlayerLoginEvent original =
+                new PlayerLoginEvent(uuidPlayer(id), "localhost", InetAddress.getLoopbackAddress());
+        final PlayerLoginEvent duplicate =
+                new PlayerLoginEvent(uuidPlayer(id), "localhost", InetAddress.getLoopbackAddress());
         final PlayerLoginEvent replacement = fixture.login(true);
         fixture.listener.onLogin(original);
         fixture.listener.onLogin(duplicate);
@@ -222,20 +251,29 @@ class AdmissionListenerTest {
     }
 
     private static Player uuidPlayer(final UUID id) {
-        return (Player) java.lang.reflect.Proxy.newProxyInstance(Player.class.getClassLoader(),
-                new Class<?>[]{Player.class}, (proxy, method, arguments) -> switch (method.getName()) {
-                    case "getUniqueId" -> id;
-                    case "hasPermission" -> true;
-                    case "equals" -> arguments[0] instanceof Player other && id.equals(other.getUniqueId());
-                    case "hashCode" -> id.hashCode();
-                    default -> null;
-                });
+        return (Player)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        Player.class.getClassLoader(),
+                        new Class<?>[] {Player.class},
+                        (proxy, method, arguments) ->
+                                switch (method.getName()) {
+                                    case "getUniqueId" -> id;
+                                    case "hasPermission" -> true;
+                                    case "equals" ->
+                                            arguments[0] instanceof Player other
+                                                    && id.equals(other.getUniqueId());
+                                    case "hashCode" -> id.hashCode();
+                                    default -> null;
+                                });
     }
 
     @Test
     void sdkSampleIsStillPublishedWhenRedisFails() {
         final Fixture fixture = new Fixture(0, 0);
-        fixture.store.before = () -> { throw new IllegalStateException("Redis unavailable"); };
+        fixture.store.before =
+                () -> {
+                    throw new IllegalStateException("Redis unavailable");
+                };
 
         fixture.listener.refresh();
 
@@ -287,8 +325,12 @@ class AdmissionListenerTest {
         fixture.liveConnection(pending.getPlayer().getUniqueId());
         final PlayerLoginEvent replacement = fixture.login(true);
 
-        fixture.listener.onConnectionClose(new PlayerConnectionCloseEvent(pending.getPlayer().getUniqueId(),
-                "player", InetAddress.getLoopbackAddress(), false));
+        fixture.listener.onConnectionClose(
+                new PlayerConnectionCloseEvent(
+                        pending.getPlayer().getUniqueId(),
+                        "player",
+                        InetAddress.getLoopbackAddress(),
+                        false));
         fixture.listener.onLogin(replacement);
 
         assertThat(replacement.getResult()).isEqualTo(PlayerLoginEvent.Result.KICK_FULL);
@@ -301,8 +343,12 @@ class AdmissionListenerTest {
         fixture.listener.onLogin(pending);
         final PlayerLoginEvent replacement = fixture.login(true);
 
-        fixture.listener.onConnectionClose(new PlayerConnectionCloseEvent(pending.getPlayer().getUniqueId(),
-                "player", InetAddress.getLoopbackAddress(), false));
+        fixture.listener.onConnectionClose(
+                new PlayerConnectionCloseEvent(
+                        pending.getPlayer().getUniqueId(),
+                        "player",
+                        InetAddress.getLoopbackAddress(),
+                        false));
         fixture.listener.onLogin(replacement);
 
         assertThat(replacement.getResult()).isEqualTo(PlayerLoginEvent.Result.ALLOWED);
@@ -311,7 +357,10 @@ class AdmissionListenerTest {
     @Test
     void redisFailureDeniesInsteadOfBypassingAdmission() {
         final Fixture fixture = new Fixture(0, 0);
-        fixture.store.before = () -> { throw new IllegalStateException("Redis unavailable"); };
+        fixture.store.before =
+                () -> {
+                    throw new IllegalStateException("Redis unavailable");
+                };
         final PlayerLoginEvent event = fixture.login(true);
 
         fixture.listener.onLogin(event);
@@ -348,16 +397,29 @@ class AdmissionListenerTest {
         private Fixture(final int total, final int nonStaff, final long waitNanos) {
             when(plugin.getServer()).thenReturn(server);
             when(plugin.getLogger()).thenReturn(logger);
-            final List<Player> online = java.util.stream.IntStream.range(0, total)
-                    .mapToObj(index -> player(index >= nonStaff)).toList();
+            final List<Player> online =
+                    java.util.stream.IntStream.range(0, total)
+                            .mapToObj(index -> player(index >= nonStaff))
+                            .toList();
             when(server.getOnlinePlayers()).thenAnswer(ignored -> online);
             final BukkitScheduler scheduler = mock(BukkitScheduler.class);
             when(server.getScheduler()).thenReturn(scheduler);
-            doAnswer(invocation -> {
-                invocation.<Runnable>getArgument(1).run();
-                return null;
-            }).when(scheduler).runTask(any(), any(Runnable.class));
-            listener = new AdmissionListener(plugin, store.placement(), "server", 100, 120, waitNanos, nanoTime::get);
+            doAnswer(
+                            invocation -> {
+                                invocation.<Runnable>getArgument(1).run();
+                                return null;
+                            })
+                    .when(scheduler)
+                    .runTask(any(), any(Runnable.class));
+            listener =
+                    new AdmissionListener(
+                            plugin,
+                            store.placement(),
+                            "server",
+                            100,
+                            120,
+                            waitNanos,
+                            nanoTime::get);
             listeners.add(listener);
         }
 
@@ -372,7 +434,8 @@ class AdmissionListenerTest {
         }
 
         private PlayerLoginEvent login(final boolean staff) {
-            return new PlayerLoginEvent(player(staff), "localhost", InetAddress.getLoopbackAddress());
+            return new PlayerLoginEvent(
+                    player(staff), "localhost", InetAddress.getLoopbackAddress());
         }
 
         private static Player player(final boolean staff) {
@@ -381,6 +444,5 @@ class AdmissionListenerTest {
             when(player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)).thenReturn(staff);
             return player;
         }
-
     }
 }

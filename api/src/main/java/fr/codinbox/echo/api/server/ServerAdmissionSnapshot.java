@@ -1,24 +1,28 @@
 package fr.codinbox.echo.api.server;
 
-import fr.codinbox.echo.api.property.PropertyKey;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.jetbrains.annotations.NotNull;
-
+import fr.codinbox.echo.api.property.PropertyKey;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.jetbrains.annotations.NotNull;
 
 /** Destination-owned physical occupancy, independent of game participant load. True means staff. */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public record ServerAdmissionSnapshot(
         @NotNull Map<UUID, Boolean> onlineMembers,
         @NotNull Map<UUID, Boolean> joiningMembers,
-        int totalCount, int nonStaffCount, int publicCapacity, int hardCapacity,
-        @NotNull Instant sampledAt, @NotNull Instant validUntil) {
+        int totalCount,
+        int nonStaffCount,
+        int publicCapacity,
+        int hardCapacity,
+        @NotNull Instant sampledAt,
+        @NotNull Instant validUntil) {
 
     public static final @NotNull String STAFF_PERMISSION = "echo.staff";
-    public static final @NotNull PropertyKey<ServerAdmissionSnapshot> PROPERTY = new PropertyKey<>("admission");
+    public static final @NotNull PropertyKey<ServerAdmissionSnapshot> PROPERTY =
+            new PropertyKey<>("admission");
 
     public ServerAdmissionSnapshot {
         onlineMembers = Map.copyOf(onlineMembers);
@@ -36,13 +40,22 @@ public record ServerAdmissionSnapshot(
             throw new IllegalArgumentException("validUntil must follow sampledAt");
     }
 
-    public ServerAdmissionSnapshot(final @NotNull Map<UUID, Boolean> onlineMembers,
-                                   final @NotNull Map<UUID, Boolean> joiningMembers,
-                                   final int publicCapacity, final int hardCapacity,
-                                   final @NotNull Instant sampledAt, final @NotNull Instant validUntil) {
-        this(onlineMembers, joiningMembers, onlineMembers.size(),
+    public ServerAdmissionSnapshot(
+            final @NotNull Map<UUID, Boolean> onlineMembers,
+            final @NotNull Map<UUID, Boolean> joiningMembers,
+            final int publicCapacity,
+            final int hardCapacity,
+            final @NotNull Instant sampledAt,
+            final @NotNull Instant validUntil) {
+        this(
+                onlineMembers,
+                joiningMembers,
+                onlineMembers.size(),
                 (int) onlineMembers.values().stream().filter(staff -> !staff).count(),
-                publicCapacity, hardCapacity, sampledAt, validUntil);
+                publicCapacity,
+                hardCapacity,
+                sampledAt,
+                validUntil);
     }
 
     public boolean isStale(final @NotNull Instant now) {
@@ -50,7 +63,8 @@ public record ServerAdmissionSnapshot(
     }
 
     /** Staff may exceed the public limit, never the physical limit. */
-    public boolean fits(final long total, final long nonStaff, final boolean includesNonStaffIngress) {
+    public boolean fits(
+            final long total, final long nonStaff, final boolean includesNonStaffIngress) {
         return total <= hardCapacity && (!includesNonStaffIngress || nonStaff <= publicCapacity);
     }
 }

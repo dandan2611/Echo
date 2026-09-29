@@ -1,13 +1,10 @@
 package fr.codinbox.echo.ondemand;
 
 import fr.codinbox.echo.ondemand.internal.OnDemandServersRegistry;
+import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.CompletableFuture;
-
-/**
- * Acquires and terminates servers without exposing the underlying orchestrator.
- */
+/** Acquires and terminates servers without exposing the underlying orchestrator. */
 public interface OnDemandServers {
 
     /**
@@ -21,13 +18,14 @@ public interface OnDemandServers {
     }
 
     /**
-     * Acquires one server and applies its requested Echo properties before completion.
-     * Reusing a request ID must return the same live allocation.
+     * Acquires one server and applies its requested Echo properties before completion. Reusing a
+     * request ID must return the same live allocation.
      *
      * @param request requested server type and idempotency key
      * @return the acquired Echo server
      */
-    @NotNull CompletableFuture<@NotNull ServerHandle> acquire(final @NotNull ServerRequest request);
+    @NotNull
+    CompletableFuture<@NotNull ServerHandle> acquire(final @NotNull ServerRequest request);
 
     /**
      * Terminates an acquired server. Calling this more than once must be safe.
@@ -35,7 +33,8 @@ public interface OnDemandServers {
      * @param server server to terminate
      * @return completion of termination
      */
-    @NotNull CompletableFuture<Void> terminate(final @NotNull ServerHandle server);
+    @NotNull
+    CompletableFuture<Void> terminate(final @NotNull ServerHandle server);
 
     /**
      * Returns administrative controls when supported by this implementation.

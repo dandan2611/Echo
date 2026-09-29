@@ -1,10 +1,9 @@
 package fr.codinbox.echo.core.utils;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.jetbrains.annotations.NotNull;
 
 public final class MapUtils {
 
@@ -13,5 +12,4 @@ public final class MapUtils {
         map.forEach((key, value) -> result.put(UUID.fromString(key), value));
         return result;
     }
-
 }

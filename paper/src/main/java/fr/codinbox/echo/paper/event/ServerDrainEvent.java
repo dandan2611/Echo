@@ -1,11 +1,10 @@
 package fr.codinbox.echo.paper.event;
 
+import java.time.Instant;
+import java.util.Objects;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
-
-import java.time.Instant;
-import java.util.Objects;
 
 /** Notifies game plugins that this server must stop accepting work and shut down by a deadline. */
 public final class ServerDrainEvent extends Event {

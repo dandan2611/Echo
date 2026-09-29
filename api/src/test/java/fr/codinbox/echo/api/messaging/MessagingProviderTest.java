@@ -1,15 +1,14 @@
 package fr.codinbox.echo.api.messaging;
 
-import fr.codinbox.echo.api.EchoFuture;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import fr.codinbox.echo.api.EchoFuture;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class MessagingProviderTest {
@@ -18,8 +17,14 @@ class MessagingProviderTest {
     void request_whenProviderDoesNotSupportIt_failsWithoutBreakingImplementations() {
         MessagingProvider provider = new LegacyMessagingProvider();
 
-        assertThatThrownBy(() -> provider.request(
-                "topic", new TestMessage(), TestMessage.class, Duration.ofSeconds(1)).join())
+        assertThatThrownBy(
+                        () ->
+                                provider.request(
+                                                "topic",
+                                                new TestMessage(),
+                                                TestMessage.class,
+                                                Duration.ofSeconds(1))
+                                        .join())
                 .hasCauseInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -42,9 +47,9 @@ class MessagingProviderTest {
         }
 
         @Override
-        public void waitForReply(@NotNull EchoMessage message,
-                                 @NotNull Function<@NotNull EchoMessage, @NotNull Boolean> consumer) {
-        }
+        public void waitForReply(
+                @NotNull EchoMessage message,
+                @NotNull Function<@NotNull EchoMessage, @NotNull Boolean> consumer) {}
 
         @Override
         public @NotNull Subscription subscribe(
@@ -73,6 +78,5 @@ class MessagingProviderTest {
         }
     }
 
-    private static final class TestMessage extends EchoMessage {
-    }
+    private static final class TestMessage extends EchoMessage {}
 }

@@ -2,15 +2,14 @@ package fr.codinbox.echo.api.messaging.impl;
 
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.EchoMessage;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Objects;
 
 /** A bounded request to administer one exact Echo server or proxy. */
 @NoArgsConstructor
@@ -26,17 +25,24 @@ public final class ResourceControlRequest extends EchoMessage {
     private long deadlineEpochMillis;
     private @Nullable String reason;
 
-    public ResourceControlRequest(@NotNull Action action, @NotNull EchoResourceType expectedResourceType,
-                                  @NotNull String expectedResourceId, @Nullable String reason) {
+    public ResourceControlRequest(
+            @NotNull Action action,
+            @NotNull EchoResourceType expectedResourceType,
+            @NotNull String expectedResourceId,
+            @Nullable String reason) {
         this.action = Objects.requireNonNull(action, "action");
-        this.expectedResourceType = Objects.requireNonNull(expectedResourceType, "expectedResourceType");
+        this.expectedResourceType =
+                Objects.requireNonNull(expectedResourceType, "expectedResourceType");
         this.expectedResourceId = requireId(expectedResourceId);
         this.reason = reason;
     }
 
-    public ResourceControlRequest(@NotNull Action action, @NotNull EchoResourceType expectedResourceType,
-                                  @NotNull String expectedResourceId, @NotNull Duration deadline,
-                                  @Nullable String reason) {
+    public ResourceControlRequest(
+            @NotNull Action action,
+            @NotNull EchoResourceType expectedResourceType,
+            @NotNull String expectedResourceId,
+            @NotNull Duration deadline,
+            @Nullable String reason) {
         this(action, expectedResourceType, expectedResourceId, reason);
         if (deadline.isZero() || deadline.isNegative())
             throw new IllegalArgumentException("deadline duration must be positive");
@@ -45,9 +51,12 @@ public final class ResourceControlRequest extends EchoMessage {
             throw new IllegalArgumentException("deadline duration must be at least 1ms");
     }
 
-    public ResourceControlRequest(@NotNull Action action, @NotNull EchoResourceType expectedResourceType,
-                                  @NotNull String expectedResourceId, @NotNull Instant deadline,
-                                  @Nullable String reason) {
+    public ResourceControlRequest(
+            @NotNull Action action,
+            @NotNull EchoResourceType expectedResourceType,
+            @NotNull String expectedResourceId,
+            @NotNull Instant deadline,
+            @Nullable String reason) {
         this(action, expectedResourceType, expectedResourceId, reason);
         this.deadlineEpochMillis = Objects.requireNonNull(deadline, "deadline").toEpochMilli();
         if (this.deadlineEpochMillis < 1)
@@ -56,14 +65,11 @@ public final class ResourceControlRequest extends EchoMessage {
 
     /** Returns null when fields received from Jackson form a valid request. */
     public @Nullable String validationError() {
-        if (this.action == null)
-            return "action is required";
-        if (this.expectedResourceType == null)
-            return "expected resource type is required";
+        if (this.action == null) return "action is required";
+        if (this.expectedResourceType == null) return "expected resource type is required";
         if (this.expectedResourceId == null || this.expectedResourceId.isBlank())
             return "expected resource id is required";
-        if (this.executionDeadlineEpochMillis < 1)
-            return "execution deadline must be positive";
+        if (this.executionDeadlineEpochMillis < 1) return "execution deadline must be positive";
         if (this.deadlineDurationMillis < 0 || this.deadlineEpochMillis < 0)
             return "deadline must be positive";
         if (this.deadlineDurationMillis > 0 && this.deadlineEpochMillis > 0)
@@ -73,8 +79,7 @@ public final class ResourceControlRequest extends EchoMessage {
 
     /** Resolves a relative deadline against receiver time; zero means no deadline. */
     public long resolveDrainDeadlineEpochMillis(long nowEpochMillis) {
-        if (this.deadlineEpochMillis > 0)
-            return this.deadlineEpochMillis;
+        if (this.deadlineEpochMillis > 0) return this.deadlineEpochMillis;
         return this.deadlineDurationMillis > 0
                 ? Math.addExact(nowEpochMillis, this.deadlineDurationMillis)
                 : 0;
@@ -103,8 +108,11 @@ public final class ResourceControlRequest extends EchoMessage {
         private @NotNull Status status;
         private @NotNull String message;
 
-        public Response(@NotNull ResourceControlRequest request, boolean accepted,
-                        @NotNull Status status, @NotNull String message) {
+        public Response(
+                @NotNull ResourceControlRequest request,
+                boolean accepted,
+                @NotNull Status status,
+                @NotNull String message) {
             this.accepted = accepted;
             this.status = Objects.requireNonNull(status, "status");
             this.message = Objects.requireNonNull(message, "message");

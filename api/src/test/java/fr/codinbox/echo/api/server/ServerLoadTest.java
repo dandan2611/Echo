@@ -1,12 +1,11 @@
 package fr.codinbox.echo.api.server;
 
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.Instant;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class ServerLoadTest {
@@ -20,8 +19,9 @@ class ServerLoadTest {
     @Test
     void snapshot_becomesStaleAtItsDeadline() {
         Instant sampledAt = Instant.parse("2026-09-03T12:00:00Z");
-        ServerLoadSnapshot snapshot = new ServerLoadSnapshot(
-                new ServerLoad(4, true), sampledAt, sampledAt.plusSeconds(30));
+        ServerLoadSnapshot snapshot =
+                new ServerLoadSnapshot(
+                        new ServerLoad(4, true), sampledAt, sampledAt.plusSeconds(30));
 
         assertThat(snapshot.isStale(sampledAt.plusSeconds(29))).isFalse();
         assertThat(snapshot.isStale(sampledAt.plusSeconds(30))).isTrue();
@@ -48,5 +48,4 @@ class ServerLoadTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("now");
     }
-
 }

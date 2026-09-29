@@ -4,32 +4,33 @@ import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.Address;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Utility class for reading Echo configuration from environment variables.
  *
- * <p>Echo is configured entirely through environment variables. This class provides
- * typed accessors with sensible defaults for each configuration option.</p>
+ * <p>Echo is configured entirely through environment variables. This class provides typed accessors
+ * with sensible defaults for each configuration option.
  *
  * <h2>Required variables</h2>
+ *
  * <ul>
- *     <li>{@code ECHO_RESOURCE_TYPE} - The node type: {@code SERVER} or {@code PROXY}</li>
- *     <li>{@code ECHO_RESOURCE_ID} - Unique identifier for this node (e.g. {@code "lobby-1"})</li>
- *     <li>{@code ECHO_RESOURCE_ADDRESS} - The node's address in {@code host:port} format</li>
+ *   <li>{@code ECHO_RESOURCE_TYPE} - The node type: {@code SERVER} or {@code PROXY}
+ *   <li>{@code ECHO_RESOURCE_ID} - Unique identifier for this node (e.g. {@code "lobby-1"})
+ *   <li>{@code ECHO_RESOURCE_ADDRESS} - The node's address in {@code host:port} format
  * </ul>
  *
  * <h2>Healthcheck variables (optional)</h2>
+ *
  * <ul>
- *     <li>{@code ECHO_HEARTBEAT_TTL} - Heartbeat TTL in seconds (default: 30)</li>
- *     <li>{@code ECHO_HEARTBEAT_INTERVAL} - Heartbeat renewal interval in seconds (default: 10)</li>
- *     <li>{@code ECHO_SCAN_INTERVAL} - Dead resource scan interval in seconds (default: 15)</li>
- *     <li>{@code ECHO_HEALTHCHECK_CLEANUP_ENABLED} - Enable cleanup on servers (default: false;
- *         always active on proxies)</li>
+ *   <li>{@code ECHO_HEARTBEAT_TTL} - Heartbeat TTL in seconds (default: 30)
+ *   <li>{@code ECHO_HEARTBEAT_INTERVAL} - Heartbeat renewal interval in seconds (default: 10)
+ *   <li>{@code ECHO_SCAN_INTERVAL} - Dead resource scan interval in seconds (default: 15)
+ *   <li>{@code ECHO_HEALTHCHECK_CLEANUP_ENABLED} - Enable cleanup on servers (default: false;
+ *       always active on proxies)
  * </ul>
  *
  * @see EchoResourceType
@@ -58,7 +59,8 @@ public class EnvUtils {
     public static final @NotNull String ENV_SCAN_INTERVAL = "ECHO_SCAN_INTERVAL";
 
     /** Environment variable name for enabling healthcheck cleanup on servers. */
-    public static final @NotNull String ENV_HEALTHCHECK_CLEANUP_ENABLED = "ECHO_HEALTHCHECK_CLEANUP_ENABLED";
+    public static final @NotNull String ENV_HEALTHCHECK_CLEANUP_ENABLED =
+            "ECHO_HEALTHCHECK_CLEANUP_ENABLED";
 
     /**
      * Gets the resource type from the {@code ECHO_RESOURCE_TYPE} environment variable.
@@ -69,8 +71,7 @@ public class EnvUtils {
     public static @Nullable EchoResourceType getResourceType() {
         final String resourceType = System.getenv(ENV_RESOURCE_TYPE);
 
-        if (resourceType == null)
-            return null;
+        if (resourceType == null) return null;
         return EchoResourceType.valueOf(resourceType);
     }
 
@@ -92,14 +93,13 @@ public class EnvUtils {
     public static @Nullable Address getAddress() {
         final String address = System.getenv(ENV_RESOURCE_ADDRESS);
 
-        if (address == null)
-            return null;
+        if (address == null) return null;
         return Address.fromString(address);
     }
 
     /**
-     * Reads string-valued initial properties from variables prefixed with
-     * {@value #ENV_RESOURCE_PROPERTY_PREFIX}. The suffix is the exact, case-sensitive property key.
+     * Reads string-valued initial properties from variables prefixed with {@value
+     * #ENV_RESOURCE_PROPERTY_PREFIX}. The suffix is the exact, case-sensitive property key.
      *
      * @return immutable initial properties
      */
@@ -110,14 +110,15 @@ public class EnvUtils {
     static @NotNull Map<PropertyKey<String>, String> getInitialProperties(
             final @NotNull Map<String, String> environment) {
         final Map<PropertyKey<String>, String> properties = new LinkedHashMap<>();
-        environment.forEach((name, value) -> {
-            if (!name.startsWith(ENV_RESOURCE_PROPERTY_PREFIX))
-                return;
-            final String key = name.substring(ENV_RESOURCE_PROPERTY_PREFIX.length());
-            if (key.isEmpty())
-                throw new IllegalArgumentException("Resource property key must not be empty");
-            properties.put(new PropertyKey<>(key), value);
-        });
+        environment.forEach(
+                (name, value) -> {
+                    if (!name.startsWith(ENV_RESOURCE_PROPERTY_PREFIX)) return;
+                    final String key = name.substring(ENV_RESOURCE_PROPERTY_PREFIX.length());
+                    if (key.isEmpty())
+                        throw new IllegalArgumentException(
+                                "Resource property key must not be empty");
+                    properties.put(new PropertyKey<>(key), value);
+                });
         return Map.copyOf(properties);
     }
 
@@ -153,9 +154,8 @@ public class EnvUtils {
     /**
      * Checks whether healthcheck cleanup is enabled on this node.
      *
-     * <p>Read from the {@code ECHO_HEALTHCHECK_CLEANUP_ENABLED} environment variable.
-     * Defaults to {@code false}. Note that proxies always perform cleanup regardless
-     * of this setting.</p>
+     * <p>Read from the {@code ECHO_HEALTHCHECK_CLEANUP_ENABLED} environment variable. Defaults to
+     * {@code false}. Note that proxies always perform cleanup regardless of this setting.
      *
      * @return {@code true} if cleanup is enabled
      */
@@ -168,5 +168,4 @@ public class EnvUtils {
         final String value = System.getenv(name);
         return value == null ? defaultValue : Long.parseLong(value);
     }
-
 }

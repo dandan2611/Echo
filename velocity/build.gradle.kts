@@ -44,9 +44,16 @@ tasks {
         mergeServiceFiles()
         filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
         doLast {
-            check(zipTree(archiveFile.get().asFile).matching {
-                include("com/fasterxml/jackson/**")
-            }.files.isEmpty()) { "Echo must use Connector's Jackson classes" }
+            check(
+                zipTree(archiveFile.get().asFile)
+                    .matching {
+                        include("com/fasterxml/jackson/**")
+                    }
+                    .files
+                    .isEmpty()
+            ) {
+                "Echo must use Connector's Jackson classes"
+            }
         }
     }
 }

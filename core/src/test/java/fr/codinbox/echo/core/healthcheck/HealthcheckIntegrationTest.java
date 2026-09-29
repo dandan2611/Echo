@@ -1,5 +1,9 @@
 package fr.codinbox.echo.core.healthcheck;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.EchoConfig;
 import fr.codinbox.echo.api.local.EchoResourceType;
@@ -9,6 +13,13 @@ import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.server.ServerImpl;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.*;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -17,21 +28,9 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 /**
- * Multi-node integration tests for the healthcheck system.
- * Uses short intervals (TTL=3s, heartbeat=1s, scan=2s) for fast testing.
+ * Multi-node integration tests for the healthcheck system. Uses short intervals (TTL=3s,
+ * heartbeat=1s, scan=2s) for fast testing.
  */
 @Testcontainers
 @Tag("integration")
@@ -43,8 +42,7 @@ class HealthcheckIntegrationTest {
 
     @Container
     private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine")
-                    .withExposedPorts(6379);
+            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
 
     private static RedissonClient redissonClient;
     private static RedisConnection mockConnection;
@@ -87,25 +85,28 @@ class HealthcheckIntegrationTest {
         }
     }
 
-    private EchoClientImpl createTestClient(EchoResourceType type, String id, boolean cleanupEnabled) {
-        EchoConfig config = EchoConfig.builder()
-                .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
-                .messagingProviderFactory(RedisProviderFactory.messagingFactory(mockConnection))
-                .resourceType(type)
-                .resourceId(id)
-                .heartbeatTtlSeconds(TEST_HEARTBEAT_TTL)
-                .heartbeatIntervalSeconds(TEST_HEARTBEAT_INTERVAL)
-                .scanIntervalSeconds(TEST_SCAN_INTERVAL)
-                .cleanupEnabled(cleanupEnabled)
-                .build();
+    private EchoClientImpl createTestClient(
+            EchoResourceType type, String id, boolean cleanupEnabled) {
+        EchoConfig config =
+                EchoConfig.builder()
+                        .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
+                        .messagingProviderFactory(
+                                RedisProviderFactory.messagingFactory(mockConnection))
+                        .resourceType(type)
+                        .resourceId(id)
+                        .heartbeatTtlSeconds(TEST_HEARTBEAT_TTL)
+                        .heartbeatIntervalSeconds(TEST_HEARTBEAT_INTERVAL)
+                        .scanIntervalSeconds(TEST_SCAN_INTERVAL)
+                        .cleanupEnabled(cleanupEnabled)
+                        .build();
         EchoClientImpl client = new EchoClientImpl(config);
         activeClients.add(client);
         return client;
     }
 
     /**
-     * Scenario: 2 servers, 1 proxy.
-     * Proxy does the cleanup. One server crashes -> proxy detects and cleans up.
+     * Scenario: 2 servers, 1 proxy. Proxy does the cleanup. One server crashes -> proxy detects and
+     * cleans up.
      */
     @Test
     void scenario_twoServers_oneProxy_serverCrash() throws InterruptedException {
@@ -146,13 +147,11 @@ class HealthcheckIntegrationTest {
         Map<String, Long> servers = check.getServers().join();
         assertThat(servers).containsKey("server-1");
         assertThat(servers).doesNotContainKey("server-2");
-
-
     }
 
     /**
-     * Scenario: 2 servers, 0 proxy.
-     * Both servers have CLEANUP_ENABLED. One crashes -> the other detects and cleans up.
+     * Scenario: 2 servers, 0 proxy. Both servers have CLEANUP_ENABLED. One crashes -> the other
+     * detects and cleans up.
      */
     @Test
     void scenario_twoServers_noProxy_serverCrash() throws InterruptedException {
@@ -179,13 +178,11 @@ class HealthcheckIntegrationTest {
         Map<String, Long> servers = check.getServers().join();
         assertThat(servers).containsKey("srv-a");
         assertThat(servers).doesNotContainKey("srv-b");
-
-
     }
 
     /**
-     * Scenario: 1 server, 2 proxies with cleanup.
-     * Server crashes -> only one proxy does the cleanup thanks to distributed lock.
+     * Scenario: 1 server, 2 proxies with cleanup. Server crashes -> only one proxy does the cleanup
+     * thanks to distributed lock.
      */
     @Test
     void scenario_oneServer_twoProxies_lockContention() throws InterruptedException {
@@ -220,17 +217,14 @@ class HealthcheckIntegrationTest {
         EchoClientImpl check = createTestClient(EchoResourceType.PROXY, "prx-1", false);
         Map<String, Long> servers = check.getServers().join();
         assertThat(servers).doesNotContainKey("dead-srv");
-
-
     }
 
-    /**
-     * Scenario: Proxy crashes -> server with cleanup cleans it up and destroys its users.
-     */
+    /** Scenario: Proxy crashes -> server with cleanup cleans it up and destroys its users. */
     @Test
     void scenario_proxyCrash_serverCleansUpUsers() throws InterruptedException {
         // Create server with cleanup enabled
-        EchoClientImpl serverClient = createTestClient(EchoResourceType.SERVER, "srv-cleanup", true);
+        EchoClientImpl serverClient =
+                createTestClient(EchoResourceType.SERVER, "srv-cleanup", true);
         serverClient.createLocalResource(new Address("127.0.0.1", 25565));
         serverClient.registerServer("srv-cleanup").join();
 
@@ -263,14 +257,11 @@ class HealthcheckIntegrationTest {
         // Verify user was destroyed
         Optional<User> userOpt = check.getUserById(userId).join();
         assertThat(userOpt).isEmpty();
-
-
     }
 
     /**
-     * Scenario: Server crash with players.
-     * Orphaned users (current_server_id = dead server) are destroyed.
-     * Redirected users (current_server_id = different server) are preserved.
+     * Scenario: Server crash with players. Orphaned users (current_server_id = dead server) are
+     * destroyed. Redirected users (current_server_id = different server) are preserved.
      */
     @Test
     void scenario_serverCrash_orphanedVsRedirectedUsers() throws InterruptedException {
@@ -287,7 +278,8 @@ class HealthcheckIntegrationTest {
 
         // Create alive server
         EchoTestUtils.resetEchoClient();
-        EchoClientImpl aliveServer = createTestClient(EchoResourceType.SERVER, "alive-srv-u", false);
+        EchoClientImpl aliveServer =
+                createTestClient(EchoResourceType.SERVER, "alive-srv-u", false);
         aliveServer.createLocalResource(new Address("127.0.0.1", 25566));
         aliveServer.registerServer("alive-srv-u").join();
         aliveServer.startHealthcheck();
@@ -301,9 +293,11 @@ class HealthcheckIntegrationTest {
         deadSrvRef.registerUser(orphanUser).join();
         orphanUser.setProperty("current_server_id", "dead-srv-u").join();
 
-        // Create redirected user (registered in dead server's user map, but current_server_id points elsewhere)
+        // Create redirected user (registered in dead server's user map, but current_server_id
+        // points elsewhere)
         UUID redirectedId = UUID.randomUUID();
-        User redirectedUser = setupClient.createUser(redirectedId, "RedirectedUser", "prx-users").join();
+        User redirectedUser =
+                setupClient.createUser(redirectedId, "RedirectedUser", "prx-users").join();
         deadSrvRef.registerUser(redirectedUser).join();
         redirectedUser.setProperty("current_server_id", "alive-srv-u").join();
 
@@ -325,14 +319,11 @@ class HealthcheckIntegrationTest {
         // Verify redirected user is preserved
         Optional<User> redirectedOpt = check.getUserById(redirectedId).join();
         assertThat(redirectedOpt).isPresent();
-
-
     }
 
     /**
-     * Scenario: False positive.
-     * Server marked suspect, heartbeat returns before second scan -> no cleanup.
-     * Uses direct scan calls for deterministic testing.
+     * Scenario: False positive. Server marked suspect, heartbeat returns before second scan -> no
+     * cleanup. Uses direct scan calls for deterministic testing.
      */
     @Test
     void scenario_falsePositive_heartbeatReturns() {
@@ -368,7 +359,5 @@ class HealthcheckIntegrationTest {
 
         // Server should still be in the map
         assertThat(proxyClient.getServers().join()).containsKey("fp-srv");
-
-
     }
 }

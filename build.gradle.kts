@@ -6,6 +6,7 @@ plugins {
 }
 
 group = "fr.codinbox.echo"
+
 version = "7.3.2"
 
 subprojects {
@@ -35,7 +36,8 @@ subprojects {
                 systemProperty("echo.test.redis", it)
             }
             useJUnitPlatform()
-            testClassesDirs = project.extensions.getByType<SourceSetContainer>()["test"].output.classesDirs
+            testClassesDirs =
+                project.extensions.getByType<SourceSetContainer>()["test"].output.classesDirs
             classpath = project.extensions.getByType<SourceSetContainer>()["test"].runtimeClasspath
             useJUnitPlatform { excludeTags("benchmark", "load", "capacity") }
         }
@@ -57,8 +59,7 @@ subprojects {
         extensions.configure<PublishingExtension> {
             publications {
                 create<MavenPublication>("maven") {
-                    if (project.name !in setOf("paper", "velocity"))
-                        from(components["java"])
+                    if (project.name !in setOf("paper", "velocity")) from(components["java"])
                 }
             }
             repositories {

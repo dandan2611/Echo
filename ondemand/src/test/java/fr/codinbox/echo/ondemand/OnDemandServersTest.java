@@ -1,30 +1,30 @@
 package fr.codinbox.echo.ondemand;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import fr.codinbox.echo.api.server.ServerAvailability;
 import fr.codinbox.echo.ondemand.internal.OnDemandServersRegistry;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.CompletableFuture;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 @Tag("unit")
 class OnDemandServersTest {
 
-    private final OnDemandServers servers = new OnDemandServers() {
-        @Override
-        public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
-            return CompletableFuture.completedFuture(new ServerHandle("unused"));
-        }
+    private final OnDemandServers servers =
+            new OnDemandServers() {
+                @Override
+                public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
+                    return CompletableFuture.completedFuture(new ServerHandle("unused"));
+                }
 
-        @Override
-        public CompletableFuture<Void> terminate(ServerHandle server) {
-            return CompletableFuture.completedFuture(null);
-        }
-    };
+                @Override
+                public CompletableFuture<Void> terminate(ServerHandle server) {
+                    return CompletableFuture.completedFuture(null);
+                }
+            };
 
     @AfterEach
     void unload() {
@@ -43,17 +43,18 @@ class OnDemandServersTest {
 
     @Test
     void registryRejectsReplacementAndUnregistersByIdentity() {
-        final OnDemandServers other = new OnDemandServers() {
-            @Override
-            public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
-                return CompletableFuture.completedFuture(new ServerHandle("unused"));
-            }
+        final OnDemandServers other =
+                new OnDemandServers() {
+                    @Override
+                    public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
+                        return CompletableFuture.completedFuture(new ServerHandle("unused"));
+                    }
 
-            @Override
-            public CompletableFuture<Void> terminate(ServerHandle server) {
-                return CompletableFuture.completedFuture(null);
-            }
-        };
+                    @Override
+                    public CompletableFuture<Void> terminate(ServerHandle server) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                };
 
         OnDemandServersRegistry.register(this.servers);
         assertThat(OnDemandServers.load()).isSameAs(this.servers);
@@ -88,16 +89,16 @@ class OnDemandServersTest {
         OnDemandAdministration.Allocation allocation =
                 new OnDemandAdministration.Allocation("queue-1", "server-1");
 
-        assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(
-                null, false, null))
+        assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(null, false, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("allocation");
-        assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(
-                allocation, true, null))
+        assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(allocation, true, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a live server can have availability");
-        assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(
-                allocation, false, ServerAvailability.DRAINING))
+        assertThatThrownBy(
+                        () ->
+                                new OnDemandAdministration.Reconciliation(
+                                        allocation, false, ServerAvailability.DRAINING))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a live server can have availability");
     }

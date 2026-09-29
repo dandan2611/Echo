@@ -1,15 +1,14 @@
 package fr.codinbox.echo.api.exception;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.exception.resource.UnknownProxyException;
 import fr.codinbox.echo.api.exception.resource.UnknownServerException;
 import fr.codinbox.echo.api.exception.resource.UnknownUserException;
 import fr.codinbox.echo.api.exception.user.UserHasNoProxyException;
+import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("unit")
 class ExceptionTest {

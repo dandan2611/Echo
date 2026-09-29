@@ -5,13 +5,12 @@ import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.server.ServerLoadManager;
 import fr.codinbox.echo.api.server.ServerLoadProvider;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public final class ServerLoadManagerImpl implements ServerLoadManager {
 
@@ -42,9 +41,11 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
     }
 
     @Override
-    public synchronized @NotNull ProviderRegistration setProvider(final @NotNull ServerLoadProvider provider) {
+    public synchronized @NotNull ProviderRegistration setProvider(
+            final @NotNull ServerLoadProvider provider) {
         if (this.override != null)
-            throw new IllegalStateException("A server load provider override is already registered");
+            throw new IllegalStateException(
+                    "A server load provider override is already registered");
         this.override = new Registration(provider);
         return this.override;
     }
@@ -65,8 +66,10 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
         } catch (RuntimeException error) {
             return failedFuture(error);
         }
-        return EchoFuture.of(this.server.setProperty(Server.PROPERTY_LOAD, snapshot)
-                .thenApply(ignored -> snapshot));
+        return EchoFuture.of(
+                this.server
+                        .setProperty(Server.PROPERTY_LOAD, snapshot)
+                        .thenApply(ignored -> snapshot));
     }
 
     @Override

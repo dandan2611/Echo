@@ -24,11 +24,8 @@ public class UnknownProxyException extends UnknownResourceException {
         super("proxy", name);
     }
 
-    /**
-     * Creates a new exception for an unknown proxy with no identifier.
-     */
+    /** Creates a new exception for an unknown proxy with no identifier. */
     public UnknownProxyException() {
         super("proxy", "");
     }
-
 }

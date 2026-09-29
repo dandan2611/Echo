@@ -3,7 +3,7 @@ allprojects {
     if (name == 'core') {
         afterEvaluate {
             configurations.testRuntimeClasspath.resolutionStrategy.force(
-                'org.redisson:redisson:' + System.getProperty('lab.redisson', '3.29.0'))
+            'org.redisson:redisson:' + System.getProperty('lab.redisson', '3.29.0'))
             def lab = sourceSets.create('lockLab') {
                 java.srcDir(rootProject.file('lab/placement-lock/src'))
                 compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
@@ -14,8 +14,8 @@ allprojects {
                 classpath = lab.runtimeClasspath
                 mainClass = 'fr.codinbox.echo.core.server.placement.' + System.getProperty('lab.main', 'LockLab')
                 args System.getProperty('lab.mode', 'baseline'),
-                    System.getProperty('lab.pause', 'false'),
-                    System.getProperty('lab.timings', 'fast')
+                        System.getProperty('lab.pause', 'false'),
+                        System.getProperty('lab.timings', 'fast')
             }
         }
     }

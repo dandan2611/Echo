@@ -24,31 +24,31 @@ Echo provides a unified API to track players, servers, and proxies across your e
 
 ## Modules
 
-| Module | Description |
-|--------|-------------|
-| `api` | Public API interfaces and contracts |
-| `core` | Core implementation backed by Redis (Redisson) |
-| `ondemand` | Protocol-agnostic server acquisition contract |
-| `agones` | Agones allocation and game-server lifecycle adapter |
-| `queue` | Redis-backed group queues, placement, and recoverable player handoff |
+| Module     | Description                                                              |
+| ---------- | ------------------------------------------------------------------------ |
+| `api`      | Public API interfaces and contracts                                      |
+| `core`     | Core implementation backed by Redis (Redisson)                           |
+| `ondemand` | Protocol-agnostic server acquisition contract                            |
+| `agones`   | Agones allocation and game-server lifecycle adapter                      |
+| `queue`    | Redis-backed group queues, placement, and recoverable player handoff     |
 | `commands` | Shared Cloud Annotations administration commands for servers and proxies |
-| `paper` | Paper server plugin - auto-registers players and servers |
-| `velocity` | Velocity proxy plugin - handles server switching and player routing |
+| `paper`    | Paper server plugin - auto-registers players and servers                 |
+| `velocity` | Velocity proxy plugin - handles server switching and player routing      |
 
 ### API map
 
-| Area | Public entry points |
-|------|---------------------|
-| Client/config | `EchoClient` availability, load, placement, and session methods; `EchoConfig` initial properties, load provider, placement, and `Supplier` factories |
-| Load | `ServerLoad`, `ServerLoadSnapshot`, `ServerLoadProvider`, `ServerLoadManager` |
-| Placement | `ServerPlacement` requests, reservations, policies, monitoring, and explanations |
-| Messaging/admin | `MessagingProvider.request`, `MessageTarget.builder`, `RemoteAdministration`, `ResourceControlRequest`, `UserDisconnectRequest`, availability notifications, bounded switch statuses |
-| On demand | `OnDemandServers`, `ServerRequest`, `ServerHandle`, `OnDemandAdministration` allocation/reconciliation records |
-| Agones | `AgonesOnDemandServers`, `AgonesGameServerLifecycle` |
-| Queues | `QueueId`, `QueueDefinition`, `QueueOptions`, `QueueRequest`, `QueueRequestStatus`, `QueuePlacementAssignment`, `QueuePlacementPreparer`, `QueueService`, `QueueAdministration`, `RedisQueue` |
-| Commands | `EchoCommands`, `CommandAudience`, `CommandFormatter` |
-| Paper | `EchoPaper` drain/load/activation methods and `ServerDrainEvent` |
-| Velocity | `EchoPlugin` drain/activation/shutdown and session-aware disconnect methods |
+| Area            | Public entry points                                                                                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client/config   | `EchoClient` availability, load, placement, and session methods; `EchoConfig` initial properties, load provider, placement, and `Supplier` factories                                          |
+| Load            | `ServerLoad`, `ServerLoadSnapshot`, `ServerLoadProvider`, `ServerLoadManager`                                                                                                                 |
+| Placement       | `ServerPlacement` requests, reservations, policies, monitoring, and explanations                                                                                                              |
+| Messaging/admin | `MessagingProvider.request`, `MessageTarget.builder`, `RemoteAdministration`, `ResourceControlRequest`, `UserDisconnectRequest`, availability notifications, bounded switch statuses          |
+| On demand       | `OnDemandServers`, `ServerRequest`, `ServerHandle`, `OnDemandAdministration` allocation/reconciliation records                                                                                |
+| Agones          | `AgonesOnDemandServers`, `AgonesGameServerLifecycle`                                                                                                                                          |
+| Queues          | `QueueId`, `QueueDefinition`, `QueueOptions`, `QueueRequest`, `QueueRequestStatus`, `QueuePlacementAssignment`, `QueuePlacementPreparer`, `QueueService`, `QueueAdministration`, `RedisQueue` |
+| Commands        | `EchoCommands`, `CommandAudience`, `CommandFormatter`                                                                                                                                         |
+| Paper           | `EchoPaper` drain/load/activation methods and `ServerDrainEvent`                                                                                                                              |
+| Velocity        | `EchoPlugin` drain/activation/shutdown and session-aware disconnect methods                                                                                                                   |
 
 ## Installation
 
@@ -98,14 +98,14 @@ the hosted `maven-releases` endpoint requires authentication.
 
 Echo reads its configuration from environment variables:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `ECHO_RESOURCE_TYPE` | The type of this node | `SERVER` or `PROXY` |
-| `ECHO_RESOURCE_ID` | Unique identifier for this node | `lobby-1`, `proxy-eu` |
-| `ECHO_RESOURCE_ADDRESS` | The address of this node | `127.0.0.1:25565` |
-| `ECHO_AGONES_ENABLED` | Enable the optional Agones lifecycle | `true` (default: `false`) |
-| `ECHO_AGONES_LONG_LIVED` | Self-allocate and observe rollout drain requests | `true` for lobbies, otherwise `false` |
-| `ECHO_AGONES_DRAIN_ANNOTATION` | Annotation that requests a graceful drain | `echo.codinbox.fr/draining` |
+| Variable                       | Description                                              | Example                                 |
+| ------------------------------ | -------------------------------------------------------- | --------------------------------------- |
+| `ECHO_RESOURCE_TYPE`           | The type of this node                                    | `SERVER` or `PROXY`                     |
+| `ECHO_RESOURCE_ID`             | Unique identifier for this node                          | `lobby-1`, `proxy-eu`                   |
+| `ECHO_RESOURCE_ADDRESS`        | The address of this node                                 | `127.0.0.1:25565`                       |
+| `ECHO_AGONES_ENABLED`          | Enable the optional Agones lifecycle                     | `true` (default: `false`)               |
+| `ECHO_AGONES_LONG_LIVED`       | Self-allocate and observe rollout drain requests         | `true` for lobbies, otherwise `false`   |
+| `ECHO_AGONES_DRAIN_ANNOTATION` | Annotation that requests a graceful drain                | `echo.codinbox.fr/draining`             |
 | `ECHO_RESOURCE_PROPERTY_<key>` | String-valued initial property, applied before discovery | `ECHO_RESOURCE_PROPERTY_region=eu-west` |
 
 A Redis connection named `ECHO` must be registered through the Connector library. Initial-property
@@ -400,13 +400,13 @@ Create custom messages by extending `EchoMessage`:
 ```java
 public class AlertMessage extends EchoMessage {
     private String text;
-    
+
     public AlertMessage() {} // Required for deserialization
-    
+
     public AlertMessage(String text) {
         this.text = text;
     }
-    
+
     public String getText() { return text; }
 }
 ```
@@ -515,13 +515,13 @@ wrongly targeted, disallowed, unsupported, timed out, or failed.
 Paper registers `/echo` and `/echoserver`; Velocity registers `/echo` and `/echoproxy`. The shared
 command tree exposes:
 
-| Group | Operations |
-|-------|------------|
-| General | `help`, `version`, `status`, and resource/health/queue/placement monitors |
-| Resources | `server` and `proxy` list, info, ping, properties, drain, activate, shutdown; server load refresh |
-| Users | list, info, send, disconnect |
-| Queues | list, info, tickets, enqueue, cancel, pause, resume, wake, retry, requeue, purge |
-| Placement and allocation | status/explain/reservations/reserve/renew/release and list/info/acquire/reconcile/terminate |
+| Group                    | Operations                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| General                  | `help`, `version`, `status`, and resource/health/queue/placement monitors                         |
+| Resources                | `server` and `proxy` list, info, ping, properties, drain, activate, shutdown; server load refresh |
+| Users                    | list, info, send, disconnect                                                                      |
+| Queues                   | list, info, tickets, enqueue, cancel, pause, resume, wake, retry, requeue, purge                  |
+| Placement and allocation | status/explain/reservations/reserve/renew/release and list/info/acquire/reconcile/terminate       |
 
 Each command has the corresponding `echo.command.<path>` permission. Destructive resource controls
 print the exact retry command and require `--confirm`.
@@ -537,13 +537,13 @@ Both `velocity.command.send` **or** `echo.command.user.send` grant access. Trans
 /echo user send <player|UUID|all|current|server:id> <destination> [--proxy <id|local|all>]
 ```
 
-| Example | Source selection |
-| --- | --- |
-| `/send Steve lobby-1` | Steve anywhere on the network |
-| `/send all lobby-1` | All network users (also `--proxy all`) |
-| `/send all lobby-1 --proxy proxy-2` | Users connected through proxy-2 |
-| `/send current lobby-1 --proxy local` | Users on your current backend, through this proxy only |
-| `/send server:quake-1 lobby-1` | Users on quake-1 across all proxies; works from console |
+| Example                               | Source selection                                        |
+| ------------------------------------- | ------------------------------------------------------- |
+| `/send Steve lobby-1`                 | Steve anywhere on the network                           |
+| `/send all lobby-1`                   | All network users (also `--proxy all`)                  |
+| `/send all lobby-1 --proxy proxy-2`   | Users connected through proxy-2                         |
+| `/send current lobby-1 --proxy local` | Users on your current backend, through this proxy only  |
+| `/send server:quake-1 lobby-1`        | Users on quake-1 across all proxies; works from console |
 
 **Migration:** `all` and `current` now span all proxies by default. Add `--proxy local` for the old
 Velocity source scope. `current` requires a player connected to a backend; console uses `server:<id>`.
@@ -567,13 +567,13 @@ Either `velocity.command.glist` or `echo.command.user.list` grants access.
 /echo user list [all|current|server:<id>] [--proxy <id|local|all>] [--group <server|proxy|none>] [--count] [--page <n>]
 ```
 
-| Example | Result |
-| --- | --- |
-| `/glist` | Network total and counts by backend server |
-| `/glist all --group proxy` | Player names grouped by proxy |
-| `/glist all --proxy proxy-2` | Player names on proxy-2, grouped by backend server |
-| `/glist server:lobby-1 --proxy proxy-2` | Players on lobby-1 through proxy-2 |
-| `/glist current --proxy local --count` | Count on your current backend through this proxy |
+| Example                                 | Result                                             |
+| --------------------------------------- | -------------------------------------------------- |
+| `/glist`                                | Network total and counts by backend server         |
+| `/glist all --group proxy`              | Player names grouped by proxy                      |
+| `/glist all --proxy proxy-2`            | Player names on proxy-2, grouped by backend server |
+| `/glist server:lobby-1 --proxy proxy-2` | Players on lobby-1 through proxy-2                 |
+| `/glist current --proxy local --count`  | Count on your current backend through this proxy   |
 
 With no selector, the command shows counts. An explicit selector shows player names unless
 `--count` is set. A bare server ID (`/glist lobby-1`) is shorthand for `server:lobby-1`.
@@ -619,6 +619,7 @@ Echo includes a built-in healthcheck system that detects crashed or unresponsive
 ### Cleanup actions
 
 When a dead resource is cleaned up:
+
 - It is removed from `servers:map` or `proxies:map`
 - If it's a server, a `ServerStatusNotification(UNREGISTERED)` is sent to all proxies
 - Its properties and address are deleted
@@ -626,11 +627,11 @@ When a dead resource is cleaned up:
 
 ### Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ECHO_HEARTBEAT_TTL` | `30` | Heartbeat TTL in seconds |
-| `ECHO_HEARTBEAT_INTERVAL` | `10` | Heartbeat renewal interval in seconds |
-| `ECHO_SCAN_INTERVAL` | `15` | Dead resource scan interval in seconds |
+| Variable                           | Default | Description                                          |
+| ---------------------------------- | ------- | ---------------------------------------------------- |
+| `ECHO_HEARTBEAT_TTL`               | `30`    | Heartbeat TTL in seconds                             |
+| `ECHO_HEARTBEAT_INTERVAL`          | `10`    | Heartbeat renewal interval in seconds                |
+| `ECHO_SCAN_INTERVAL`               | `15`    | Dead resource scan interval in seconds               |
 | `ECHO_HEALTHCHECK_CLEANUP_ENABLED` | `false` | Enable cleanup on servers (always active on proxies) |
 
 > **Note**: Proxies always perform cleanup. For server-only infrastructures (no proxy), set `ECHO_HEALTHCHECK_CLEANUP_ENABLED=true` on at least one server.
@@ -639,13 +640,13 @@ When a dead resource is cleaned up:
 
 ### Replace removed APIs
 
-| 6.x | 7.0 |
-|-----|-----|
-| `client.newMessageTargetBuilder()` | `MessageTarget.builder()` |
-| `CacheProviderFactory` | `Supplier<? extends CacheProvider>` |
-| `MessagingProviderFactory` | `Supplier<? extends MessagingProvider>` |
+| 6.x                                    | 7.0                                                      |
+| -------------------------------------- | -------------------------------------------------------- |
+| `client.newMessageTargetBuilder()`     | `MessageTarget.builder()`                                |
+| `CacheProviderFactory`                 | `Supplier<? extends CacheProvider>`                      |
+| `MessagingProviderFactory`             | `Supplier<? extends MessagingProvider>`                  |
 | `Pair`, `NullableUtils`, `FutureUtils` | JDK records, `Optional`, and `CompletableFuture` methods |
-| `MapUtils.map` / `MapFunction` | Standard collection and stream operations |
+| `MapUtils.map` / `MapFunction`         | Standard collection and stream operations                |
 
 `MessageTarget.Builder` is now a final concrete class; custom implementations and mocks must be
 removed. `api` no longer exports fastutil transitively, so consumers using it directly must declare

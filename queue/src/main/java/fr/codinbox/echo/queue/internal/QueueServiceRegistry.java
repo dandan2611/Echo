@@ -1,10 +1,9 @@
 package fr.codinbox.echo.queue.internal;
 
 import fr.codinbox.echo.queue.QueueService;
+import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.concurrent.atomic.AtomicReference;
 
 /** Internal process-wide registry backing {@link QueueService#load()}. */
 @ApiStatus.Internal
@@ -12,13 +11,11 @@ public final class QueueServiceRegistry {
 
     private static final AtomicReference<QueueService> SERVICE = new AtomicReference<>();
 
-    private QueueServiceRegistry() {
-    }
+    private QueueServiceRegistry() {}
 
     public static @NotNull QueueService load() {
         QueueService service = SERVICE.get();
-        if (service == null)
-            throw new IllegalStateException("QueueService is not loaded");
+        if (service == null) throw new IllegalStateException("QueueService is not loaded");
         return service;
     }
 

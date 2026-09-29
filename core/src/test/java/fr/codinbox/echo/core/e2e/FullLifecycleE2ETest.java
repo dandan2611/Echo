@@ -1,20 +1,18 @@
 package fr.codinbox.echo.core.e2e;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.server.Address;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.integration.RedisIntegrationTestBase;
-import fr.codinbox.echo.core.proxy.ProxyImpl;
 import fr.codinbox.echo.core.server.ServerImpl;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("e2e")
 class FullLifecycleE2ETest extends RedisIntegrationTestBase {
@@ -58,5 +56,4 @@ class FullLifecycleE2ETest extends RedisIntegrationTestBase {
         Server freshA = client.getServerById("srv-a").join().orElseThrow();
         assertThat(freshA.getConnectedUsers().join()).doesNotContainKey(userId);
     }
-
 }

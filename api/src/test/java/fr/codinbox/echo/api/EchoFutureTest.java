@@ -1,13 +1,12 @@
 package fr.codinbox.echo.api;
 
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class EchoFutureTest {

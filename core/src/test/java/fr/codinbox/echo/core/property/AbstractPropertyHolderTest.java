@@ -1,20 +1,18 @@
 package fr.codinbox.echo.core.property;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
 import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
-import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.core.testutils.EchoTestUtils;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
 
 @Tag("unit")
 class AbstractPropertyHolderTest {
@@ -37,7 +35,8 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.setObject(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+            when(mockCache.setObject(anyString(), any()))
+                    .thenReturn(CompletableFuture.completedFuture(null));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             holder.setProperty("key", "value");
@@ -53,7 +52,8 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.deleteObject(anyString())).thenReturn(CompletableFuture.completedFuture(true));
+            when(mockCache.deleteObject(anyString()))
+                    .thenReturn(CompletableFuture.completedFuture(true));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             holder.setProperty("key", null);
@@ -114,5 +114,4 @@ class AbstractPropertyHolderTest {
             verify(mockCache).hasObject("test:myId:property:key");
         }
     }
-
 }

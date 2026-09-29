@@ -1,9 +1,9 @@
 package fr.codinbox.echo.api.property;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("unit")
 class PropertyKeyTest {
@@ -37,5 +37,4 @@ class PropertyKeyTest {
 
         assertThat(key).isNotEqualTo(null);
     }
-
 }

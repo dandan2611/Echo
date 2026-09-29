@@ -1,15 +1,14 @@
 package fr.codinbox.echo.commands;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.JoinConfiguration;
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /** Consistent compact presentation for operational command output. */
 public final class CommandFormatter {
@@ -17,18 +16,22 @@ public final class CommandFormatter {
     public Component rows(String title, Map<String, ?> rows) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.text(title, NamedTextColor.AQUA));
-        rows.forEach((key, value) -> lines.add(Component.text(key + ": ", NamedTextColor.GRAY)
-                .append(Component.text(String.valueOf(value), NamedTextColor.WHITE))));
+        rows.forEach(
+                (key, value) ->
+                        lines.add(
+                                Component.text(key + ": ", NamedTextColor.GRAY)
+                                        .append(
+                                                Component.text(
+                                                        String.valueOf(value),
+                                                        NamedTextColor.WHITE))));
         return Component.join(JoinConfiguration.newlines(), lines);
     }
 
     public Component list(String title, Collection<?> values) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.text(title, NamedTextColor.AQUA));
-        if (values.isEmpty())
-            lines.add(Component.text("None", NamedTextColor.GRAY));
-        else
-            values.forEach(value -> lines.add(Component.text("- " + value, NamedTextColor.WHITE)));
+        if (values.isEmpty()) lines.add(Component.text("None", NamedTextColor.GRAY));
+        else values.forEach(value -> lines.add(Component.text("- " + value, NamedTextColor.WHITE)));
         return Component.join(JoinConfiguration.newlines(), lines);
     }
 
@@ -53,10 +56,8 @@ public final class CommandFormatter {
     }
 
     public String duration(long millis) {
-        if (millis == -1)
-            return "none";
-        if (millis == -2)
-            return "missing";
+        if (millis == -1) return "none";
+        if (millis == -2) return "missing";
         return Duration.ofMillis(millis).toString();
     }
 

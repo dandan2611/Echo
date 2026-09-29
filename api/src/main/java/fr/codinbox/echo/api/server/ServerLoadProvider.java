@@ -6,5 +6,6 @@ import org.jetbrains.annotations.NotNull;
 @FunctionalInterface
 public interface ServerLoadProvider {
 
-    @NotNull ServerLoad getLoad();
+    @NotNull
+    ServerLoad getLoad();
 }

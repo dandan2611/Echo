@@ -1,18 +1,17 @@
 package fr.codinbox.echo.core.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.cache.CacheMap;
 import fr.codinbox.echo.api.cache.CacheProvider;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.core.EchoClientImpl;
+import java.time.Instant;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-import java.util.concurrent.TimeUnit;
-import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("integration")
 class CacheIntegrationTest extends RedisIntegrationTestBase {
@@ -74,8 +73,8 @@ class CacheIntegrationTest extends RedisIntegrationTestBase {
         Instant expireAt = Instant.now().plusSeconds(1);
         cacheProvider.expireObject("test:expire", expireAt).join();
 
-        org.rnorth.ducttape.unreliables.Unreliables.retryUntilTrue(5, TimeUnit.SECONDS,
-                () -> cacheProvider.getObject("test:expire").join() == null);
+        org.rnorth.ducttape.unreliables.Unreliables.retryUntilTrue(
+                5, TimeUnit.SECONDS, () -> cacheProvider.getObject("test:expire").join() == null);
         assertThat(cacheProvider.getObject("test:expire").join()).isNull();
     }
 

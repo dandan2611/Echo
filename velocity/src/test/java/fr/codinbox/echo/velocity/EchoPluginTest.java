@@ -1,27 +1,5 @@
 package fr.codinbox.echo.velocity;
 
-import com.velocitypowered.api.proxy.Player;
-import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.scheduler.ScheduledTask;
-import com.velocitypowered.api.scheduler.Scheduler;
-import net.kyori.adventure.text.Component;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.lang.reflect.Field;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +8,27 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.scheduler.ScheduledTask;
+import com.velocitypowered.api.scheduler.Scheduler;
+import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import net.kyori.adventure.text.Component;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 @Tag("unit")
 class EchoPluginTest {
@@ -68,7 +67,8 @@ class EchoPluginTest {
         Scheduler.TaskBuilder checkBuilder = taskBuilder();
         when(deadlineBuilder.delay(Duration.ofSeconds(30))).thenReturn(deadlineBuilder);
         when(checkBuilder.repeat(Duration.ofSeconds(1))).thenReturn(checkBuilder);
-        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class))).thenReturn(deadlineBuilder);
+        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class)))
+                .thenReturn(deadlineBuilder);
         ArgumentCaptor<Consumer<ScheduledTask>> check = consumerCaptor();
         when(this.scheduler.buildTask(eq(this.plugin), check.capture())).thenReturn(checkBuilder);
         when(this.proxy.getPlayerCount()).thenReturn(0);
@@ -88,7 +88,8 @@ class EchoPluginTest {
         Scheduler.TaskBuilder checkBuilder = taskBuilder();
         when(deadlineBuilder.delay(Duration.ofMinutes(30))).thenReturn(deadlineBuilder);
         when(checkBuilder.repeat(Duration.ofSeconds(1))).thenReturn(checkBuilder);
-        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class))).thenReturn(deadlineBuilder);
+        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class)))
+                .thenReturn(deadlineBuilder);
         ArgumentCaptor<Consumer<ScheduledTask>> check = consumerCaptor();
         when(this.scheduler.buildTask(eq(this.plugin), check.capture())).thenReturn(checkBuilder);
         when(this.proxy.getPlayerCount()).thenReturn(1, 0);
@@ -182,8 +183,9 @@ class EchoPluginTest {
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
         when(this.scheduler.buildTask(eq(this.plugin), task.capture())).thenReturn(builder);
 
-        var disconnected = this.plugin.disconnectPlayer(
-                userId, "maintenance", "session-1", NOW.plusSeconds(1).toEpochMilli());
+        var disconnected =
+                this.plugin.disconnectPlayer(
+                        userId, "maintenance", "session-1", NOW.plusSeconds(1).toEpochMilli());
         setField(this.plugin, "clock", Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC));
         task.getValue().run();
 

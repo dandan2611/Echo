@@ -1,16 +1,20 @@
 package fr.codinbox.echo.velocity.messaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.impl.UserDisconnectRequest;
 import fr.codinbox.echo.api.user.User;
 import fr.codinbox.echo.velocity.EchoPlugin;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -20,15 +24,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 @Tag("unit")
 class UserDisconnectRequestHandlerTest {
@@ -46,11 +45,13 @@ class UserDisconnectRequestHandlerTest {
         this.plugin = mock(EchoPlugin.class);
         this.echo = mock(EchoClient.class);
         this.user = mock(User.class);
-        this.handler = new UserDisconnectRequestHandler(
-                this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
+        this.handler =
+                new UserDisconnectRequestHandler(
+                        this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
         when(this.echo.getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(this.echo.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
-        when(this.echo.getUserById(USER_ID)).thenReturn(EchoFuture.completed(Optional.of(this.user)));
+        when(this.echo.getUserById(USER_ID))
+                .thenReturn(EchoFuture.completed(Optional.of(this.user)));
         when(this.user.getSessionId()).thenReturn(EchoFuture.completed(Optional.of("session-1")));
     }
 
@@ -72,8 +73,9 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(request);
 
         assertResponse(request, false, UserDisconnectRequest.Status.WRONG_TARGET);
-        verify(this.plugin, never()).disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli());
+        verify(this.plugin, never())
+                .disconnectPlayer(
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli());
     }
 
     @Test
@@ -101,15 +103,15 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(request);
 
         assertResponse(request, false, UserDisconnectRequest.Status.EXPIRED);
-        verify(this.plugin, never()).disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.toEpochMilli());
+        verify(this.plugin, never())
+                .disconnectPlayer(USER_ID, "maintenance", "session-1", NOW.toEpochMilli());
     }
 
     @Test
     void absentPlayerGetsBoundedCorrelatedResponse() {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
         when(this.plugin.disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
                 .thenReturn(CompletableFuture.completedFuture(false));
 
         this.handler.onReceive(request);
@@ -125,14 +127,15 @@ class UserDisconnectRequestHandlerTest {
     void presentPlayerGetsDisconnectedResponse() {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
         when(this.plugin.disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
                 .thenReturn(CompletableFuture.completedFuture(true));
 
         this.handler.onReceive(request);
 
         assertResponse(request, true, UserDisconnectRequest.Status.DISCONNECTED);
-        verify(this.plugin).disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli());
+        verify(this.plugin)
+                .disconnectPlayer(
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli());
     }
 
     @Test
@@ -156,7 +159,8 @@ class UserDisconnectRequestHandlerTest {
         assertResponse(missingUser, false, UserDisconnectRequest.Status.PLAYER_NOT_FOUND);
 
         UserDisconnectRequest missingSession = request("proxy-1", NOW.plusSeconds(5));
-        when(this.echo.getUserById(USER_ID)).thenReturn(EchoFuture.completed(Optional.of(this.user)));
+        when(this.echo.getUserById(USER_ID))
+                .thenReturn(EchoFuture.completed(Optional.of(this.user)));
         when(this.user.getSessionId()).thenReturn(EchoFuture.completed(Optional.empty()));
 
         this.handler.onReceive(missingSession);
@@ -170,15 +174,16 @@ class UserDisconnectRequestHandlerTest {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
         CompletableFuture<Boolean> disconnect = new CompletableFuture<>();
         when(this.plugin.disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli())).thenReturn(disconnect);
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
+                .thenReturn(disconnect);
 
         this.handler.onReceive(request);
         verify(request, never()).reply(any(UserDisconnectRequest.Response.class));
-        disconnect.completeExceptionally(new CompletionException(
-                new IllegalStateException("disconnect failed")));
+        disconnect.completeExceptionally(
+                new CompletionException(new IllegalStateException("disconnect failed")));
 
-        UserDisconnectRequest.Response response = assertResponse(
-                request, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response response =
+                assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
         assertThat(response.getMessageId()).isEqualTo(request.getMessageId());
         assertThat(response.getMessage()).isEqualTo("disconnect failed");
     }
@@ -188,40 +193,45 @@ class UserDisconnectRequestHandlerTest {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
         CompletableFuture<Boolean> disconnect = new CompletableFuture<>();
         when(this.plugin.disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli())).thenReturn(disconnect);
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
+                .thenReturn(disconnect);
 
         this.handler.onReceive(request);
         disconnect.completeExceptionally(new CompletionException((Throwable) null));
 
-        UserDisconnectRequest.Response response = assertResponse(
-                request, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response response =
+                assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
         assertThat(response.getMessage()).isEqualTo("CompletionException");
     }
 
     @Test
     void neverCompletingDisconnectTimesOutWithoutWaiting() {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
-        CompletableFuture<Boolean> disconnect = new CompletableFuture<>() {
-            @Override
-            public CompletableFuture<Boolean> copy() {
-                return new CompletableFuture<>() {
+        CompletableFuture<Boolean> disconnect =
+                new CompletableFuture<>() {
                     @Override
-                    public CompletableFuture<Boolean> orTimeout(long timeout, TimeUnit unit) {
-                        assertThat(timeout).isEqualTo(5_000L);
-                        assertThat(unit).isEqualTo(TimeUnit.MILLISECONDS);
-                        this.completeExceptionally(new TimeoutException("disconnect deadline elapsed"));
-                        return this;
+                    public CompletableFuture<Boolean> copy() {
+                        return new CompletableFuture<>() {
+                            @Override
+                            public CompletableFuture<Boolean> orTimeout(
+                                    long timeout, TimeUnit unit) {
+                                assertThat(timeout).isEqualTo(5_000L);
+                                assertThat(unit).isEqualTo(TimeUnit.MILLISECONDS);
+                                this.completeExceptionally(
+                                        new TimeoutException("disconnect deadline elapsed"));
+                                return this;
+                            }
+                        };
                     }
                 };
-            }
-        };
         when(this.plugin.disconnectPlayer(
-                USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli())).thenReturn(disconnect);
+                        USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
+                .thenReturn(disconnect);
 
         this.handler.onReceive(request);
 
-        UserDisconnectRequest.Response response = assertResponse(
-                request, false, UserDisconnectRequest.Status.TIMED_OUT);
+        UserDisconnectRequest.Response response =
+                assertResponse(request, false, UserDisconnectRequest.Status.TIMED_OUT);
         assertThat(response.getMessage()).isEqualTo("disconnect deadline elapsed");
         assertThat(disconnect).isNotDone();
     }
@@ -231,21 +241,22 @@ class UserDisconnectRequestHandlerTest {
         UserDisconnectRequest withMessage = request("proxy-1", NOW.plusSeconds(5));
         doThrow(new IllegalStateException("scheduler unavailable"))
                 .doThrow(new IllegalStateException())
-                .when(this.plugin).disconnectPlayer(
+                .when(this.plugin)
+                .disconnectPlayer(
                         USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli());
 
         this.handler.onReceive(withMessage);
 
-        UserDisconnectRequest.Response withMessageResponse = assertResponse(
-                withMessage, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response withMessageResponse =
+                assertResponse(withMessage, false, UserDisconnectRequest.Status.FAILED);
         assertThat(withMessageResponse.getMessage()).isEqualTo("scheduler unavailable");
 
         UserDisconnectRequest withoutMessage = request("proxy-1", NOW.plusSeconds(5));
 
         this.handler.onReceive(withoutMessage);
 
-        UserDisconnectRequest.Response withoutMessageResponse = assertResponse(
-                withoutMessage, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response withoutMessageResponse =
+                assertResponse(withoutMessage, false, UserDisconnectRequest.Status.FAILED);
         assertThat(withoutMessageResponse.getMessage()).isEqualTo("IllegalStateException");
     }
 
@@ -260,9 +271,13 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(withMessage);
         this.handler.onReceive(withoutMessage);
 
-        assertThat(assertResponse(withMessage, false, UserDisconnectRequest.Status.FAILED).getMessage())
+        assertThat(
+                        assertResponse(withMessage, false, UserDisconnectRequest.Status.FAILED)
+                                .getMessage())
                 .isEqualTo("lookup unavailable");
-        assertThat(assertResponse(withoutMessage, false, UserDisconnectRequest.Status.FAILED).getMessage())
+        assertThat(
+                        assertResponse(withoutMessage, false, UserDisconnectRequest.Status.FAILED)
+                                .getMessage())
                 .isEqualTo("IllegalStateException");
     }
 

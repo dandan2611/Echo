@@ -1,7 +1,6 @@
 package fr.codinbox.echo.core.testutils;
 
 import fr.codinbox.echo.api.Echo;
-
 import java.lang.reflect.Field;
 
 public final class EchoTestUtils {

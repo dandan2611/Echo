@@ -8,11 +8,12 @@ import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.proxy.Player;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
-
-/** Samples permissions before routing plugins perform initial-join or direct-switch reservations. */
+/**
+ * Samples permissions before routing plugins perform initial-join or direct-switch reservations.
+ */
 public final class AdmissionPermissionListener {
     private final RedisServerPlacement placement;
 
@@ -36,7 +37,9 @@ public final class AdmissionPermissionListener {
     }
 
     private void publish(final Player player) {
-        this.placement.publishStaffPermissions(Map.of(player.getUniqueId(),
-                player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)));
+        this.placement.publishStaffPermissions(
+                Map.of(
+                        player.getUniqueId(),
+                        player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION)));
     }
 }

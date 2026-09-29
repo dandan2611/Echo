@@ -1,8 +1,7 @@
 package fr.codinbox.echo.queue;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Objects;
+import org.jetbrains.annotations.NotNull;
 
 /** Stable identifier of one configured matchmaking lane. */
 public record QueueId(@NotNull String value) {

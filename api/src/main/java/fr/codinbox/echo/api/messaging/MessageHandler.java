@@ -5,9 +5,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A functional interface for handling messages received on a topic.
  *
- * <p>Used with {@link MessagingProvider#subscribe(String, MessageHandler)} and
- * {@link MessagingProvider#subscribe(String, Class, MessageHandler)} to process
- * incoming messages.</p>
+ * <p>Used with {@link MessagingProvider#subscribe(String, MessageHandler)} and {@link
+ * MessagingProvider#subscribe(String, Class, MessageHandler)} to process incoming messages.
  *
  * <pre>{@code
  * // Raw handler (receives all message types)
@@ -33,5 +32,4 @@ public interface MessageHandler<T extends EchoMessage> {
      * @param message the received message
      */
     void onReceive(final @NotNull T message);
-
 }

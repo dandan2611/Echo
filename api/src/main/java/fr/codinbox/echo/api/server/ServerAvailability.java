@@ -1,8 +1,6 @@
 package fr.codinbox.echo.api.server;
 
-/**
- * Whether a live server accepts new player assignments.
- */
+/** Whether a live server accepts new player assignments. */
 public enum ServerAvailability {
     /** Accepts new player assignments. */
     ACTIVE,

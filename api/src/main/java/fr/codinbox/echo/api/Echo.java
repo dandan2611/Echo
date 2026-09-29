@@ -1,17 +1,16 @@
 package fr.codinbox.echo.api;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Objects;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Static entry point for the Echo API.
  *
  * <p>This class provides access to the singleton {@link EchoClient} instance, which is the main
- * gateway for all Echo operations (querying users, servers, proxies, messaging, etc.).</p>
+ * gateway for all Echo operations (querying users, servers, proxies, messaging, etc.).
  *
- * <p>The client is automatically initialized by the Echo platform plugin (Paper or Velocity).
- * In most cases, you only need to call {@link #getClient()}:</p>
+ * <p>The client is automatically initialized by the Echo platform plugin (Paper or Velocity). In
+ * most cases, you only need to call {@link #getClient()}:
  *
  * <pre>{@code
  * EchoClient client = Echo.getClient();
@@ -44,9 +43,9 @@ public final class Echo {
     /**
      * Initializes the Echo client singleton.
      *
-     * <p><b>Internal use only.</b> This is called automatically by the Echo platform plugin
-     * (Paper or Velocity) during startup. Calling this manually will throw an exception
-     * if the client is already initialized.</p>
+     * <p><b>Internal use only.</b> This is called automatically by the Echo platform plugin (Paper
+     * or Velocity) during startup. Calling this manually will throw an exception if the client is
+     * already initialized.
      *
      * @param client the client implementation to register
      * @throws IllegalStateException if the client is already initialized
@@ -56,5 +55,4 @@ public final class Echo {
             throw new IllegalStateException("The client is already initialized");
         Echo.client = client;
     }
-
 }

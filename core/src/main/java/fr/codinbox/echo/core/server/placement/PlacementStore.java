@@ -12,15 +12,28 @@ interface PlacementStore {
 
     interface Transaction {
         Instant now();
+
         /** Authoritative lease clock, independent of application telemetry timestamps. */
-        default Instant leaseNow() { return now(); }
-        default void leaseValidUntil(Instant deadline) { validUntil(deadline); }
+        default Instant leaseNow() {
+            return now();
+        }
+
+        default void leaseValidUntil(Instant deadline) {
+            validUntil(deadline);
+        }
+
         Object value(String key);
+
         boolean alive(String key);
+
         void set(String key, Object value);
+
         void registerServer(String serverId, Instant createdAt);
+
         Set<String> serverIds();
+
         Map<String, String> reservations();
+
         void validUntil(Instant deadline);
     }
 }

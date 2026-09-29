@@ -1,5 +1,15 @@
 package fr.codinbox.echo.paper.messaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.EchoFuture;
 import fr.codinbox.echo.api.messaging.MessagingProvider;
@@ -12,15 +22,6 @@ import fr.codinbox.echo.paper.EchoPaper;
 import fr.codinbox.echo.queue.QueuePlacementAssignment;
 import fr.codinbox.echo.queue.QueuePlacementPreparer;
 import fr.codinbox.echo.queue.messaging.QueuePlacementPrepareRequest;
-import org.bukkit.scheduler.BukkitScheduler;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -36,26 +37,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import org.bukkit.scheduler.BukkitScheduler;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @Tag("unit")
 @ExtendWith(MockitoExtension.class)
 class QueuePlacementPrepareRequestHandlerTest {
 
     private static final Instant NOW = Instant.parse("2026-09-03T12:00:00Z");
-    private static final UUID PLACEMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID PLACEMENT_ID =
+            UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID MEMBER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final UUID MESSAGE_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
-    private static final UUID SECOND_MESSAGE_ID = UUID.fromString("00000000-0000-0000-0000-000000000004");
+    private static final UUID SECOND_MESSAGE_ID =
+            UUID.fromString("00000000-0000-0000-0000-000000000004");
 
     @Mock private EchoPaper plugin;
     @Mock private org.bukkit.Server bukkitServer;
@@ -76,13 +77,23 @@ class QueuePlacementPrepareRequestHandlerTest {
         lenient().when(plugin.getLogger()).thenReturn(logger);
         lenient().when(bukkitServer.getScheduler()).thenReturn(scheduler);
         lenient().when(echo.getCurrentResourceId()).thenReturn(Optional.of("game-1"));
-        lenient().when(echo.getServerById("game-1")).thenReturn(EchoFuture.completed(Optional.of(server)));
-        lenient().when(server.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
+        lenient()
+                .when(echo.getServerById("game-1"))
+                .thenReturn(EchoFuture.completed(Optional.of(server)));
+        lenient()
+                .when(server.getAvailability())
+                .thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         lenient().when(echo.getServerLoadManager()).thenReturn(loadManager);
-        lenient().when(loadManager.getCurrent()).thenReturn(EchoFuture.completed(Optional.of(load(true, NOW.plusSeconds(30)))));
+        lenient()
+                .when(loadManager.getCurrent())
+                .thenReturn(EchoFuture.completed(Optional.of(load(true, NOW.plusSeconds(30)))));
         lenient().when(echo.getMessagingProvider()).thenReturn(messaging);
         lenient().when(echo.getLocalTopic()).thenReturn("server:game-1");
-        lenient().when(messaging.publish(eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class)))
+        lenient()
+                .when(
+                        messaging.publish(
+                                eq("reply:coordinator"),
+                                any(QueuePlacementPrepareRequest.Response.class)))
                 .thenReturn(EchoFuture.completed(null));
         this.handler = handler(() -> preparer);
     }
@@ -106,7 +117,8 @@ class QueuePlacementPrepareRequestHandlerTest {
         verify(preparer, never()).prepare(any());
         task.run();
 
-        ArgumentCaptor<QueuePlacementAssignment> assignment = ArgumentCaptor.forClass(QueuePlacementAssignment.class);
+        ArgumentCaptor<QueuePlacementAssignment> assignment =
+                ArgumentCaptor.forClass(QueuePlacementAssignment.class);
         verify(preparer).prepare(assignment.capture());
         assertThat(assignment.getValue().requests()).isEqualTo(request.getRequests());
         assertThat(assignment.getValue().preparationDeadline()).isEqualTo(NOW.plusSeconds(10));
@@ -134,8 +146,9 @@ class QueuePlacementPrepareRequestHandlerTest {
     @Test
     void pendingPreparationIsRejectedAtDeadlineWithoutAnotherRequest() {
         MutableClock clock = new MutableClock(NOW);
-        this.handler = new QueuePlacementPrepareRequestHandler(
-                plugin, echo, stopping::get, () -> preparer, clock);
+        this.handler =
+                new QueuePlacementPrepareRequestHandler(
+                        plugin, echo, stopping::get, () -> preparer, clock);
         when(echo.getServerById("game-1")).thenReturn(new EchoFuture<>());
         QueuePlacementPrepareRequest first = request();
         first.setPreparationDeadlineEpochMillis(NOW.plusMillis(10_001).toEpochMilli());
@@ -155,10 +168,13 @@ class QueuePlacementPrepareRequestHandlerTest {
         deadlineTask.getValue().run();
 
         List<QueuePlacementPrepareRequest.Response> responses = responses(2);
-        assertThat(responses).allSatisfy(response -> {
-            assertThat(response.isAccepted()).isFalse();
-            assertThat(response.getReason()).isEqualTo("Queue assignment deadline expired");
-        });
+        assertThat(responses)
+                .allSatisfy(
+                        response -> {
+                            assertThat(response.isAccepted()).isFalse();
+                            assertThat(response.getReason())
+                                    .isEqualTo("Queue assignment deadline expired");
+                        });
         assertCorrelated(responseFor(responses, MESSAGE_ID), first);
         assertCorrelated(responseFor(responses, SECOND_MESSAGE_ID), duplicate);
     }
@@ -166,8 +182,9 @@ class QueuePlacementPrepareRequestHandlerTest {
     @Test
     void gameAcceptanceAfterDeadlineIsRejectedAndNotReplayed() {
         MutableClock clock = new MutableClock(NOW);
-        this.handler = new QueuePlacementPrepareRequestHandler(
-                plugin, echo, stopping::get, () -> preparer, clock);
+        this.handler =
+                new QueuePlacementPrepareRequestHandler(
+                        plugin, echo, stopping::get, () -> preparer, clock);
         CompletableFuture<QueuePlacementPreparer.Decision> decision = new CompletableFuture<>();
         when(preparer.prepare(any())).thenReturn(decision);
         QueuePlacementPrepareRequest first = request();
@@ -184,10 +201,11 @@ class QueuePlacementPrepareRequestHandlerTest {
         this.handler.onReceive(replay);
 
         verify(preparer).prepare(any());
-        QueuePlacementPrepareRequest.Response replayResponse = responses(2).stream()
-                .filter(response -> SECOND_MESSAGE_ID.equals(response.getMessageId()))
-                .findFirst()
-                .orElseThrow();
+        QueuePlacementPrepareRequest.Response replayResponse =
+                responses(2).stream()
+                        .filter(response -> SECOND_MESSAGE_ID.equals(response.getMessageId()))
+                        .findFirst()
+                        .orElseThrow();
         assertThat(replayResponse.isAccepted()).isFalse();
         assertThat(replayResponse.getReason()).isEqualTo("Queue assignment deadline expired");
     }
@@ -237,7 +255,8 @@ class QueuePlacementPrepareRequestHandlerTest {
 
     @Test
     void drainingServerIsRejectedOnPaperThread() {
-        when(server.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.DRAINING));
+        when(server.getAvailability())
+                .thenReturn(EchoFuture.completed(ServerAvailability.DRAINING));
         QueuePlacementPrepareRequest request = request();
 
         receiveAndRun(request);
@@ -257,7 +276,8 @@ class QueuePlacementPrepareRequestHandlerTest {
 
     @Test
     void staleLoadRejectsWithoutCallingGamePlugin() {
-        when(loadManager.getCurrent()).thenReturn(EchoFuture.completed(Optional.of(load(true, NOW))));
+        when(loadManager.getCurrent())
+                .thenReturn(EchoFuture.completed(Optional.of(load(true, NOW))));
         QueuePlacementPrepareRequest request = request();
 
         receiveAndRun(request);
@@ -268,7 +288,8 @@ class QueuePlacementPrepareRequestHandlerTest {
 
     @Test
     void loadThatRejectsQueueAssignmentsReturnsNack() {
-        when(loadManager.getCurrent()).thenReturn(EchoFuture.completed(Optional.of(load(false, NOW.plusSeconds(30)))));
+        when(loadManager.getCurrent())
+                .thenReturn(EchoFuture.completed(Optional.of(load(false, NOW.plusSeconds(30)))));
         QueuePlacementPrepareRequest request = request();
 
         receiveAndRun(request);
@@ -321,8 +342,9 @@ class QueuePlacementPrepareRequestHandlerTest {
 
     @Test
     void asynchronousReadinessProviderFailureIsUnwrappedInNack() {
-        EchoFuture<Optional<Server>> failure = failedFuture(
-                new CompletionException(new IllegalStateException("availability offline")));
+        EchoFuture<Optional<Server>> failure =
+                failedFuture(
+                        new CompletionException(new IllegalStateException("availability offline")));
         when(echo.getServerById("game-1")).thenReturn(failure);
         QueuePlacementPrepareRequest request = request();
 
@@ -344,9 +366,11 @@ class QueuePlacementPrepareRequestHandlerTest {
 
     @Test
     void synchronousGamePreparerFailureReturnsNack() {
-        this.handler = handler(() -> {
-            throw new IllegalStateException();
-        });
+        this.handler =
+                handler(
+                        () -> {
+                            throw new IllegalStateException();
+                        });
         QueuePlacementPrepareRequest request = request();
 
         receiveAndRun(request);
@@ -374,19 +398,24 @@ class QueuePlacementPrepareRequestHandlerTest {
 
         List<QueuePlacementPrepareRequest.Response> responses = responses(2);
         QueuePlacementPrepareRequest.Response firstResponse = responseFor(responses, MESSAGE_ID);
-        QueuePlacementPrepareRequest.Response duplicateResponse = responseFor(responses, SECOND_MESSAGE_ID);
+        QueuePlacementPrepareRequest.Response duplicateResponse =
+                responseFor(responses, SECOND_MESSAGE_ID);
         assertCorrelated(firstResponse, first);
         assertCorrelated(duplicateResponse, duplicate);
-        assertThat(responses).allSatisfy(response -> {
-            assertThat(response.isAccepted()).isFalse();
-            assertThat(response.getReason()).isEqualTo("game provider offline");
-        });
+        assertThat(responses)
+                .allSatisfy(
+                        response -> {
+                            assertThat(response.isAccepted()).isFalse();
+                            assertThat(response.getReason()).isEqualTo("game provider offline");
+                        });
     }
 
     @Test
     void completedDuplicateReplaysDecisionWithoutPreparingTwice() {
-        when(preparer.prepare(any())).thenReturn(CompletableFuture.completedFuture(
-                QueuePlacementPreparer.Decision.reject("game is full")));
+        when(preparer.prepare(any()))
+                .thenReturn(
+                        CompletableFuture.completedFuture(
+                                QueuePlacementPreparer.Decision.reject("game is full")));
         QueuePlacementPrepareRequest first = request();
         QueuePlacementPrepareRequest duplicate = request();
         duplicate.setMessageId(SECOND_MESSAGE_ID);
@@ -399,10 +428,12 @@ class QueuePlacementPrepareRequestHandlerTest {
         List<QueuePlacementPrepareRequest.Response> responses = responses(2);
         assertCorrelated(responseFor(responses, MESSAGE_ID), first);
         assertCorrelated(responseFor(responses, SECOND_MESSAGE_ID), duplicate);
-        assertThat(responses).allSatisfy(response -> {
-            assertThat(response.isAccepted()).isFalse();
-            assertThat(response.getReason()).isEqualTo("game is full");
-        });
+        assertThat(responses)
+                .allSatisfy(
+                        response -> {
+                            assertThat(response.isAccepted()).isFalse();
+                            assertThat(response.getReason()).isEqualTo("game is full");
+                        });
     }
 
     @Test
@@ -419,11 +450,13 @@ class QueuePlacementPrepareRequestHandlerTest {
         this.handler.onReceive(conflict);
 
         verify(preparer).prepare(any());
-        verify(messaging).publish(eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class));
+        verify(messaging)
+                .publish(eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class));
 
         decision.complete(QueuePlacementPreparer.Decision.accept());
         List<QueuePlacementPrepareRequest.Response> responses = responses(2);
-        QueuePlacementPrepareRequest.Response conflictResponse = responseFor(responses, SECOND_MESSAGE_ID);
+        QueuePlacementPrepareRequest.Response conflictResponse =
+                responseFor(responses, SECOND_MESSAGE_ID);
         assertCorrelated(conflictResponse, conflict);
         assertThat(conflictResponse.isAccepted()).isFalse();
         assertThat(conflictResponse.getReason()).isEqualTo("Conflicting Queue assignment revision");
@@ -445,7 +478,8 @@ class QueuePlacementPrepareRequestHandlerTest {
     @Test
     void asynchronousPublishFailureIsLogged() {
         IllegalStateException failure = new IllegalStateException("broker offline");
-        when(messaging.publish(eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class)))
+        when(messaging.publish(
+                        eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class)))
                 .thenReturn(failedFuture(failure));
         QueuePlacementPrepareRequest request = request();
         request.setQueueId(" ");
@@ -458,7 +492,8 @@ class QueuePlacementPrepareRequestHandlerTest {
     @Test
     void synchronousPublishFailureIsLogged() {
         IllegalStateException failure = new IllegalStateException("broker unavailable");
-        when(messaging.publish(eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class)))
+        when(messaging.publish(
+                        eq("reply:coordinator"), any(QueuePlacementPrepareRequest.Response.class)))
                 .thenThrow(failure);
         QueuePlacementPrepareRequest request = request();
         request.setQueueId(" ");
@@ -469,14 +504,19 @@ class QueuePlacementPrepareRequestHandlerTest {
     }
 
     private QueuePlacementPrepareRequestHandler handler(Supplier<QueuePlacementPreparer> provider) {
-        return new QueuePlacementPrepareRequestHandler(plugin, echo, stopping::get, provider,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        return new QueuePlacementPrepareRequestHandler(
+                plugin, echo, stopping::get, provider, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private QueuePlacementPrepareRequest request() {
-        QueuePlacementPrepareRequest request = new QueuePlacementPrepareRequest(PLACEMENT_ID, 2,
-                "survival:classic", "game-1", NOW.plusSeconds(10).toEpochMilli(),
-                Map.of("ticket-1", Set.of(MEMBER_ID)));
+        QueuePlacementPrepareRequest request =
+                new QueuePlacementPrepareRequest(
+                        PLACEMENT_ID,
+                        2,
+                        "survival:classic",
+                        "game-1",
+                        NOW.plusSeconds(10).toEpochMilli(),
+                        Map.of("ticket-1", Set.of(MEMBER_ID)));
         request.setMessageId(MESSAGE_ID);
         request.setReplyTopic("reply:coordinator");
         return request;
@@ -523,8 +563,8 @@ class QueuePlacementPrepareRequestHandlerTest {
         assertThat(response.getReason()).isEqualTo(reason);
     }
 
-    private void assertCorrelated(QueuePlacementPrepareRequest.Response response,
-                                  QueuePlacementPrepareRequest request) {
+    private void assertCorrelated(
+            QueuePlacementPrepareRequest.Response response, QueuePlacementPrepareRequest request) {
         assertThat(response.getMessageId()).isEqualTo(request.getMessageId());
         assertThat(response.getPlacementId()).isEqualTo(request.getPlacementId());
         assertThat(response.getRunVersion()).isEqualTo(request.getRunVersion());

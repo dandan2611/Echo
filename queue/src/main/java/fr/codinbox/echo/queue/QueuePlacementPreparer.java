@@ -1,16 +1,16 @@
 package fr.codinbox.echo.queue;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /** Game-plugin seam used to accept or reject an assignment before transfer. */
 @FunctionalInterface
 public interface QueuePlacementPreparer {
 
-    @NotNull CompletionStage<Decision> prepare(@NotNull QueuePlacementAssignment assignment);
+    @NotNull
+    CompletionStage<Decision> prepare(@NotNull QueuePlacementAssignment assignment);
 
     record Decision(boolean accepted, @Nullable String reason) {
 

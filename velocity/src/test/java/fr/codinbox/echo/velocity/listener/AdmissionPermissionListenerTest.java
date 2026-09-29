@@ -1,24 +1,23 @@
 package fr.codinbox.echo.velocity.listener;
 
-import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.velocitypowered.api.event.connection.LoginEvent;
+import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.proxy.Player;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.redisson.api.RBucket;
-import org.redisson.api.RBatch;
-import org.redisson.api.RedissonClient;
-
 import java.time.Duration;
 import java.util.UUID;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.redisson.api.RBatch;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 
 @Tag("unit")
 class AdmissionPermissionListenerTest {

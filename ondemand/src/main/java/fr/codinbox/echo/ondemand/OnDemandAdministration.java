@@ -1,24 +1,27 @@
 package fr.codinbox.echo.ondemand;
 
 import fr.codinbox.echo.api.server.ServerAvailability;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /** Administrative view and controls for on-demand server allocations. */
 public interface OnDemandAdministration {
 
-    @NotNull CompletableFuture<List<Allocation>> listAllocations();
+    @NotNull
+    CompletableFuture<List<Allocation>> listAllocations();
 
-    @NotNull CompletableFuture<Optional<Allocation>> getAllocation(@NotNull String requestId);
+    @NotNull
+    CompletableFuture<Optional<Allocation>> getAllocation(@NotNull String requestId);
 
-    @NotNull CompletableFuture<Boolean> terminate(@NotNull String requestId);
+    @NotNull
+    CompletableFuture<Boolean> terminate(@NotNull String requestId);
 
-    @NotNull CompletableFuture<Optional<Reconciliation>> reconcile(@NotNull String requestId);
+    @NotNull
+    CompletableFuture<Optional<Reconciliation>> reconcile(@NotNull String requestId);
 
     record Allocation(@NotNull String requestId, @NotNull String serverId) {
 

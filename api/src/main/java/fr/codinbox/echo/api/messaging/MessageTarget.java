@@ -1,17 +1,16 @@
 package fr.codinbox.echo.api.messaging;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Defines the destination(s) for an {@link EchoMessage}.
  *
  * <p>A message target is a set of messaging topics (one per destination node). Use the static
- * factory methods for common cases, or the {@link Builder} for complex targets:</p>
+ * factory methods for common cases, or the {@link Builder} for complex targets:
  *
  * <pre>{@code
  * // Single server
@@ -39,20 +38,20 @@ import java.util.Set;
 public final class MessageTarget {
 
     /**
-     * The broadcast topic that all nodes subscribe to automatically.
-     * Messages published to this topic are received by every node in the network.
+     * The broadcast topic that all nodes subscribe to automatically. Messages published to this
+     * topic are received by every node in the network.
      */
     public static final @NotNull String BROADCAST_TOPIC = "echo:broadcast";
 
     /**
-     * The global topic that all server nodes subscribe to automatically.
-     * Messages published to this topic are received by every server in the network.
+     * The global topic that all server nodes subscribe to automatically. Messages published to this
+     * topic are received by every server in the network.
      */
     public static final @NotNull String SERVERS_TOPIC = "echo:servers";
 
     /**
-     * The global topic that all proxy nodes subscribe to automatically.
-     * Messages published to this topic are received by every proxy in the network.
+     * The global topic that all proxy nodes subscribe to automatically. Messages published to this
+     * topic are received by every proxy in the network.
      */
     public static final @NotNull String PROXIES_TOPIC = "echo:proxies";
 
@@ -62,7 +61,7 @@ public final class MessageTarget {
      * Creates a message target with the given set of topic strings.
      *
      * <p>Prefer the static factory methods ({@link #server(String)}, {@link #everyone()}, etc.)
-     * over this constructor.</p>
+     * over this constructor.
      *
      * @param targets the set of messaging topics to target
      */
@@ -147,9 +146,8 @@ public final class MessageTarget {
     /**
      * Creates a target that reaches every node on the network.
      *
-     * <p>This uses the {@link #BROADCAST_TOPIC} and does not require any network call
-     * (no need to query the list of servers/proxies). All nodes automatically subscribe
-     * to the broadcast topic.</p>
+     * <p>This uses the {@link #BROADCAST_TOPIC} and does not require any network call (no need to
+     * query the list of servers/proxies). All nodes automatically subscribe to the broadcast topic.
      *
      * <pre>{@code
      * new AlertMessage("Maintenance in 5 minutes!").sendTo(MessageTarget.everyone());
@@ -164,8 +162,8 @@ public final class MessageTarget {
     /**
      * Creates a target that reaches every server on the network.
      *
-     * <p>This uses the {@link #SERVERS_TOPIC} and does not require any network call.
-     * All server nodes automatically subscribe to this topic.</p>
+     * <p>This uses the {@link #SERVERS_TOPIC} and does not require any network call. All server
+     * nodes automatically subscribe to this topic.
      *
      * <pre>{@code
      * new AlertMessage("Server broadcast!").sendTo(MessageTarget.allServers());
@@ -180,8 +178,8 @@ public final class MessageTarget {
     /**
      * Creates a target that reaches every proxy on the network.
      *
-     * <p>This uses the {@link #PROXIES_TOPIC} and does not require any network call.
-     * All proxy nodes automatically subscribe to this topic.</p>
+     * <p>This uses the {@link #PROXIES_TOPIC} and does not require any network call. All proxy
+     * nodes automatically subscribe to this topic.
      *
      * <pre>{@code
      * new AlertMessage("Proxy broadcast!").sendTo(MessageTarget.allProxies());
@@ -196,7 +194,7 @@ public final class MessageTarget {
     /**
      * Builder for constructing complex {@link MessageTarget} instances.
      *
-     * <p>Obtain a builder via {@link #builder()}:</p>
+     * <p>Obtain a builder via {@link #builder()}:
      *
      * <pre>{@code
      * MessageTarget target = MessageTarget.builder()
@@ -215,8 +213,7 @@ public final class MessageTarget {
 
         private final Set<String> targets = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         /**
          * Adds a single server to the target.
@@ -253,8 +250,8 @@ public final class MessageTarget {
         /**
          * Adds all servers to the target using the global servers topic.
          *
-         * <p>This does not require any network call — it uses the {@link #SERVERS_TOPIC}
-         * that all server nodes subscribe to automatically.</p>
+         * <p>This does not require any network call — it uses the {@link #SERVERS_TOPIC} that all
+         * server nodes subscribe to automatically.
          *
          * <pre>{@code
          * MessageTarget target = MessageTarget.builder()
@@ -304,8 +301,8 @@ public final class MessageTarget {
         /**
          * Adds all proxies to the target using the global proxies topic.
          *
-         * <p>This does not require any network call — it uses the {@link #PROXIES_TOPIC}
-         * that all proxy nodes subscribe to automatically.</p>
+         * <p>This does not require any network call — it uses the {@link #PROXIES_TOPIC} that all
+         * proxy nodes subscribe to automatically.
          *
          * <pre>{@code
          * MessageTarget target = MessageTarget.builder()
@@ -323,8 +320,8 @@ public final class MessageTarget {
         /**
          * Adds all servers and all proxies to the target.
          *
-         * <p>This does not require any network call — it uses the global topics
-         * that all nodes subscribe to automatically.</p>
+         * <p>This does not require any network call — it uses the global topics that all nodes
+         * subscribe to automatically.
          *
          * @return this builder for chaining
          */
@@ -336,8 +333,8 @@ public final class MessageTarget {
          * Adds the broadcast topic to the target.
          *
          * <p>This is instant and does not require any network call. All nodes automatically
-         * subscribe to the broadcast topic. Prefer this over {@link #withEveryone()} when
-         * you want to reach all nodes without querying the server/proxy lists.</p>
+         * subscribe to the broadcast topic. Prefer this over {@link #withEveryone()} when you want
+         * to reach all nodes without querying the server/proxy lists.
          *
          * @return this builder for chaining
          */
@@ -354,7 +351,5 @@ public final class MessageTarget {
         public @NotNull MessageTarget build() {
             return new MessageTarget(this.targets);
         }
-
     }
-
 }

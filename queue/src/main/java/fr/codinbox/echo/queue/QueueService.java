@@ -1,10 +1,9 @@
 package fr.codinbox.echo.queue;
 
 import fr.codinbox.echo.queue.internal.QueueServiceRegistry;
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.NotNull;
 
 /** Small facade over durable Redis queue coordination and assignment handoff. */
 public interface QueueService extends AutoCloseable {
@@ -19,14 +18,18 @@ public interface QueueService extends AutoCloseable {
         return QueueServiceRegistry.load();
     }
 
-    @NotNull CompletableFuture<Void> start();
+    @NotNull
+    CompletableFuture<Void> start();
 
-    @NotNull CompletableFuture<QueueRequestStatus> enqueue(@NotNull QueueRequest request);
+    @NotNull
+    CompletableFuture<QueueRequestStatus> enqueue(@NotNull QueueRequest request);
 
-    @NotNull CompletableFuture<Optional<QueueRequestStatus>> get(
+    @NotNull
+    CompletableFuture<Optional<QueueRequestStatus>> get(
             @NotNull QueueId queueId, @NotNull String requestId);
 
-    @NotNull CompletableFuture<Boolean> cancel(@NotNull QueueId queueId, @NotNull String requestId);
+    @NotNull
+    CompletableFuture<Boolean> cancel(@NotNull QueueId queueId, @NotNull String requestId);
 
     /**
      * Returns administrative controls when supported by this implementation.

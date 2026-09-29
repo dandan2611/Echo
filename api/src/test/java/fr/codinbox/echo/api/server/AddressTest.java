@@ -1,12 +1,11 @@
 package fr.codinbox.echo.api.server;
 
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
-import java.net.InetSocketAddress;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.net.InetSocketAddress;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class AddressTest {

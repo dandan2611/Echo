@@ -1,34 +1,5 @@
 package fr.codinbox.echo.paper;
 
-import fr.codinbox.echo.api.EchoClient;
-import fr.codinbox.echo.api.EchoFuture;
-import fr.codinbox.echo.api.property.PropertyKey;
-import fr.codinbox.echo.api.server.ServerAvailability;
-import fr.codinbox.echo.api.server.ServerLoad;
-import fr.codinbox.echo.api.server.ServerLoadManager;
-import fr.codinbox.echo.api.server.ServerLoadSnapshot;
-import fr.codinbox.echo.api.server.placement.ServerPlacement;
-import fr.codinbox.echo.paper.event.ServerDrainEvent;
-import org.bukkit.Server;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginManager;
-import org.bukkit.scheduler.BukkitScheduler;
-import org.bukkit.scheduler.BukkitTask;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.lang.reflect.Field;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +16,34 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import fr.codinbox.echo.api.EchoClient;
+import fr.codinbox.echo.api.EchoFuture;
+import fr.codinbox.echo.api.property.PropertyKey;
+import fr.codinbox.echo.api.server.ServerAvailability;
+import fr.codinbox.echo.api.server.ServerLoad;
+import fr.codinbox.echo.api.server.ServerLoadManager;
+import fr.codinbox.echo.api.server.ServerLoadSnapshot;
+import fr.codinbox.echo.api.server.placement.ServerPlacement;
+import fr.codinbox.echo.paper.event.ServerDrainEvent;
+import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.bukkit.Server;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.PluginManager;
+import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scheduler.BukkitTask;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
 @Tag("unit")
 class EchoPaperTest {
 
@@ -54,9 +53,11 @@ class EchoPaperTest {
 
         final int serverCapacity = 512;
 
-        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(Map.of(serverType, "lobby"), serverCapacity);
+        final Map<PropertyKey<?>, Object> properties =
+                EchoPaper.initialProperties(Map.of(serverType, "lobby"), serverCapacity);
 
-        assertThat(properties).containsEntry(serverType, "lobby")
+        assertThat(properties)
+                .containsEntry(serverType, "lobby")
                 .containsEntry(ServerPlacement.PROPERTY_CAPACITY, serverCapacity)
                 .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, serverCapacity);
         assertThat(properties.get(ServerPlacement.PROPERTY_CAPACITY)).isInstanceOf(Integer.class);
@@ -71,30 +72,38 @@ class EchoPaperTest {
 
     @Test
     void usesConfiguredPublicLimitAndPhysicalLimit() {
-        final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(
-                Map.of(new PropertyKey<String>("placement_capacity"), "80"), 120);
+        final Map<PropertyKey<?>, Object> properties =
+                EchoPaper.initialProperties(
+                        Map.of(new PropertyKey<String>("placement_capacity"), "80"), 120);
 
-        assertThat(properties).containsEntry(ServerPlacement.PROPERTY_CAPACITY, 80)
+        assertThat(properties)
+                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, 80)
                 .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, 120);
     }
 
     @Test
     void configuredCapacityHasNoEchoSpecificCeiling() {
         final int capacity = Integer.MAX_VALUE;
-        final Map<PropertyKey<?>, Object> configured = Map.of(
-                ServerPlacement.PROPERTY_CAPACITY, Integer.toString(capacity),
-                ServerPlacement.PROPERTY_HARD_CAPACITY, Integer.toString(capacity));
+        final Map<PropertyKey<?>, Object> configured =
+                Map.of(
+                        ServerPlacement.PROPERTY_CAPACITY, Integer.toString(capacity),
+                        ServerPlacement.PROPERTY_HARD_CAPACITY, Integer.toString(capacity));
 
         final Map<PropertyKey<?>, Object> properties = EchoPaper.initialProperties(configured, 20);
 
-        assertThat(properties).containsEntry(ServerPlacement.PROPERTY_CAPACITY, capacity)
+        assertThat(properties)
+                .containsEntry(ServerPlacement.PROPERTY_CAPACITY, capacity)
                 .containsEntry(ServerPlacement.PROPERTY_HARD_CAPACITY, capacity);
     }
 
     @Test
     void publicCapacityCannotExceedConfiguredHardCapacity() {
-        final Map<PropertyKey<?>, Object> configured = Map.of(
-                ServerPlacement.PROPERTY_CAPACITY, "513", ServerPlacement.PROPERTY_HARD_CAPACITY, "512");
+        final Map<PropertyKey<?>, Object> configured =
+                Map.of(
+                        ServerPlacement.PROPERTY_CAPACITY,
+                        "513",
+                        ServerPlacement.PROPERTY_HARD_CAPACITY,
+                        "512");
 
         assertThatThrownBy(() -> EchoPaper.initialProperties(configured, 512))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -118,12 +127,15 @@ class EchoPaperTest {
 
         ArgumentCaptor<ServerDrainEvent> event = ArgumentCaptor.forClass(ServerDrainEvent.class);
         verify(fixture.pluginManager).callEvent(event.capture());
-        assertThat(event.getValue().getDeadline()).isEqualTo(beforeDrain.plus(Duration.ofMinutes(30)));
+        assertThat(event.getValue().getDeadline())
+                .isEqualTo(beforeDrain.plus(Duration.ofMinutes(30)));
         var order = inOrder(fixture.scheduler, fixture.pluginManager);
         order.verify(fixture.scheduler).runTask(eq(fixture.plugin), any(Runnable.class));
         order.verify(fixture.pluginManager).callEvent(any(ServerDrainEvent.class));
-        order.verify(fixture.scheduler).runTaskLater(eq(fixture.plugin), any(Runnable.class), eq(30L * 60L * 20L));
-        order.verify(fixture.scheduler).runTaskTimer(eq(fixture.plugin), any(Runnable.class), eq(0L), eq(20L));
+        order.verify(fixture.scheduler)
+                .runTaskLater(eq(fixture.plugin), any(Runnable.class), eq(30L * 60L * 20L));
+        order.verify(fixture.scheduler)
+                .runTaskTimer(eq(fixture.plugin), any(Runnable.class), eq(0L), eq(20L));
         assertThat(drained).isCompleted();
     }
 
@@ -139,23 +151,26 @@ class EchoPaperTest {
         ArgumentCaptor<ServerDrainEvent> event = ArgumentCaptor.forClass(ServerDrainEvent.class);
         verify(fixture.pluginManager).callEvent(event.capture());
         assertThat(event.getValue().getDeadline()).isEqualTo(expectedDeadline);
-        verify(fixture.scheduler).runTaskLater(
-                eq(fixture.plugin), any(Runnable.class), eq(25L * 60L * 20L));
+        verify(fixture.scheduler)
+                .runTaskLater(eq(fixture.plugin), any(Runnable.class), eq(25L * 60L * 20L));
     }
 
     @Test
     void slowDrainListenerDoesNotExtendTheAnnouncedDeadline() throws Exception {
         Fixture fixture = fixture(List.of(mock(Player.class)));
-        doAnswer(ignored -> {
-            fixture.clock.advance(Duration.ofMinutes(5));
-            return null;
-        }).when(fixture.pluginManager).callEvent(any(ServerDrainEvent.class));
+        doAnswer(
+                        ignored -> {
+                            fixture.clock.advance(Duration.ofMinutes(5));
+                            return null;
+                        })
+                .when(fixture.pluginManager)
+                .callEvent(any(ServerDrainEvent.class));
 
         fixture.plugin.beginDrain();
         runMainThreadTask(fixture);
 
-        verify(fixture.scheduler).runTaskLater(
-                eq(fixture.plugin), any(Runnable.class), eq(25L * 60L * 20L));
+        verify(fixture.scheduler)
+                .runTaskLater(eq(fixture.plugin), any(Runnable.class), eq(25L * 60L * 20L));
     }
 
     @Test
@@ -167,7 +182,8 @@ class EchoPaperTest {
         runMainThreadTask(fixture);
 
         ArgumentCaptor<Runnable> check = ArgumentCaptor.forClass(Runnable.class);
-        verify(fixture.scheduler).runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
+        verify(fixture.scheduler)
+                .runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
         check.getValue().run();
         verify(fixture.server, never()).shutdown();
         check.getValue().run();
@@ -182,8 +198,8 @@ class EchoPaperTest {
         runMainThreadTask(fixture);
 
         ArgumentCaptor<Runnable> deadline = ArgumentCaptor.forClass(Runnable.class);
-        verify(fixture.scheduler).runTaskLater(
-                eq(fixture.plugin), deadline.capture(), eq(30L * 60L * 20L));
+        verify(fixture.scheduler)
+                .runTaskLater(eq(fixture.plugin), deadline.capture(), eq(30L * 60L * 20L));
         deadline.getValue().run();
 
         verify(fixture.server).shutdown();
@@ -198,7 +214,8 @@ class EchoPaperTest {
         fixture.clock.advance(Duration.ofMinutes(30));
 
         ArgumentCaptor<Runnable> check = ArgumentCaptor.forClass(Runnable.class);
-        verify(fixture.scheduler).runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
+        verify(fixture.scheduler)
+                .runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
         check.getValue().run();
 
         verify(fixture.server).shutdown();
@@ -213,8 +230,10 @@ class EchoPaperTest {
 
         ArgumentCaptor<Runnable> check = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<Runnable> deadline = ArgumentCaptor.forClass(Runnable.class);
-        verify(fixture.scheduler).runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
-        verify(fixture.scheduler).runTaskLater(eq(fixture.plugin), deadline.capture(), any(Long.class));
+        verify(fixture.scheduler)
+                .runTaskTimer(eq(fixture.plugin), check.capture(), eq(0L), eq(20L));
+        verify(fixture.scheduler)
+                .runTaskLater(eq(fixture.plugin), deadline.capture(), any(Long.class));
         check.getValue().run();
         deadline.getValue().run();
 
@@ -225,8 +244,10 @@ class EchoPaperTest {
     void drainPersistenceFailureDoesNotNotifyOrScheduleShutdown() throws Exception {
         Fixture fixture = fixture(List.of(mock(Player.class)));
         when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.DRAINING))
-                .thenReturn(EchoFuture.of(CompletableFuture.failedFuture(
-                        new IllegalStateException("Redis unavailable"))));
+                .thenReturn(
+                        EchoFuture.of(
+                                CompletableFuture.failedFuture(
+                                        new IllegalStateException("Redis unavailable"))));
 
         var drained = fixture.plugin.beginDrain();
 
@@ -238,23 +259,28 @@ class EchoPaperTest {
     void drainEventFailureLeavesShutdownUnscheduledAndFailsTheAttempt() throws Exception {
         Fixture fixture = fixture(List.of(mock(Player.class)));
         doThrow(new IllegalStateException("listener failed"))
-                .when(fixture.pluginManager).callEvent(any(ServerDrainEvent.class));
+                .when(fixture.pluginManager)
+                .callEvent(any(ServerDrainEvent.class));
 
         var drained = fixture.plugin.beginDrain();
         runMainThreadTask(fixture);
 
         assertThatThrownBy(drained::join).hasRootCauseMessage("listener failed");
-        verify(fixture.scheduler, never()).runTaskTimer(any(), any(Runnable.class), any(Long.class), any(Long.class));
-        verify(fixture.scheduler, never()).runTaskLater(any(), any(Runnable.class), any(Long.class));
+        verify(fixture.scheduler, never())
+                .runTaskTimer(any(), any(Runnable.class), any(Long.class), any(Long.class));
+        verify(fixture.scheduler, never())
+                .runTaskLater(any(), any(Runnable.class), any(Long.class));
     }
 
     @Test
     void drainSchedulerFailureFailsTheAttempt() throws Exception {
         Fixture fixture = fixture(List.of(mock(Player.class)));
         BukkitTask deadlineTask = mock(BukkitTask.class);
-        when(fixture.scheduler.runTaskLater(eq(fixture.plugin), any(Runnable.class), any(Long.class)))
+        when(fixture.scheduler.runTaskLater(
+                        eq(fixture.plugin), any(Runnable.class), any(Long.class)))
                 .thenReturn(deadlineTask);
-        when(fixture.scheduler.runTaskTimer(eq(fixture.plugin), any(Runnable.class), eq(0L), eq(20L)))
+        when(fixture.scheduler.runTaskTimer(
+                        eq(fixture.plugin), any(Runnable.class), eq(0L), eq(20L)))
                 .thenThrow(new IllegalStateException("scheduler stopped"));
 
         var drained = fixture.plugin.beginDrain();
@@ -269,7 +295,9 @@ class EchoPaperTest {
         Fixture fixture = fixture(List.of());
         setField(fixture.plugin, "draining", new AtomicBoolean(true));
 
-        assertThat(fixture.plugin.activate()).succeedsWithin(Duration.ofSeconds(1)).isEqualTo(false);
+        assertThat(fixture.plugin.activate())
+                .succeedsWithin(Duration.ofSeconds(1))
+                .isEqualTo(false);
         verify(fixture.echoClient, never()).setLocalServerAvailability(ServerAvailability.ACTIVE);
     }
 
@@ -277,7 +305,8 @@ class EchoPaperTest {
     void activationThatRacesWithDrainRestoresDrainingAvailability() throws Exception {
         Fixture fixture = fixture(List.of());
         EchoFuture<Void> activation = new EchoFuture<>();
-        when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.ACTIVE)).thenReturn(activation);
+        when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.ACTIVE))
+                .thenReturn(activation);
 
         var activated = fixture.plugin.activate();
         setField(fixture.plugin, "draining", new AtomicBoolean(true));
@@ -304,8 +333,9 @@ class EchoPaperTest {
     void loadRefreshSamplesTheProviderOnTheBukkitMainThread() throws Exception {
         Fixture fixture = fixture(List.of());
         ServerLoadManager loadManager = mock(ServerLoadManager.class);
-        ServerLoadSnapshot snapshot = new ServerLoadSnapshot(
-                new ServerLoad(0, true), Instant.EPOCH, Instant.EPOCH.plusSeconds(1));
+        ServerLoadSnapshot snapshot =
+                new ServerLoadSnapshot(
+                        new ServerLoad(0, true), Instant.EPOCH, Instant.EPOCH.plusSeconds(1));
         when(fixture.echoClient.getServerLoadManager()).thenReturn(loadManager);
         when(loadManager.refresh()).thenReturn(EchoFuture.completed(snapshot));
 
@@ -329,9 +359,14 @@ class EchoPaperTest {
         when(echoClient.setLocalServerAvailability(ServerAvailability.DRAINING))
                 .thenReturn(EchoFuture.completed(null));
         AtomicInteger playerRead = new AtomicInteger();
-        doAnswer(ignored -> onlinePlayers[Math.min(
-                        playerRead.getAndIncrement(), onlinePlayers.length - 1)])
-                .when(server).getOnlinePlayers();
+        doAnswer(
+                        ignored ->
+                                onlinePlayers[
+                                        Math.min(
+                                                playerRead.getAndIncrement(),
+                                                onlinePlayers.length - 1)])
+                .when(server)
+                .getOnlinePlayers();
         setStopping(plugin);
         setField(plugin, "draining", new AtomicBoolean());
         setField(plugin, "echoClient", echoClient);
@@ -356,9 +391,13 @@ class EchoPaperTest {
         field.set(plugin, value);
     }
 
-    private record Fixture(EchoPaper plugin, Server server, BukkitScheduler scheduler,
-                           PluginManager pluginManager, EchoClient echoClient, MutableClock clock) {
-    }
+    private record Fixture(
+            EchoPaper plugin,
+            Server server,
+            BukkitScheduler scheduler,
+            PluginManager pluginManager,
+            EchoClient echoClient,
+            MutableClock clock) {}
 
     private static final class MutableClock extends Clock {
         private Instant instant;

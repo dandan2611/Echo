@@ -1,15 +1,15 @@
 package fr.codinbox.echo.api;
 
+import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
- * A {@link CompletableFuture} extension that provides a convenient blocking {@link #await()} method.
+ * A {@link CompletableFuture} extension that provides a convenient blocking {@link #await()}
+ * method.
  *
- * <p>All Echo API methods return {@code EchoFuture}, giving callers the choice between
- * asynchronous and blocking execution models:</p>
+ * <p>All Echo API methods return {@code EchoFuture}, giving callers the choice between asynchronous
+ * and blocking execution models:
  *
  * <pre>{@code
  * // Asynchronous - non-blocking, runs callback on completion
@@ -42,9 +42,9 @@ public class EchoFuture<T> extends CompletableFuture<T> {
     /**
      * Blocks the current thread until the future completes and returns the result.
      *
-     * <p>This is a convenience wrapper around {@link CompletableFuture#join()}.
-     * If the future completed exceptionally, the exception is rethrown wrapped
-     * in a {@link java.util.concurrent.CompletionException}.</p>
+     * <p>This is a convenience wrapper around {@link CompletableFuture#join()}. If the future
+     * completed exceptionally, the exception is rethrown wrapped in a {@link
+     * java.util.concurrent.CompletionException}.
      *
      * <pre>{@code
      * Optional<User> user = client.getUserById(uuid).await();
@@ -61,8 +61,8 @@ public class EchoFuture<T> extends CompletableFuture<T> {
     /**
      * Wraps an existing {@link CompletableFuture} into an {@link EchoFuture}.
      *
-     * <p>If the given future is already an {@code EchoFuture}, it is returned as-is.
-     * Otherwise, a new {@code EchoFuture} is created that completes when the given future completes.</p>
+     * <p>If the given future is already an {@code EchoFuture}, it is returned as-is. Otherwise, a
+     * new {@code EchoFuture} is created that completes when the given future completes.
      *
      * <pre>{@code
      * CompletableFuture<String> regularFuture = someAsyncOperation();
@@ -71,24 +71,24 @@ public class EchoFuture<T> extends CompletableFuture<T> {
      * }</pre>
      *
      * @param future the future to wrap
-     * @param <T>    the result type
+     * @param <T> the result type
      * @return an {@code EchoFuture} that completes when the given future completes
      */
     public static <T> @NotNull EchoFuture<T> of(final @NotNull CompletableFuture<T> future) {
-        if (future instanceof EchoFuture<T> echoFuture)
-            return echoFuture;
+        if (future instanceof EchoFuture<T> echoFuture) return echoFuture;
         final EchoFuture<T> echoFuture = new EchoFuture<>();
-        future.whenComplete((result, error) -> {
-            if (error != null) echoFuture.completeExceptionally(error);
-            else echoFuture.complete(result);
-        });
+        future.whenComplete(
+                (result, error) -> {
+                    if (error != null) echoFuture.completeExceptionally(error);
+                    else echoFuture.complete(result);
+                });
         return echoFuture;
     }
 
     /**
      * Creates an already-completed {@link EchoFuture} with the given value.
      *
-     * <p>Useful for returning immediate results in methods that must return a future:</p>
+     * <p>Useful for returning immediate results in methods that must return a future:
      *
      * <pre>{@code
      * EchoFuture<String> immediate = EchoFuture.completed("hello");
@@ -96,7 +96,7 @@ public class EchoFuture<T> extends CompletableFuture<T> {
      * }</pre>
      *
      * @param value the value to complete the future with (may be {@code null})
-     * @param <T>   the result type
+     * @param <T> the result type
      * @return a completed {@code EchoFuture}
      */
     public static <T> @NotNull EchoFuture<T> completed(final T value) {
@@ -104,5 +104,4 @@ public class EchoFuture<T> extends CompletableFuture<T> {
         future.complete(value);
         return future;
     }
-
 }

@@ -1,20 +1,17 @@
 package fr.codinbox.echo.core.server.placement;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.property.PropertyKey;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.ServerAvailability;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
-import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.redisson.api.RBucket;
-import org.redisson.api.RBatch;
-import org.redisson.api.RedissonClient;
-import org.redisson.client.codec.StringCodec;
-import org.redisson.config.Config;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,11 +28,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.redisson.api.RBatch;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
 
 @Tag("unit")
 class RedisServerPlacementTest {
@@ -48,7 +47,8 @@ class RedisServerPlacementTest {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(0, 0, 100);
         fixture.unavailable = true;
-        assertThatThrownBy(() -> fixture.placement.admit("server", UUID.randomUUID(), true, snapshot))
+        assertThatThrownBy(
+                        () -> fixture.placement.admit("server", UUID.randomUUID(), true, snapshot))
                 .isInstanceOf(PlacementUnavailableException.class);
     }
 
@@ -56,20 +56,35 @@ class RedisServerPlacementTest {
     void staffCanReserveAbovePublicLimitButNonStaffCannot() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(100, 100, 100);
-        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final ServerPlacement.Request staff =
+                request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
         fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
 
         assertThat(fixture.placement.reserve(staff).join()).isPresent();
-        assertThat(fixture.placement.reserve(request("public", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
-        assertThat(fixture.placement.inspectServer("server").join().orElseThrow().reservedNonStaffSlots()).isZero();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "public",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
+        assertThat(
+                        fixture.placement
+                                .inspectServer("server")
+                                .join()
+                                .orElseThrow()
+                                .reservedNonStaffSlots())
+                .isZero();
     }
 
     @Test
     void mixedGroupMustFitBothLimitsIndivisibly() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(100, 100, 100);
-        final ServerPlacement.Request mixed = request("mixed", 2, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final ServerPlacement.Request mixed =
+                request("mixed", 2, ServerPlacement.Policy.FILL_MOST_LOADED);
         fixture.placement.publishStaffPermissions(Map.of(mixed.members().iterator().next(), true));
 
         assertThat(fixture.placement.reserve(mixed).join()).isEmpty();
@@ -89,7 +104,8 @@ class RedisServerPlacementTest {
     void physicalSpectatorsCountEvenWhenParticipantLoadIsZero() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(120, 80, 80);
-        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final ServerPlacement.Request staff =
+                request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
         fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
 
         assertThat(fixture.placement.reserve(staff).join()).isEmpty();
@@ -101,18 +117,25 @@ class RedisServerPlacementTest {
     void unreservedDirectJoinCannotStealTheLastLeasedSeat() {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(119, 99, 100);
-        final ServerPlacement.Reservation reserved = fixture.placement.reserve(request("lease", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        final ServerPlacement.Reservation reserved =
+                fixture.placement
+                        .reserve(request("lease", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
 
         assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
-        assertThat(fixture.placement.admit("server", reserved.members().iterator().next(), false, snapshot)).isTrue();
+        assertThat(
+                        fixture.placement.admit(
+                                "server", reserved.members().iterator().next(), false, snapshot))
+                .isTrue();
     }
 
     @Test
     void destinationPermissionOverridesReservedStaffClassification() {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(100, 100, 100);
-        final ServerPlacement.Request staff = request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final ServerPlacement.Request staff =
+                request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
         final UUID member = staff.members().iterator().next();
         fixture.placement.publishStaffPermissions(Map.of(member, true));
         fixture.placement.reserve(staff).join().orElseThrow();
@@ -125,13 +148,24 @@ class RedisServerPlacementTest {
     void arrivedMemberIsNotDoubleCountedAgainstTheirReservation() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(0, 0, 100);
-        final ServerPlacement.Reservation reserved = fixture.placement.reserve(request("lease", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        final ServerPlacement.Reservation reserved =
+                fixture.placement
+                        .reserve(request("lease", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
         fixture.now = NOW.plusMillis(1);
-        fixture.placement.publishAdmission("server", new ServerAdmissionSnapshot(
-                Map.of(reserved.members().iterator().next(), false), Map.of(), 100, 120, fixture.now, NOW.plusSeconds(5)));
+        fixture.placement.publishAdmission(
+                "server",
+                new ServerAdmissionSnapshot(
+                        Map.of(reserved.members().iterator().next(), false),
+                        Map.of(),
+                        100,
+                        120,
+                        fixture.now,
+                        NOW.plusSeconds(5)));
 
-        final ServerPlacement.ServerStatus status = fixture.placement.inspectServer("server").join().orElseThrow();
+        final ServerPlacement.ServerStatus status =
+                fixture.placement.inspectServer("server").join().orElseThrow();
 
         assertThat(status.reservedSlots()).isZero();
         assertThat(status.admission().orElseThrow().totalCount()).isEqualTo(1);
@@ -142,23 +176,35 @@ class RedisServerPlacementTest {
     void stalePhysicalTelemetryFailsClosedDespiteFreshParticipantLoad() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(0, 0, 100);
-        fixture.values.put("server:server:property:admission", new ServerAdmissionSnapshot(
-                Map.of(), Map.of(), 100, 120, NOW.minusSeconds(5), NOW));
+        fixture.values.put(
+                "server:server:property:admission",
+                new ServerAdmissionSnapshot(
+                        Map.of(), Map.of(), 100, 120, NOW.minusSeconds(5), NOW));
 
-        assertThat(fixture.placement.reserve(request("stale", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "stale",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
     }
 
     @Test
     void futurePhysicalTelemetryRejectsReservationsAndDirectAdmission() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(0, 0, 100);
-        final ServerAdmissionSnapshot future = new ServerAdmissionSnapshot(
-                Map.of(), Map.of(), 100, 120, NOW.plusSeconds(1), NOW.plusSeconds(6));
+        final ServerAdmissionSnapshot future =
+                new ServerAdmissionSnapshot(
+                        Map.of(), Map.of(), 100, 120, NOW.plusSeconds(1), NOW.plusSeconds(6));
         fixture.placement.publishAdmission("server", future);
 
-        final Optional<ServerPlacement.Reservation> reservation = fixture.placement.reserve(
-                request("future", 1, ServerPlacement.Policy.FILL_MOST_LOADED)).join();
+        final Optional<ServerPlacement.Reservation> reservation =
+                fixture.placement
+                        .reserve(request("future", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join();
         final boolean admitted = fixture.placement.admit("server", UUID.randomUUID(), true, future);
 
         assertThat(reservation).isEmpty();
@@ -171,15 +217,23 @@ class RedisServerPlacementTest {
         fixture.seedAdmission(0, 0, 100);
         fixture.values.remove("server:server:property:admission");
 
-        assertThat(fixture.placement.reserve(request("missing", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "missing",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
     }
 
     @Test
     void expiredStaffSampleDoesNotGrantPublicSurplus() {
         final Fixture fixture = new Fixture();
         fixture.seedAdmission(100, 100, 100);
-        final ServerPlacement.Request staff = request("expired", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
+        final ServerPlacement.Request staff =
+                request("expired", 1, ServerPlacement.Policy.FILL_MOST_LOADED);
         fixture.placement.publishStaffPermissions(Map.of(staff.members().iterator().next(), true));
         fixture.values.remove("admission:staff:" + staff.members().iterator().next());
 
@@ -190,10 +244,12 @@ class RedisServerPlacementTest {
     void concurrentDestinationLoginsShareTheLastPhysicalSeat() {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(119, 99, 100);
-        final CompletableFuture<Boolean> first = CompletableFuture.supplyAsync(() ->
-                fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
-        final CompletableFuture<Boolean> second = CompletableFuture.supplyAsync(() ->
-                fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
+        final CompletableFuture<Boolean> first =
+                CompletableFuture.supplyAsync(
+                        () -> fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
+        final CompletableFuture<Boolean> second =
+                CompletableFuture.supplyAsync(
+                        () -> fixture.placement.admit("server", UUID.randomUUID(), true, snapshot));
 
         assertThat(List.of(first.join(), second.join())).containsExactlyInAnyOrder(true, false);
     }
@@ -202,7 +258,8 @@ class RedisServerPlacementTest {
     void drainingDestinationRejectsDirectStaffJoin() {
         final Fixture fixture = new Fixture();
         final ServerAdmissionSnapshot snapshot = fixture.seedAdmission(0, 0, 100);
-        fixture.values.put("server:server:property:availability", ServerAvailability.DRAINING.name());
+        fixture.values.put(
+                "server:server:property:availability", ServerAvailability.DRAINING.name());
 
         assertThat(fixture.placement.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
     }
@@ -223,13 +280,19 @@ class RedisServerPlacementTest {
         fixture.seed("b", 4, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.seed("other", 8, 10, true, NOW.plusSeconds(30), "game");
 
-        ServerPlacement.Reservation fill = fixture.placement.reserve(
-                request("fill", 2, ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        ServerPlacement.Reservation fill =
+                fixture.placement
+                        .reserve(request("fill", 2, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
         assertThat(fill.serverId()).isEqualTo("b");
         fixture.placement.release(fill).join();
 
-        ServerPlacement.Reservation spread = fixture.placement.reserve(
-                request("spread", 2, ServerPlacement.Policy.SPREAD_LEAST_LOADED)).join().orElseThrow();
+        ServerPlacement.Reservation spread =
+                fixture.placement
+                        .reserve(request("spread", 2, ServerPlacement.Policy.SPREAD_LEAST_LOADED))
+                        .join()
+                        .orElseThrow();
         assertThat(spread.serverId()).isEqualTo("a");
     }
 
@@ -238,18 +301,36 @@ class RedisServerPlacementTest {
         Fixture fixture = new Fixture();
         fixture.seed("excluded", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.seed("included", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        fixture.values.put("server:included:property:availability", ServerAvailability.ACTIVE.name());
+        fixture.values.put(
+                "server:included:property:availability", ServerAvailability.ACTIVE.name());
 
-        assertThat(fixture.placement.reserve(request("restricted", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Set.of("included"))).join())
-                .get().extracting(ServerPlacement.Reservation::serverId).isEqualTo("included");
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "restricted",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED,
+                                                Set.of("included")))
+                                .join())
+                .get()
+                .extracting(ServerPlacement.Reservation::serverId)
+                .isEqualTo("included");
 
         Fixture tie = new Fixture();
         tie.seed("a", 3, 10, true, NOW.plusSeconds(30), "lobby");
         tie.seed("b", 3, 10, true, NOW.plusSeconds(30), "lobby");
-        assertThat(tie.placement.reserve(request("tie", 1,
-                ServerPlacement.Policy.SPREAD_LEAST_LOADED)).join())
-                .get().extracting(ServerPlacement.Reservation::serverId).isEqualTo("a");
+        assertThat(
+                        tie.placement
+                                .reserve(
+                                        request(
+                                                "tie",
+                                                1,
+                                                ServerPlacement.Policy.SPREAD_LEAST_LOADED))
+                                .join())
+                .get()
+                .extracting(ServerPlacement.Reservation::serverId)
+                .isEqualTo("a");
     }
 
     @Test
@@ -258,16 +339,25 @@ class RedisServerPlacementTest {
         fixture.seed("active", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.values.put("server:active:property:availability", ServerAvailability.ACTIVE.name());
         fixture.seed("draining", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        fixture.values.put("server:draining:property:availability", ServerAvailability.DRAINING.name());
+        fixture.values.put(
+                "server:draining:property:availability", ServerAvailability.DRAINING.name());
         fixture.seed("malformed-load", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.values.put("server:malformed-load:property:load", "not-a-load");
         fixture.seed("malformed-capacity", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.values.put("server:malformed-capacity:property:placement_capacity", "10");
         fixture.seed("zero-capacity", 0, 0, true, NOW.plusSeconds(30), "lobby");
 
-        assertThat(fixture.placement.reserve(request("eligible", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join())
-                .get().extracting(ServerPlacement.Reservation::serverId).isEqualTo("active");
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "eligible",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .get()
+                .extracting(ServerPlacement.Reservation::serverId)
+                .isEqualTo("active");
     }
 
     @Test
@@ -275,22 +365,50 @@ class RedisServerPlacementTest {
         Fixture fixture = new Fixture();
         fixture.seed("server", 1, 4, true, NOW.plusSeconds(30), "lobby");
 
-        ServerPlacement.Reservation first = fixture.placement.reserve(request("first", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
-        assertThat(fixture.placement.reserve(request("exact", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isPresent();
-        assertThat(fixture.placement.reserve(request("over", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        ServerPlacement.Reservation first =
+                fixture.placement
+                        .reserve(request("first", 2, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "exact",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isPresent();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request("over", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
 
         assertThat(fixture.placement.release(first).join()).isTrue();
-        assertThat(fixture.placement.reserve(request("released", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isPresent();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "released",
+                                                2,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isPresent();
 
         Fixture overflow = new Fixture();
-        overflow.seed("server", Integer.MAX_VALUE, Integer.MAX_VALUE, true,
-                NOW.plusSeconds(30), "lobby");
-        assertThat(overflow.placement.reserve(request("overflow", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        overflow.seed(
+                "server", Integer.MAX_VALUE, Integer.MAX_VALUE, true, NOW.plusSeconds(30), "lobby");
+        assertThat(
+                        overflow.placement
+                                .reserve(
+                                        request(
+                                                "overflow",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
     }
 
     @Test
@@ -299,14 +417,25 @@ class RedisServerPlacementTest {
         fixture.seed("a", 4, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.seed("b", 2, 10, true, NOW.plusSeconds(30), "lobby");
 
-        ServerPlacement.Reservation fill = fixture.placement.reserve(request("fill-order", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        ServerPlacement.Reservation fill =
+                fixture.placement
+                        .reserve(request("fill-order", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
         assertThat(fill.serverId()).isEqualTo("a");
         fixture.placement.release(fill).join();
 
-        assertThat(fixture.placement.reserve(request("spread-order", 1,
-                ServerPlacement.Policy.SPREAD_LEAST_LOADED)).join())
-                .get().extracting(ServerPlacement.Reservation::serverId).isEqualTo("b");
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "spread-order",
+                                                1,
+                                                ServerPlacement.Policy.SPREAD_LEAST_LOADED))
+                                .join())
+                .get()
+                .extracting(ServerPlacement.Reservation::serverId)
+                .isEqualTo("b");
     }
 
     @Test
@@ -318,8 +447,15 @@ class RedisServerPlacementTest {
         fixture.seed("dead", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.ttls.put("heartbeat:server:dead", -2L);
 
-        assertThat(fixture.placement.reserve(request("party", 3,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join()).isEmpty();
+        assertThat(
+                        fixture.placement
+                                .reserve(
+                                        request(
+                                                "party",
+                                                3,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED))
+                                .join())
+                .isEmpty();
         assertThat(fixture.reservationValues).isEmpty();
     }
 
@@ -327,13 +463,22 @@ class RedisServerPlacementTest {
     void reserve_isIdempotentAndRejectsConflictingReplay() {
         Fixture fixture = new Fixture();
         fixture.seed("server", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        ServerPlacement.Request request = request("same", 2, ServerPlacement.Policy.FILL_MOST_LOADED);
+        ServerPlacement.Request request =
+                request("same", 2, ServerPlacement.Policy.FILL_MOST_LOADED);
 
-        ServerPlacement.Reservation reservation = fixture.placement.reserve(request).join().orElseThrow();
+        ServerPlacement.Reservation reservation =
+                fixture.placement.reserve(request).join().orElseThrow();
 
         assertThat(fixture.placement.reserve(request).join()).contains(reservation);
-        assertThatThrownBy(() -> fixture.placement.reserve(
-                request("same", 1, ServerPlacement.Policy.FILL_MOST_LOADED)).join())
+        assertThatThrownBy(
+                        () ->
+                                fixture.placement
+                                        .reserve(
+                                                request(
+                                                        "same",
+                                                        1,
+                                                        ServerPlacement.Policy.FILL_MOST_LOADED))
+                                        .join())
                 .hasRootCauseMessage("Active placement request ID has a different payload: same");
     }
 
@@ -341,15 +486,24 @@ class RedisServerPlacementTest {
     void renewAndRelease_requireCurrentToken() {
         Fixture fixture = new Fixture();
         fixture.seed("server", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        ServerPlacement.Reservation reservation = fixture.placement.reserve(
-                request("lease", 1, ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
-        ServerPlacement.Reservation stale = new ServerPlacement.Reservation(reservation.requestId(), "stale",
-                reservation.serverId(), reservation.members(), reservation.expiresAt());
+        ServerPlacement.Reservation reservation =
+                fixture.placement
+                        .reserve(request("lease", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
+        ServerPlacement.Reservation stale =
+                new ServerPlacement.Reservation(
+                        reservation.requestId(),
+                        "stale",
+                        reservation.serverId(),
+                        reservation.members(),
+                        reservation.expiresAt());
 
         assertThat(fixture.placement.renew(stale, Duration.ofMinutes(1)).join()).isEmpty();
         assertThat(fixture.placement.release(stale).join()).isFalse();
         assertThat(fixture.placement.renew(reservation, Duration.ofMinutes(1)).join())
-                .get().extracting(ServerPlacement.Reservation::expiresAt)
+                .get()
+                .extracting(ServerPlacement.Reservation::expiresAt)
                 .isEqualTo(NOW.plusSeconds(60));
         assertThat(fixture.placement.release(reservation).join()).isTrue();
         assertThat(fixture.placement.release(reservation).join()).isFalse();
@@ -360,8 +514,11 @@ class RedisServerPlacementTest {
     void renew_rejectsInvalidLeaseDurations() {
         Fixture fixture = new Fixture();
         fixture.seed("server", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        ServerPlacement.Reservation reservation = fixture.placement.reserve(request("lease", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        ServerPlacement.Reservation reservation =
+                fixture.placement
+                        .reserve(request("lease", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
 
         assertThatThrownBy(() -> fixture.placement.renew(reservation, Duration.ofSeconds(-1)))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -375,25 +532,36 @@ class RedisServerPlacementTest {
     void monitoring_listsFindsAndInspectsWithoutExposingOwnershipTokens() throws Exception {
         Fixture fixture = new Fixture();
         fixture.seed("server", 2, 10, true, NOW.plusSeconds(30), "lobby");
-        ServerPlacement.Reservation first = fixture.placement.reserve(request("b-request", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
-        fixture.placement.reserve(request("a-request", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join().orElseThrow();
+        ServerPlacement.Reservation first =
+                fixture.placement
+                        .reserve(request("b-request", 2, ServerPlacement.Policy.FILL_MOST_LOADED))
+                        .join()
+                        .orElseThrow();
+        fixture.placement
+                .reserve(request("a-request", 1, ServerPlacement.Policy.FILL_MOST_LOADED))
+                .join()
+                .orElseThrow();
 
         assertThat(fixture.placement.listActiveReservations().join())
                 .extracting(ServerPlacement.ActiveReservation::requestId)
                 .containsExactly("a-request", "b-request");
         assertThat(fixture.placement.findActiveReservation("b-request").join())
-                .contains(new ServerPlacement.ActiveReservation(first.requestId(), first.serverId(),
-                        first.members(), first.expiresAt()));
+                .contains(
+                        new ServerPlacement.ActiveReservation(
+                                first.requestId(),
+                                first.serverId(),
+                                first.members(),
+                                first.expiresAt()));
         assertThat(fixture.placement.findActiveReservation("missing").join()).isEmpty();
         assertThat(ServerPlacement.ActiveReservation.class.getRecordComponents())
                 .extracting(java.lang.reflect.RecordComponent::getName)
                 .doesNotContain("token");
 
-        ServerPlacement.ServerStatus status = fixture.placement.inspectServer("server").join().orElseThrow();
+        ServerPlacement.ServerStatus status =
+                fixture.placement.inspectServer("server").join().orElseThrow();
         assertThat(status.heartbeatAlive()).isTrue();
-        assertThat(status.availability()).isEqualTo(ServerPlacement.AvailabilityState.DEFAULT_ACTIVE);
+        assertThat(status.availability())
+                .isEqualTo(ServerPlacement.AvailabilityState.DEFAULT_ACTIVE);
         assertThat(status.participantLoad()).isEqualTo(OptionalInt.of(2));
         assertThat(status.reservedSlots()).isEqualTo(3);
         assertThat(status.capacity()).isEqualTo(OptionalInt.of(10));
@@ -411,7 +579,8 @@ class RedisServerPlacementTest {
         fixture.seed("dead", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.ttls.put("heartbeat:server:dead", -2L);
         fixture.seed("draining", 0, 10, true, NOW.plusSeconds(30), "lobby");
-        fixture.values.put("server:draining:property:availability", ServerAvailability.DRAINING.name());
+        fixture.values.put(
+                "server:draining:property:availability", ServerAvailability.DRAINING.name());
         fixture.seed("bad-capacity", 0, 10, true, NOW.plusSeconds(30), "lobby");
         fixture.values.put("server:bad-capacity:property:placement_capacity", "10");
         fixture.seed("bad-load", 0, 10, true, NOW.plusSeconds(30), "lobby");
@@ -423,15 +592,27 @@ class RedisServerPlacementTest {
         Set<String> candidates = new java.util.HashSet<>(fixture.serverIds);
         candidates.add("unregistered");
 
-        ServerPlacement.Explanation fill = fixture.placement.explain(request("dry-run", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED, candidates)).join();
-        Map<String, ServerPlacement.RejectionReason> reasons = fill.candidates().stream().collect(
-                java.util.stream.Collectors.toMap(ServerPlacement.CandidateEvaluation::serverId,
-                        ServerPlacement.CandidateEvaluation::rejectionReason));
+        ServerPlacement.Explanation fill =
+                fixture.placement
+                        .explain(
+                                request(
+                                        "dry-run",
+                                        2,
+                                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                                        candidates))
+                        .join();
+        Map<String, ServerPlacement.RejectionReason> reasons =
+                fill.candidates().stream()
+                        .collect(
+                                java.util.stream.Collectors.toMap(
+                                        ServerPlacement.CandidateEvaluation::serverId,
+                                        ServerPlacement.CandidateEvaluation::rejectionReason));
 
         assertThat(fill.selectedServerId()).contains("eligible-high");
         assertThat(fill.candidates()).hasSize(candidates.size());
-        assertThat(fill.candidates()).extracting(ServerPlacement.CandidateEvaluation::serverId).isSorted();
+        assertThat(fill.candidates())
+                .extracting(ServerPlacement.CandidateEvaluation::serverId)
+                .isSorted();
         assertThat(reasons)
                 .containsEntry("eligible-low", ServerPlacement.RejectionReason.NONE)
                 .containsEntry("eligible-high", ServerPlacement.RejectionReason.NONE)
@@ -443,9 +624,18 @@ class RedisServerPlacementTest {
                 .containsEntry("closed", ServerPlacement.RejectionReason.QUEUE_ASSIGNMENTS_REJECTED)
                 .containsEntry("mismatch", ServerPlacement.RejectionReason.PROPERTY_MISMATCH)
                 .containsEntry("full", ServerPlacement.RejectionReason.INSUFFICIENT_CAPACITY)
-                .containsEntry("unregistered", ServerPlacement.RejectionReason.SERVER_NOT_REGISTERED);
-        assertThat(fixture.placement.explain(request("dry-run-spread", 2,
-                ServerPlacement.Policy.SPREAD_LEAST_LOADED, candidates)).join().selectedServerId())
+                .containsEntry(
+                        "unregistered", ServerPlacement.RejectionReason.SERVER_NOT_REGISTERED);
+        assertThat(
+                        fixture.placement
+                                .explain(
+                                        request(
+                                                "dry-run-spread",
+                                                2,
+                                                ServerPlacement.Policy.SPREAD_LEAST_LOADED,
+                                                candidates))
+                                .join()
+                                .selectedServerId())
                 .contains("eligible-low");
         assertThat(fixture.reservationValues).isEmpty();
     }
@@ -455,16 +645,30 @@ class RedisServerPlacementTest {
         Fixture corrupt = new Fixture();
         corrupt.reservationValues.put("corrupt", "invalid");
 
-        assertThatThrownBy(() -> corrupt.placement.reserve(request("corrupt", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join())
+        assertThatThrownBy(
+                        () ->
+                                corrupt.placement
+                                        .reserve(
+                                                request(
+                                                        "corrupt",
+                                                        1,
+                                                        ServerPlacement.Policy.FILL_MOST_LOADED))
+                                        .join())
                 .hasRootCauseMessage("Corrupt placement reservation");
 
         Fixture encoding = new Fixture();
         encoding.seed("server", 0, 10, true, NOW.plusSeconds(30), "lobby");
         when(encoding.client.getConfig()).thenThrow(new IllegalStateException("codec unavailable"));
 
-        assertThatThrownBy(() -> encoding.placement.reserve(request("encoding", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED)).join())
+        assertThatThrownBy(
+                        () ->
+                                encoding.placement
+                                        .reserve(
+                                                request(
+                                                        "encoding",
+                                                        1,
+                                                        ServerPlacement.Policy.FILL_MOST_LOADED))
+                                        .join())
                 .hasRootCauseMessage("codec unavailable");
     }
 
@@ -478,37 +682,58 @@ class RedisServerPlacementTest {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (int i = 0; i < 16; i++) {
                 int number = i;
-                attempts.add(CompletableFuture.supplyAsync(() -> {
-                    try {
-                        start.await();
-                    } catch (InterruptedException error) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(error);
-                    }
-                    return fixture.placement.reserve(request("worker-" + number, 1,
-                            ServerPlacement.Policy.FILL_MOST_LOADED)).join();
-                }, executor));
+                attempts.add(
+                        CompletableFuture.supplyAsync(
+                                () -> {
+                                    try {
+                                        start.await();
+                                    } catch (InterruptedException error) {
+                                        Thread.currentThread().interrupt();
+                                        throw new IllegalStateException(error);
+                                    }
+                                    return fixture.placement
+                                            .reserve(
+                                                    request(
+                                                            "worker-" + number,
+                                                            1,
+                                                            ServerPlacement.Policy
+                                                                    .FILL_MOST_LOADED))
+                                            .join();
+                                },
+                                executor));
             }
             start.countDown();
             CompletableFuture.allOf(attempts.toArray(CompletableFuture[]::new)).join();
         }
 
-        assertThat(attempts).extracting(CompletableFuture::join)
-                .filteredOn(Optional::isPresent).hasSize(5);
+        assertThat(attempts)
+                .extracting(CompletableFuture::join)
+                .filteredOn(Optional::isPresent)
+                .hasSize(5);
     }
 
-    private static ServerPlacement.Request request(String id, int size, ServerPlacement.Policy policy) {
+    private static ServerPlacement.Request request(
+            String id, int size, ServerPlacement.Policy policy) {
         return request(id, size, policy, Set.of());
     }
 
     private static ServerPlacement.Request request(
             String id, int size, ServerPlacement.Policy policy, Set<String> candidateServerIds) {
-        Set<UUID> members = java.util.stream.IntStream.range(0, size)
-                .mapToObj(index -> UUID.nameUUIDFromBytes(
-                        (id + ":" + index).getBytes(StandardCharsets.UTF_8)))
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        return new ServerPlacement.Request(id, members, candidateServerIds, Map.of(TYPE, "lobby"),
-                policy, Duration.ofSeconds(30));
+        Set<UUID> members =
+                java.util.stream.IntStream.range(0, size)
+                        .mapToObj(
+                                index ->
+                                        UUID.nameUUIDFromBytes(
+                                                (id + ":" + index)
+                                                        .getBytes(StandardCharsets.UTF_8)))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return new ServerPlacement.Request(
+                id,
+                members,
+                candidateServerIds,
+                Map.of(TYPE, "lobby"),
+                policy,
+                Duration.ofSeconds(30));
     }
 
     private static final class Fixture {
@@ -528,45 +753,100 @@ class RedisServerPlacementTest {
             Config config = new Config();
             config.setCodec(StringCodec.INSTANCE);
             when(client.getConfig()).thenReturn(config);
-            when(client.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
+            when(client.getBucket(anyString()))
+                    .thenAnswer(invocation -> bucket(invocation.getArgument(0)));
             final RBatch batch = mock(RBatch.class);
             when(client.createBatch()).thenReturn(batch);
-            when(batch.getBucket(anyString())).thenAnswer(invocation -> bucket(invocation.getArgument(0)));
-            placement = new RedisServerPlacement(client, new PlacementStore() {
-                @Override public <T> T execute(Duration budget, java.util.function.Function<Transaction, T> decision) {
-                    if (unavailable) throw new PlacementUnavailableException("Injected unavailability");
-                    lock.lock();
-                    try {
-                        final Map<String, Object> pending = new java.util.HashMap<>(values);
-                        final Map<String, String> leases = new java.util.HashMap<>(reservationValues);
-                        final T result = decision.apply(new Transaction() {
-                            public Instant now() { return Fixture.this.now; }
-                            public boolean alive(String key) { return ttls.getOrDefault(key, -2L) > 0; }
-                            public Object value(String key) {
-                                if (key.startsWith("heartbeat:")) return ttls.getOrDefault(key, -2L) > 0 ? 1 : null;
-                                return pending.get(key);
-                            }
-                            public void set(String key, Object value) { pending.put(key, value); }
-                            public Set<String> serverIds() { return Set.copyOf(serverIds); }
-                            public void registerServer(String id, Instant at) { }
-                            public Map<String, String> reservations() { return leases; }
-                            public void validUntil(Instant deadline) { }
-                        });
-                        values.clear(); values.putAll(pending);
-                        reservationValues.clear(); reservationValues.putAll(leases);
-                        return result;
-                    } finally { lock.unlock(); }
-                }
-            });
+            when(batch.getBucket(anyString()))
+                    .thenAnswer(invocation -> bucket(invocation.getArgument(0)));
+            placement =
+                    new RedisServerPlacement(
+                            client,
+                            new PlacementStore() {
+                                @Override
+                                public <T> T execute(
+                                        Duration budget,
+                                        java.util.function.Function<Transaction, T> decision) {
+                                    if (unavailable)
+                                        throw new PlacementUnavailableException(
+                                                "Injected unavailability");
+                                    lock.lock();
+                                    try {
+                                        final Map<String, Object> pending =
+                                                new java.util.HashMap<>(values);
+                                        final Map<String, String> leases =
+                                                new java.util.HashMap<>(reservationValues);
+                                        final T result =
+                                                decision.apply(
+                                                        new Transaction() {
+                                                            public Instant now() {
+                                                                return Fixture.this.now;
+                                                            }
+
+                                                            public boolean alive(String key) {
+                                                                return ttls.getOrDefault(key, -2L)
+                                                                        > 0;
+                                                            }
+
+                                                            public Object value(String key) {
+                                                                if (key.startsWith("heartbeat:"))
+                                                                    return ttls.getOrDefault(
+                                                                                            key,
+                                                                                            -2L)
+                                                                                    > 0
+                                                                            ? 1
+                                                                            : null;
+                                                                return pending.get(key);
+                                                            }
+
+                                                            public void set(
+                                                                    String key, Object value) {
+                                                                pending.put(key, value);
+                                                            }
+
+                                                            public Set<String> serverIds() {
+                                                                return Set.copyOf(serverIds);
+                                                            }
+
+                                                            public void registerServer(
+                                                                    String id, Instant at) {}
+
+                                                            public Map<String, String>
+                                                                    reservations() {
+                                                                return leases;
+                                                            }
+
+                                                            public void validUntil(
+                                                                    Instant deadline) {}
+                                                        });
+                                        values.clear();
+                                        values.putAll(pending);
+                                        reservationValues.clear();
+                                        reservationValues.putAll(leases);
+                                        return result;
+                                    } finally {
+                                        lock.unlock();
+                                    }
+                                }
+                            });
         }
 
-        private void seed(String id, int participants, int capacity, boolean accepting,
-                          Instant validUntil, String type) {
+        private void seed(
+                String id,
+                int participants,
+                int capacity,
+                boolean accepting,
+                Instant validUntil,
+                String type) {
             serverIds.add(id);
             ttls.put("heartbeat:server:" + id, 30_000L);
             values.put("server:" + id + ":property:placement_capacity", capacity);
-            values.put("server:" + id + ":property:load", new ServerLoadSnapshot(
-                    new ServerLoad(participants, accepting), NOW.minusSeconds(1), validUntil));
+            values.put(
+                    "server:" + id + ":property:load",
+                    new ServerLoadSnapshot(
+                            new ServerLoad(participants, accepting),
+                            NOW.minusSeconds(1),
+                            validUntil));
             values.put("server:" + id + ":property:server_type", type);
         }
 
@@ -574,25 +854,37 @@ class RedisServerPlacementTest {
             RBucket<Object> bucket = mock(RBucket.class);
             when(bucket.get()).thenAnswer(ignored -> values.get(key));
             when(bucket.remainTimeToLive()).thenAnswer(ignored -> ttls.getOrDefault(key, -2L));
-            doAnswer(invocation -> {
-                values.put(key, invocation.getArgument(0));
-                return null;
-            }).when(bucket).set(any());
-            when(bucket.setAsync(any(), any(Duration.class))).thenAnswer(invocation -> {
-                values.put(key, invocation.getArgument(0));
-                return null;
-            });
+            doAnswer(
+                            invocation -> {
+                                values.put(key, invocation.getArgument(0));
+                                return null;
+                            })
+                    .when(bucket)
+                    .set(any());
+            when(bucket.setAsync(any(), any(Duration.class)))
+                    .thenAnswer(
+                            invocation -> {
+                                values.put(key, invocation.getArgument(0));
+                                return null;
+                            });
             return bucket;
         }
 
-        private ServerAdmissionSnapshot seedAdmission(final int total, final int nonStaff, final int publicLimit) {
+        private ServerAdmissionSnapshot seedAdmission(
+                final int total, final int nonStaff, final int publicLimit) {
             this.seed("server", 0, publicLimit, true, NOW.plusSeconds(30), "lobby");
             this.values.put("server:server:property:placement_hard_capacity", 120);
             this.placement.startAdmissionPublisher("server");
-            final Map<UUID, Boolean> online = java.util.stream.IntStream.range(0, total).boxed().collect(
-                    java.util.stream.Collectors.toMap(index -> new UUID(0, index + 1), index -> index >= nonStaff));
-            final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(online, Map.of(), publicLimit,
-                    120, NOW, NOW.plusSeconds(5));
+            final Map<UUID, Boolean> online =
+                    java.util.stream.IntStream.range(0, total)
+                            .boxed()
+                            .collect(
+                                    java.util.stream.Collectors.toMap(
+                                            index -> new UUID(0, index + 1),
+                                            index -> index >= nonStaff));
+            final ServerAdmissionSnapshot snapshot =
+                    new ServerAdmissionSnapshot(
+                            online, Map.of(), publicLimit, 120, NOW, NOW.plusSeconds(5));
             this.placement.publishAdmission("server", snapshot);
             return snapshot;
         }

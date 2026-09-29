@@ -6,9 +6,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A type-safe key for storing and retrieving properties on a {@link PropertyHolder}.
  *
- * <p>Property keys are identified by their string key and carry a generic type parameter
- * to ensure type safety at compile time. Two {@code PropertyKey} instances are equal if
- * their string keys are equal, regardless of the type parameter.</p>
+ * <p>Property keys are identified by their string key and carry a generic type parameter to ensure
+ * type safety at compile time. Two {@code PropertyKey} instances are equal if their string keys are
+ * equal, regardless of the type parameter.
  *
  * <pre>{@code
  * // Define typed property keys
@@ -30,19 +30,19 @@ public record PropertyKey<T>(@NotNull String key) {
     /**
      * Creates a new {@code PropertyKey} with the given key and type.
      *
-     * <p>The class parameter is used only for type inference and is not stored.</p>
+     * <p>The class parameter is used only for type inference and is not stored.
      *
      * <pre>{@code
      * PropertyKey<Integer> key = PropertyKey.of("level", Integer.class);
      * }</pre>
      *
-     * @param key   the string key
+     * @param key the string key
      * @param clazz the value type class (used for type inference only)
-     * @param <T>   the value type
+     * @param <T> the value type
      * @return a new property key
      */
-    public static <T> @NotNull PropertyKey<T> of(final @NotNull String key,
-                                                 final @NotNull Class<T> clazz) {
+    public static <T> @NotNull PropertyKey<T> of(
+            final @NotNull String key, final @NotNull Class<T> clazz) {
         return new PropertyKey<T>(key);
     }
 
@@ -51,15 +51,11 @@ public record PropertyKey<T>(@NotNull String key) {
         return this.key;
     }
 
-    /**
-     * Two property keys are equal if their string keys are equal.
-     */
+    /** Two property keys are equal if their string keys are equal. */
     @Override
     public boolean equals(final @Nullable Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null || getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         final PropertyKey<?> that = (PropertyKey<?>) obj;
         return this.key.equals(that.key);
     }

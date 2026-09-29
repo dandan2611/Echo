@@ -7,17 +7,13 @@ import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.core.cache.RedisCacheProvider;
 import fr.codinbox.echo.core.messaging.provider.RedisMessagingProvider;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.function.Supplier;
-
-/**
- * Convenience factories for creating Redis-backed providers from a {@link RedisConnection}.
- */
+/** Convenience factories for creating Redis-backed providers from a {@link RedisConnection}. */
 public final class RedisProviderFactory {
 
-    private RedisProviderFactory() {
-    }
+    private RedisProviderFactory() {}
 
     /**
      * Creates a cache provider supplier backed by the given Redis connection.
@@ -42,8 +38,8 @@ public final class RedisProviderFactory {
     }
 
     /** Creates atomic leased server placement backed by the given Redis connection. */
-    public static @NotNull ServerPlacement serverPlacement(final @NotNull RedisConnection connection) {
+    public static @NotNull ServerPlacement serverPlacement(
+            final @NotNull RedisConnection connection) {
         return new RedisServerPlacement(connection);
     }
-
 }

@@ -1,14 +1,14 @@
 package fr.codinbox.echo.core.server.placement;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import fr.codinbox.echo.api.property.PropertyKey;
+import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.ServerLoad;
 import fr.codinbox.echo.api.server.ServerLoadSnapshot;
-import fr.codinbox.echo.api.server.ServerAdmissionSnapshot;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
 import fr.codinbox.echo.core.integration.RedisIntegrationTestBase;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,9 +21,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 @Tag("integration")
 class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
@@ -35,21 +34,30 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         final var calculated = new CountDownLatch(1);
         final var resume = new CountDownLatch(1);
         final var delegate = new RedisPlacementStore(redissonClient);
-        final PlacementStore delayed = new PlacementStore() {
-            private boolean paused;
-            public <T> T execute(Duration budget, java.util.function.Function<Transaction, T> decision) {
-                return delegate.execute(budget, tx -> {
-                    final T result = decision.apply(tx);
-                    if (!paused) {
-                        paused = true;
-                        calculated.countDown();
-                        try { assertThat(resume.await(500, TimeUnit.MILLISECONDS)).isTrue(); }
-                        catch (InterruptedException e) { throw new RuntimeException(e); }
+        final PlacementStore delayed =
+                new PlacementStore() {
+                    private boolean paused;
+
+                    public <T> T execute(
+                            Duration budget, java.util.function.Function<Transaction, T> decision) {
+                        return delegate.execute(
+                                budget,
+                                tx -> {
+                                    final T result = decision.apply(tx);
+                                    if (!paused) {
+                                        paused = true;
+                                        calculated.countDown();
+                                        try {
+                                            assertThat(resume.await(500, TimeUnit.MILLISECONDS))
+                                                    .isTrue();
+                                        } catch (InterruptedException e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    }
+                                    return result;
+                                });
                     }
-                    return result;
-                });
-            }
-        };
+                };
         final var old = new RedisServerPlacement(redissonClient, delayed);
         final var startup = CompletableFuture.runAsync(() -> old.startAdmissionPublisher("server"));
         assertThat(calculated.await(1, TimeUnit.SECONDS)).isTrue();
@@ -69,8 +77,8 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         final ServerAdmissionSnapshot current = seedAdmission(replacement);
         assertThat(replacement.admit("server", UUID.randomUUID(), true, current)).isTrue();
         final Instant later = Instant.now().plusMillis(1);
-        final var obsolete = new ServerAdmissionSnapshot(Map.of(), Map.of(), 1, 2,
-                later, later.plusSeconds(60));
+        final var obsolete =
+                new ServerAdmissionSnapshot(Map.of(), Map.of(), 1, 2, later, later.plusSeconds(60));
 
         assertThatThrownBy(() -> old.publishAdmission("server", obsolete))
                 .isInstanceOf(PlacementUnavailableException.class);
@@ -83,15 +91,31 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     void aFastApplicationClockCannotExpireAnotherWorkersLiveLease() {
         seed("server", 0, 1, true, Instant.now().plusSeconds(60), Map.of());
         final RedisServerPlacement owner = new RedisServerPlacement(mockConnection);
-        final RedisServerPlacement fast = new RedisServerPlacement(redissonClient,
-                java.time.Clock.offset(java.time.Clock.systemUTC(), Duration.ofSeconds(10)));
-        final var request = new ServerPlacement.Request("clock-owner", Set.of(UUID.randomUUID()),
-                Set.of(), Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED, Duration.ofSeconds(5));
+        final RedisServerPlacement fast =
+                new RedisServerPlacement(
+                        redissonClient,
+                        java.time.Clock.offset(
+                                java.time.Clock.systemUTC(), Duration.ofSeconds(10)));
+        final var request =
+                new ServerPlacement.Request(
+                        "clock-owner",
+                        Set.of(UUID.randomUUID()),
+                        Set.of(),
+                        Map.of(),
+                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                        Duration.ofSeconds(5));
         final var lease = owner.reserve(request).join().orElseThrow();
 
         assertThat(fast.findActiveReservation(lease.requestId()).join()).isPresent();
-        assertThat(fast.reserve(request("clock-competitor", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of())).join()).isEmpty();
+        assertThat(
+                        fast.reserve(
+                                        request(
+                                                "clock-competitor",
+                                                1,
+                                                ServerPlacement.Policy.FILL_MOST_LOADED,
+                                                Map.of()))
+                                .join())
+                .isEmpty();
         assertThat(owner.release(lease).join()).isTrue();
     }
 
@@ -108,8 +132,14 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     void expiredLeaseIsRemovedAndCannotBeRenewedOrReleasedByItsOldToken() throws Exception {
         seed("server", 0, 1, true, Instant.now().plusSeconds(60), Map.of());
         final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
-        final ServerPlacement.Request request = new ServerPlacement.Request("short", Set.of(UUID.randomUUID()),
-                Set.of(), Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED, Duration.ofMillis(100));
+        final ServerPlacement.Request request =
+                new ServerPlacement.Request(
+                        "short",
+                        Set.of(UUID.randomUUID()),
+                        Set.of(),
+                        Map.of(),
+                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                        Duration.ofMillis(100));
         final var old = placement.reserve(request).join().orElseThrow();
         Thread.sleep(150);
         assertThat(placement.listActiveReservations().join()).isEmpty();
@@ -126,8 +156,9 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         final org.redisson.api.RLock lock = redissonClient.getLock("placement:lock");
         lock.lock();
         try {
-            final CompletableFuture<Boolean> admission = CompletableFuture.supplyAsync(() ->
-                    placement.admit("server", UUID.randomUUID(), true, snapshot));
+            final CompletableFuture<Boolean> admission =
+                    CompletableFuture.supplyAsync(
+                            () -> placement.admit("server", UUID.randomUUID(), true, snapshot));
 
             assertThat(admission.get(500, TimeUnit.MILLISECONDS)).isTrue();
         } finally {
@@ -139,16 +170,18 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
     void permissionPublisherStoresExpiringServerTrustedClassification() {
         final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
         this.seedAdmission(placement);
-        final ServerPlacement.Request request = this.request("staff", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of());
+        final ServerPlacement.Request request =
+                this.request("staff", 1, ServerPlacement.Policy.FILL_MOST_LOADED, Map.of());
         final UUID member = request.members().iterator().next();
         placement.publishStaffPermissions(Map.of(member, true));
 
         final Optional<ServerPlacement.Reservation> result = placement.reserve(request).join();
 
         assertThat(result).isPresent();
-        assertThat(placement.inspectServer("server").join().orElseThrow().reservedNonStaffSlots()).isZero();
-        assertThat(redissonClient.getBucket("admission:staff:" + member).remainTimeToLive()).isPositive();
+        assertThat(placement.inspectServer("server").join().orElseThrow().reservedNonStaffSlots())
+                .isZero();
+        assertThat(redissonClient.getBucket("admission:staff:" + member).remainTimeToLive())
+                .isPositive();
     }
 
     @Test
@@ -156,11 +189,20 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         final RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
         final RedisServerPlacement destination = placement;
         final ServerAdmissionSnapshot snapshot = this.seedAdmission(placement);
-        final ServerPlacement.Reservation lease = placement.reserve(request("handoff", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of())).join().orElseThrow();
+        final ServerPlacement.Reservation lease =
+                placement
+                        .reserve(
+                                request(
+                                        "handoff",
+                                        1,
+                                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                                        Map.of()))
+                        .join()
+                        .orElseThrow();
 
         assertThat(destination.admit("server", UUID.randomUUID(), true, snapshot)).isFalse();
-        assertThat(destination.admit("server", lease.members().iterator().next(), false, snapshot)).isTrue();
+        assertThat(destination.admit("server", lease.members().iterator().next(), false, snapshot))
+                .isTrue();
         assertThat(placement.inspectServer("server").join().orElseThrow().reservedSlots()).isZero();
     }
 
@@ -169,15 +211,16 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         final RedisServerPlacement firstWorker = new RedisServerPlacement(mockConnection);
         final RedisServerPlacement secondWorker = firstWorker;
         final ServerAdmissionSnapshot snapshot = this.seedAdmission(firstWorker);
-        final CompletableFuture<Boolean> first = CompletableFuture.supplyAsync(() ->
-                admitOrSuperseded(firstWorker, snapshot));
-        final CompletableFuture<Boolean> second = CompletableFuture.supplyAsync(() ->
-                admitOrSuperseded(secondWorker, snapshot));
+        final CompletableFuture<Boolean> first =
+                CompletableFuture.supplyAsync(() -> admitOrSuperseded(firstWorker, snapshot));
+        final CompletableFuture<Boolean> second =
+                CompletableFuture.supplyAsync(() -> admitOrSuperseded(secondWorker, snapshot));
 
         assertThat(List.of(first.join(), second.join())).containsExactlyInAnyOrder(true, false);
     }
 
-    private boolean admitOrSuperseded(RedisServerPlacement placement, ServerAdmissionSnapshot snapshot) {
+    private boolean admitOrSuperseded(
+            RedisServerPlacement placement, ServerAdmissionSnapshot snapshot) {
         try {
             return placement.admit("server", UUID.randomUUID(), true, snapshot);
         } catch (PlacementUnavailableException error) {
@@ -188,11 +231,17 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
 
     private ServerAdmissionSnapshot seedAdmission(final RedisServerPlacement placement) {
         final Instant now = Instant.now();
-        this.seed("server", 0, 1, true, now.plusSeconds(60),
+        this.seed(
+                "server",
+                0,
+                1,
+                true,
+                now.plusSeconds(60),
                 Map.of(ServerPlacement.PROPERTY_HARD_CAPACITY, 2));
         placement.startAdmissionPublisher("server");
-        final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(Map.of(UUID.randomUUID(), true),
-                Map.of(), 1, 2, now, now.plusSeconds(60));
+        final ServerAdmissionSnapshot snapshot =
+                new ServerAdmissionSnapshot(
+                        Map.of(UUID.randomUUID(), true), Map.of(), 1, 2, now, now.plusSeconds(60));
         placement.publishAdmission("server", snapshot);
         return snapshot;
     }
@@ -204,20 +253,45 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         seed("ignored", 9, 10, true, Instant.now().plusSeconds(60), Map.of(TYPE, "game"));
         RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
 
-        ServerPlacement.Reservation fill = placement.reserve(request("fill", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of(TYPE, "lobby"))).join().orElseThrow();
+        ServerPlacement.Reservation fill =
+                placement
+                        .reserve(
+                                request(
+                                        "fill",
+                                        2,
+                                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                                        Map.of(TYPE, "lobby")))
+                        .join()
+                        .orElseThrow();
         assertThat(fill.serverId()).isEqualTo("b");
         assertThat(placement.release(fill).join()).isTrue();
 
-        ServerPlacement.Reservation spread = placement.reserve(request("spread", 2,
-                ServerPlacement.Policy.SPREAD_LEAST_LOADED, Map.of(TYPE, "lobby"))).join().orElseThrow();
+        ServerPlacement.Reservation spread =
+                placement
+                        .reserve(
+                                request(
+                                        "spread",
+                                        2,
+                                        ServerPlacement.Policy.SPREAD_LEAST_LOADED,
+                                        Map.of(TYPE, "lobby")))
+                        .join()
+                        .orElseThrow();
         assertThat(spread.serverId()).isEqualTo("a");
         assertThat(placement.release(spread).join()).isTrue();
 
         seed("b", 2, 10, true, Instant.now().plusSeconds(60), Map.of(TYPE, "lobby"));
-        assertThat(placement.reserve(request("tie", 1,
-                ServerPlacement.Policy.SPREAD_LEAST_LOADED, Map.of(TYPE, "lobby"))).join())
-                .get().extracting(ServerPlacement.Reservation::serverId).isEqualTo("a");
+        assertThat(
+                        placement
+                                .reserve(
+                                        request(
+                                                "tie",
+                                                1,
+                                                ServerPlacement.Policy.SPREAD_LEAST_LOADED,
+                                                Map.of(TYPE, "lobby")))
+                                .join())
+                .get()
+                .extracting(ServerPlacement.Reservation::serverId)
+                .isEqualTo("a");
     }
 
     @Test
@@ -226,31 +300,52 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
         seed("stale", 0, 20, true, Instant.now().minusSeconds(1), Map.of(TYPE, "game"));
         seed("closed", 0, 20, false, Instant.now().plusSeconds(60), Map.of(TYPE, "game"));
 
-        Optional<ServerPlacement.Reservation> result = new RedisServerPlacement(mockConnection)
-                .reserve(request("party", 3, ServerPlacement.Policy.FILL_MOST_LOADED,
-                        Map.of(TYPE, "game"))).join();
+        Optional<ServerPlacement.Reservation> result =
+                new RedisServerPlacement(mockConnection)
+                        .reserve(
+                                request(
+                                        "party",
+                                        3,
+                                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                                        Map.of(TYPE, "game")))
+                        .join();
 
         assertThat(result).isEmpty();
-        assertThat(new RedisServerPlacement(mockConnection).listActiveReservations().join()).isEmpty();
+        assertThat(new RedisServerPlacement(mockConnection).listActiveReservations().join())
+                .isEmpty();
     }
 
     @Test
     void reserve_isIdempotentAndRenewReleaseAreTokenSafe() {
         seed("server", 0, 10, true, Instant.now().plusSeconds(60), Map.of(TYPE, "game"));
         RedisServerPlacement placement = new RedisServerPlacement(mockConnection);
-        ServerPlacement.Request request = request("same", 2,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of(TYPE, "game"));
+        ServerPlacement.Request request =
+                request("same", 2, ServerPlacement.Policy.FILL_MOST_LOADED, Map.of(TYPE, "game"));
 
         ServerPlacement.Reservation first = placement.reserve(request).join().orElseThrow();
         assertThat(placement.reserve(request).join()).contains(first);
-        assertThatThrownBy(() -> placement.reserve(request("same", 1,
-                ServerPlacement.Policy.FILL_MOST_LOADED, Map.of(TYPE, "game"))).join())
+        assertThatThrownBy(
+                        () ->
+                                placement
+                                        .reserve(
+                                                request(
+                                                        "same",
+                                                        1,
+                                                        ServerPlacement.Policy.FILL_MOST_LOADED,
+                                                        Map.of(TYPE, "game")))
+                                        .join())
                 .hasRootCauseMessage("Active placement request ID has a different payload: same");
 
-        ServerPlacement.Reservation stale = new ServerPlacement.Reservation(first.requestId(), "stale-token",
-                first.serverId(), first.members(), first.expiresAt());
+        ServerPlacement.Reservation stale =
+                new ServerPlacement.Reservation(
+                        first.requestId(),
+                        "stale-token",
+                        first.serverId(),
+                        first.members(),
+                        first.expiresAt());
         assertThat(placement.release(stale).join()).isFalse();
-        ServerPlacement.Reservation renewed = placement.renew(first, Duration.ofMinutes(1)).join().orElseThrow();
+        ServerPlacement.Reservation renewed =
+                placement.renew(first, Duration.ofMinutes(1)).join().orElseThrow();
         assertThat(renewed.expiresAt()).isAfter(first.expiresAt());
         assertThat(placement.release(renewed).join()).isTrue();
         assertThat(placement.release(renewed).join()).isFalse();
@@ -268,41 +363,69 @@ class RedisServerPlacementIntegrationTest extends RedisIntegrationTestBase {
             for (int i = 0; i < 16; i++) {
                 int requestNumber = i;
                 RedisServerPlacement worker = i % 2 == 0 ? firstWorker : secondWorker;
-                attempts.add(CompletableFuture.supplyAsync(() -> {
-                    try {
-                        start.await();
-                    } catch (InterruptedException error) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(error);
-                    }
-                    return worker.reserve(request("worker-" + requestNumber, 1,
-                            ServerPlacement.Policy.FILL_MOST_LOADED, Map.of(TYPE, "game"))).join();
-                }, executor));
+                attempts.add(
+                        CompletableFuture.supplyAsync(
+                                () -> {
+                                    try {
+                                        start.await();
+                                    } catch (InterruptedException error) {
+                                        Thread.currentThread().interrupt();
+                                        throw new IllegalStateException(error);
+                                    }
+                                    return worker.reserve(
+                                                    request(
+                                                            "worker-" + requestNumber,
+                                                            1,
+                                                            ServerPlacement.Policy.FILL_MOST_LOADED,
+                                                            Map.of(TYPE, "game")))
+                                            .join();
+                                },
+                                executor));
             }
             start.countDown();
             CompletableFuture.allOf(attempts.toArray(CompletableFuture[]::new)).join();
         }
 
-        assertThat(attempts).extracting(CompletableFuture::join)
-                .filteredOn(Optional::isPresent).hasSize(5);
+        assertThat(attempts)
+                .extracting(CompletableFuture::join)
+                .filteredOn(Optional::isPresent)
+                .hasSize(5);
     }
 
     private ServerPlacement.Request request(
-            String id, int members, ServerPlacement.Policy policy, Map<PropertyKey<?>, Object> filters) {
-        Set<UUID> players = java.util.stream.IntStream.range(0, members)
-                .mapToObj(ignored -> UUID.randomUUID())
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        return new ServerPlacement.Request(id, players, Set.of(), filters, policy, Duration.ofSeconds(30));
+            String id,
+            int members,
+            ServerPlacement.Policy policy,
+            Map<PropertyKey<?>, Object> filters) {
+        Set<UUID> players =
+                java.util.stream.IntStream.range(0, members)
+                        .mapToObj(ignored -> UUID.randomUUID())
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return new ServerPlacement.Request(
+                id, players, Set.of(), filters, policy, Duration.ofSeconds(30));
     }
 
-    private void seed(String id, int participants, int capacity, boolean accepting,
-                      Instant validUntil, Map<PropertyKey<?>, Object> properties) {
+    private void seed(
+            String id,
+            int participants,
+            int capacity,
+            boolean accepting,
+            Instant validUntil,
+            Map<PropertyKey<?>, Object> properties) {
         redissonClient.<String, Long>getMap("servers:map").put(id, Instant.now().toEpochMilli());
         redissonClient.getBucket("heartbeat:server:" + id).set(1, Duration.ofMinutes(5));
         redissonClient.getBucket("server:" + id + ":property:placement_capacity").set(capacity);
-        redissonClient.getBucket("server:" + id + ":property:load").set(new ServerLoadSnapshot(
-                new ServerLoad(participants, accepting), validUntil.minusSeconds(1), validUntil));
-        properties.forEach((key, value) ->
-                redissonClient.getBucket("server:" + id + ":property:" + key.key()).set(value));
+        redissonClient
+                .getBucket("server:" + id + ":property:load")
+                .set(
+                        new ServerLoadSnapshot(
+                                new ServerLoad(participants, accepting),
+                                validUntil.minusSeconds(1),
+                                validUntil));
+        properties.forEach(
+                (key, value) ->
+                        redissonClient
+                                .getBucket("server:" + id + ":property:" + key.key())
+                                .set(value));
     }
 }

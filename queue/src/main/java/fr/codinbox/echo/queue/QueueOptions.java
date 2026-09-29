@@ -1,9 +1,8 @@
 package fr.codinbox.echo.queue;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.time.Duration;
 import java.util.Objects;
+import org.jetbrains.annotations.NotNull;
 
 /** Bounded coordination and handoff timings. */
 public record QueueOptions(
@@ -30,8 +29,13 @@ public record QueueOptions(
     }
 
     public static @NotNull QueueOptions defaults() {
-        return new QueueOptions(Duration.ofSeconds(1), Duration.ofSeconds(30),
-                Duration.ofSeconds(30), Duration.ofSeconds(10), Duration.ofSeconds(15), Duration.ofSeconds(1));
+        return new QueueOptions(
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(10),
+                Duration.ofSeconds(15),
+                Duration.ofSeconds(1));
     }
 
     private static void requirePositive(Duration value, String name) {

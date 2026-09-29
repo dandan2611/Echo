@@ -1,27 +1,24 @@
 package fr.codinbox.echo.velocity.messaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.api.messaging.impl.ResourceControlRequest;
 import fr.codinbox.echo.velocity.EchoPlugin;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 @Tag("unit")
 class ResourceControlRequestHandlerTest {
@@ -36,8 +33,9 @@ class ResourceControlRequestHandlerTest {
     void setUp() {
         this.plugin = mock(EchoPlugin.class);
         this.echo = mock(EchoClient.class);
-        this.handler = new ResourceControlRequestHandler(
-                this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
+        this.handler =
+                new ResourceControlRequestHandler(
+                        this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
         when(this.echo.getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(this.echo.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
     }
@@ -118,12 +116,13 @@ class ResourceControlRequestHandlerTest {
     @Test
     void overflowingRelativeDeadlineIsInvalid() {
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenThrow(new ArithmeticException());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
+                .thenThrow(new ArithmeticException());
 
         this.handler.onReceive(request);
 
-        ResourceControlRequest.Response response = assertResponse(
-                request, false, ResourceControlRequest.Status.INVALID_REQUEST);
+        ResourceControlRequest.Response response =
+                assertResponse(request, false, ResourceControlRequest.Status.INVALID_REQUEST);
         assertThat(response.getMessage()).isEqualTo("deadline is too large");
         verifyNoInteractions(this.plugin);
     }
@@ -132,7 +131,8 @@ class ResourceControlRequestHandlerTest {
     void drainUsesTheRequestedAbsoluteDeadline() {
         Instant deadline = NOW.plusSeconds(20);
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenReturn(deadline.toEpochMilli());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
+                .thenReturn(deadline.toEpochMilli());
         when(this.plugin.beginDrain(deadline)).thenReturn(true);
 
         this.handler.onReceive(request);
@@ -145,7 +145,8 @@ class ResourceControlRequestHandlerTest {
     void drainUsesTheResolvedRelativeDeadlineAndReportsRejection() {
         Instant deadline = NOW.plusSeconds(5);
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenReturn(deadline.toEpochMilli());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
+                .thenReturn(deadline.toEpochMilli());
         when(this.plugin.beginDrain(deadline)).thenReturn(false);
 
         this.handler.onReceive(request);
@@ -217,8 +218,8 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(activate);
 
-        ResourceControlRequest.Response activateResponse = assertResponse(
-                activate, false, ResourceControlRequest.Status.FAILED);
+        ResourceControlRequest.Response activateResponse =
+                assertResponse(activate, false, ResourceControlRequest.Status.FAILED);
         assertThat(activateResponse.getMessage()).isEqualTo("activation failed");
 
         ResourceControlRequest shutdown = request(ResourceControlRequest.Action.SHUTDOWN);
@@ -226,8 +227,8 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(shutdown);
 
-        ResourceControlRequest.Response shutdownResponse = assertResponse(
-                shutdown, false, ResourceControlRequest.Status.FAILED);
+        ResourceControlRequest.Response shutdownResponse =
+                assertResponse(shutdown, false, ResourceControlRequest.Status.FAILED);
         assertThat(shutdownResponse.getMessage()).isEqualTo("IllegalStateException");
     }
 
@@ -237,7 +238,8 @@ class ResourceControlRequestHandlerTest {
         when(request.getAction()).thenReturn(action);
         when(request.getExpectedResourceType()).thenReturn(EchoResourceType.PROXY);
         when(request.getExpectedResourceId()).thenReturn("proxy-1");
-        when(request.getExecutionDeadlineEpochMillis()).thenReturn(NOW.plusSeconds(10).toEpochMilli());
+        when(request.getExecutionDeadlineEpochMillis())
+                .thenReturn(NOW.plusSeconds(10).toEpochMilli());
         when(request.getMessageId()).thenReturn(REQUEST_ID);
         return request;
     }
@@ -250,7 +252,9 @@ class ResourceControlRequestHandlerTest {
     }
 
     private static ResourceControlRequest.Response assertResponse(
-            ResourceControlRequest request, boolean accepted, ResourceControlRequest.Status status) {
+            ResourceControlRequest request,
+            boolean accepted,
+            ResourceControlRequest.Status status) {
         ResourceControlRequest.Response response = response(request);
         assertThat(response.isAccepted()).isEqualTo(accepted);
         assertThat(response.getStatus()).isEqualTo(status);

@@ -25,8 +25,8 @@ public class ServerAvailabilityNotification extends EchoMessage {
      * @param server server whose routing availability changed
      * @param availability new routing availability
      */
-    public ServerAvailabilityNotification(final @NotNull Server server,
-                                          final @NotNull ServerAvailability availability) {
+    public ServerAvailabilityNotification(
+            final @NotNull Server server, final @NotNull ServerAvailability availability) {
         this.id = server.getId();
         this.address = server.getAddress();
         this.availability = availability;

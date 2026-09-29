@@ -1,15 +1,14 @@
 package fr.codinbox.echo.core.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import fr.codinbox.echo.api.local.EchoResourceType;
 import fr.codinbox.echo.core.property.AbstractPropertyHolder;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.util.Optional;
-import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("integration")
 class PropertyHolderIntegrationTest extends RedisIntegrationTestBase {

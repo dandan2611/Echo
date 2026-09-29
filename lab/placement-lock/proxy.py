@@ -1,4 +1,5 @@
 """Local-only RESP fault injector; never connects outside loopback."""
+
 import http.server
 import json
 import socket
@@ -36,13 +37,23 @@ class Relay(socketserver.BaseRequestHandler):
                     commit = b"echo-placement-commit-v2" in request
                     with guard:
                         mode = state["mode"]
-                        hit = ((unlock and mode == "unlock-lost") or (acquire and mode == "acquire-reply-lost")
-                               or (commit and mode in ("commit-lost", "commit-reply-lost", "commit-replay")))
+                        hit = (
+                            (unlock and mode == "unlock-lost")
+                            or (acquire and mode == "acquire-reply-lost")
+                            or (
+                                commit
+                                and mode
+                                in ("commit-lost", "commit-reply-lost", "commit-replay")
+                            )
+                        )
                         if hit:
                             state["mode"] = "none"
                             state["events"].append(mode)
                     if hit and mode in ("unlock-lost", "commit-lost"):
-                        print("INJECT request lost before Redis execution: " + mode, flush=True)
+                        print(
+                            "INJECT request lost before Redis execution: " + mode,
+                            flush=True,
+                        )
                         return
                     upstream.sendall(request)
                     response = frame(remote)
@@ -53,9 +64,23 @@ class Relay(socketserver.BaseRequestHandler):
                             raise AssertionError("Commit replay changed its receipt")
                     if is_lock or commit:
                         with guard:
-                            state["trace"].append({"operation": "commit" if commit else "unlock" if unlock else "acquire", "response": repr(response), "reply_dropped": hit and mode != "commit-replay"})
+                            state["trace"].append(
+                                {
+                                    "operation": "commit"
+                                    if commit
+                                    else "unlock"
+                                    if unlock
+                                    else "acquire",
+                                    "response": repr(response),
+                                    "reply_dropped": hit and mode != "commit-replay",
+                                }
+                            )
                     if hit and mode != "commit-replay":
-                        print("INJECT operation executed; response dropped: " + repr(response), flush=True)
+                        print(
+                            "INJECT operation executed; response dropped: "
+                            + repr(response),
+                            flush=True,
+                        )
                         return
                     self.request.sendall(response)
         except (EOFError, ConnectionError, OSError):
@@ -84,6 +109,11 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 if __name__ == "__main__":
-    threading.Thread(target=http.server.ThreadingHTTPServer(("127.0.0.1", 16381), Control).serve_forever, daemon=True).start()
+    threading.Thread(
+        target=http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 16381), Control
+        ).serve_forever,
+        daemon=True,
+    ).start()
     print("Lab proxy 127.0.0.1:16380 -> 127.0.0.1:16379; control 16381", flush=True)
     Server(("127.0.0.1", 16380), Relay).serve_forever()

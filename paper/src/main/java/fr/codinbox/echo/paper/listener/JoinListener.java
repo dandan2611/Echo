@@ -4,8 +4,10 @@ import fr.codinbox.echo.api.Echo;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.server.Server;
 import fr.codinbox.echo.api.server.ServerLoadManager;
-import fr.codinbox.echo.paper.EchoPaper;
 import fr.codinbox.echo.api.user.User;
+import fr.codinbox.echo.paper.EchoPaper;
+import java.util.Optional;
+import java.util.logging.Level;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -14,15 +16,13 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
-import java.util.logging.Level;
-
 public class JoinListener implements Listener {
 
     private final @NotNull EchoPaper plugin;
     private final @NotNull ServerLoadManager loadManager;
 
-    public JoinListener(final @NotNull EchoPaper plugin, final @NotNull ServerLoadManager loadManager) {
+    public JoinListener(
+            final @NotNull EchoPaper plugin, final @NotNull ServerLoadManager loadManager) {
         this.plugin = plugin;
         this.loadManager = loadManager;
     }
@@ -34,29 +34,34 @@ public class JoinListener implements Listener {
         final EchoClient client = Echo.getClient();
 
         final String currentResourceId = client.getCurrentResourceId().orElse(null);
-        if (currentResourceId == null)
-            return;
+        if (currentResourceId == null) return;
 
-        client.getUserById(player.getUniqueId()).thenAcceptAsync(userOpt -> {
-            if (userOpt.isEmpty()) {
-                client.createUser(player.getUniqueId(), player.getName(), currentResourceId);
-                return;
-            }
+        client.getUserById(player.getUniqueId())
+                .thenAcceptAsync(
+                        userOpt -> {
+                            if (userOpt.isEmpty()) {
+                                client.createUser(
+                                        player.getUniqueId(), player.getName(), currentResourceId);
+                                return;
+                            }
 
-            final User user = userOpt.get();
+                            final User user = userOpt.get();
 
-            // Set user previous server ID in a non-blocking way
-            user.getCurrentServerId().thenAccept(currentServerIdOpt -> {
-                currentServerIdOpt.ifPresent(s -> user.setPreviousServerId(s));
-            });
+                            // Set user previous server ID in a non-blocking way
+                            user.getCurrentServerId()
+                                    .thenAccept(
+                                            currentServerIdOpt -> {
+                                                currentServerIdOpt.ifPresent(
+                                                        s -> user.setPreviousServerId(s));
+                                            });
 
-            final Optional<Server> echoServerOpt = client.getServerById(currentResourceId).await();
+                            final Optional<Server> echoServerOpt =
+                                    client.getServerById(currentResourceId).await();
 
-            if (echoServerOpt.isEmpty())
-                return;
+                            if (echoServerOpt.isEmpty()) return;
 
-            client.registerUserInServer(user, echoServerOpt.get());
-        });
+                            client.registerUserInServer(user, echoServerOpt.get());
+                        });
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -66,24 +71,38 @@ public class JoinListener implements Listener {
         final EchoClient client = Echo.getClient();
 
         // If there is no proxy, destroy the user by ourselves
-        client.getProxies().thenAccept(proxyMap -> {
-            if (!proxyMap.isEmpty())
-                return;
+        client.getProxies()
+                .thenAccept(
+                        proxyMap -> {
+                            if (!proxyMap.isEmpty()) return;
 
-            client.getUserById(player.getUniqueId()).thenAccept(userOpt -> {
-                if (userOpt.isEmpty())
-                    return;
-                client.destroyUser(userOpt.get());
-            });
-        });
+                            client.getUserById(player.getUniqueId())
+                                    .thenAccept(
+                                            userOpt -> {
+                                                if (userOpt.isEmpty()) return;
+                                                client.destroyUser(userOpt.get());
+                                            });
+                        });
     }
 
     private void scheduleLoadRefresh() {
-        this.plugin.getServer().getScheduler().runTask(this.plugin,
-                () -> this.loadManager.refresh().whenComplete((ignored, error) -> {
-                    if (error != null)
-                        this.plugin.getLogger().log(Level.WARNING, "Failed to refresh Echo server load", error);
-                }));
+        this.plugin
+                .getServer()
+                .getScheduler()
+                .runTask(
+                        this.plugin,
+                        () ->
+                                this.loadManager
+                                        .refresh()
+                                        .whenComplete(
+                                                (ignored, error) -> {
+                                                    if (error != null)
+                                                        this.plugin
+                                                                .getLogger()
+                                                                .log(
+                                                                        Level.WARNING,
+                                                                        "Failed to refresh Echo server load",
+                                                                        error);
+                                                }));
     }
-
 }

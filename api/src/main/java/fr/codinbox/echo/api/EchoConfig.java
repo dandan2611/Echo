@@ -6,19 +6,18 @@ import fr.codinbox.echo.api.messaging.MessagingProvider;
 import fr.codinbox.echo.api.property.PropertyKey;
 import fr.codinbox.echo.api.server.ServerLoadProvider;
 import fr.codinbox.echo.api.server.placement.ServerPlacement;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Configuration for initializing the Echo client.
  *
- * <p>Bundles provider factories, resource identity, and healthcheck timing parameters.
- * Use the {@link Builder} to construct instances:</p>
+ * <p>Bundles provider factories, resource identity, and healthcheck timing parameters. Use the
+ * {@link Builder} to construct instances:
  *
  * <pre>{@code
  * EchoConfig config = EchoConfig.builder()
@@ -57,9 +56,10 @@ public class EchoConfig {
         this.heartbeatTtlSeconds = builder.heartbeatTtlSeconds;
         this.heartbeatIntervalSeconds = builder.heartbeatIntervalSeconds;
         this.scanIntervalSeconds = builder.scanIntervalSeconds;
-        this.cleanupEnabled = builder.cleanupEnabled != null
-                ? builder.cleanupEnabled
-                : builder.resourceType == EchoResourceType.PROXY;
+        this.cleanupEnabled =
+                builder.cleanupEnabled != null
+                        ? builder.cleanupEnabled
+                        : builder.resourceType == EchoResourceType.PROXY;
         this.initialProperties = builder.initialProperties;
         this.serverLoadProvider = builder.serverLoadProvider;
         this.serverPlacement = builder.serverPlacement;
@@ -123,9 +123,7 @@ public class EchoConfig {
         return new Builder();
     }
 
-    /**
-     * Builder for {@link EchoConfig}.
-     */
+    /** Builder for {@link EchoConfig}. */
     public static class Builder {
 
         private Supplier<? extends CacheProvider> cacheProviderFactory;
@@ -140,8 +138,7 @@ public class EchoConfig {
         private ServerLoadProvider serverLoadProvider;
         private ServerPlacement serverPlacement;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public @NotNull Builder cacheProviderFactory(
                 final @NotNull Supplier<? extends CacheProvider> factory) {
@@ -222,10 +219,8 @@ public class EchoConfig {
                 throw new NullPointerException("cacheProviderFactory is required");
             if (messagingProviderFactory == null)
                 throw new NullPointerException("messagingProviderFactory is required");
-            if (resourceType == null)
-                throw new NullPointerException("resourceType is required");
-            if (resourceId == null)
-                throw new NullPointerException("resourceId is required");
+            if (resourceType == null) throw new NullPointerException("resourceType is required");
+            if (resourceId == null) throw new NullPointerException("resourceId is required");
             if (resourceType == EchoResourceType.PROXY && serverLoadProvider != null)
                 throw new IllegalArgumentException("A proxy cannot have a server load provider");
             final Set<String> reservedKeys = Set.of("creation_time", "availability", "load");
@@ -233,12 +228,12 @@ public class EchoConfig {
                     .map(PropertyKey::key)
                     .filter(reservedKeys::contains)
                     .findFirst()
-                    .ifPresent(key -> {
-                        throw new IllegalArgumentException("Initial property is reserved by Echo: " + key);
-                    });
+                    .ifPresent(
+                            key -> {
+                                throw new IllegalArgumentException(
+                                        "Initial property is reserved by Echo: " + key);
+                            });
             return new EchoConfig(this);
         }
-
     }
-
 }
