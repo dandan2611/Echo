@@ -44,6 +44,20 @@ repositories. Spotless 8.10.3 uses google-java-format 1.36.1, AOSP style
 (4 spaces), and ktfmt 0.64 for Kotlin Gradle files. Groovy Gradle files, where
 present, use Greclipse 4.40.
 
+For Java `if` / `else` branches, braces are optional when the branch contains
+exactly one statement. Use braces for two or more statements. This counts
+statements, not physical lines. google-java-format preserves existing braces
+and accepts single-statement branches without them.
+
+```java
+if (player == null) return;
+
+if (ready) {
+    prepare();
+    start();
+}
+```
+
 ```sh
 python .formatting/spotless.py                 # all Java/Gradle files
 python .formatting/spotless.py src/main/java/example/MyClass.java
