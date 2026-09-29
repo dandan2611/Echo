@@ -17,18 +17,20 @@ spotless {
     lineEndings = com.diffplug.spotless.LineEnding.UNIX
     java {
         target sources('**/*.java')
-        googleJavaFormat('1.36.1').aosp()
+        palantirJavaFormat('2.100.0').style('PALANTIR').formatJavadoc(true)
     }
     kotlinGradle {
         target sources('**/*.gradle.kts')
-        ktfmt('0.64').kotlinlangStyle()
+        ktfmt('0.64').kotlinlangStyle().configure { it.setMaxWidth(120) }
     }
     groovyGradle {
         target sources('**/*.gradle')
         greclipse('4.40').configProperties(
             'org.eclipse.jdt.core.formatter.tabulation.char=space',
             'org.eclipse.jdt.core.formatter.tabulation.size=4',
-            'org.eclipse.jdt.core.formatter.indentation.size=4'
+            'org.eclipse.jdt.core.formatter.indentation.size=4',
+            'org.eclipse.jdt.core.formatter.lineSplit=120',
+            'groovy.formatter.line.maxlength=120'
         )
     }
 }

@@ -22,6 +22,10 @@ formatting only), shfmt 3.14.1 via shfmt-py 4.2.0 (shell, including scripts
 with a shell shebang and no extension). The hook environments are managed by
 pre-commit; no project npm/Python dependency is added.
 
+The target line width is 120 characters (EditorConfig, Prettier and Ruff).
+It is a wrapping preference: unbreakable tokens and preserved Markdown prose
+may exceed it. shfmt and Terraform retain their native wrapping behavior.
+
 EditorConfig sets UTF-8, LF and indentation. For format-on-save, configure an
 editor external tool/file watcher to run `pre-commit run --files <saved-file>`
 from the repository root after saving. Pass the path as a quoted argument.
@@ -40,13 +44,15 @@ run that script with `--write`, then review and commit each repository's diff.
 
 Use JDK 25+ (the project toolchain). The repository's Gradle wrapper runs an
 isolated formatting build, without configuring the application or its private
-repositories. Spotless 8.10.3 uses google-java-format 1.36.1, AOSP style
-(4 spaces), and ktfmt 0.64 for Kotlin Gradle files. Groovy Gradle files, where
-present, use Greclipse 4.40.
+repositories. Spotless 8.10.3 uses Palantir Java Format 2.100.0, PALANTIR style
+(4 spaces, 120 columns), and ktfmt 0.64 with a 120-column target for Kotlin
+Gradle files. Groovy Gradle files, where present, use Greclipse 4.40 with a
+120-column target. Palantir replaces google-java-format, whose 100-column
+width is not configurable.
 
 For Java `if` / `else` branches, braces are optional when the branch contains
 exactly one statement. Use braces for two or more statements. This counts
-statements, not physical lines. google-java-format preserves existing braces
+statements, not physical lines. Palantir Java Format preserves existing braces
 and accepts single-statement branches without them.
 
 ```java

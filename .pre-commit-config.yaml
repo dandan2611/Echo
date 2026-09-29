@@ -5,7 +5,7 @@ repos:
   - repo: local
     hooks:
       - id: spotless
-        name: google-java-format and Gradle formatting
+        name: Palantir Java Format and Gradle formatting
         language: python
         entry: python .formatting/spotless.py
         files: '\.java$|\.gradle(\.kts)?$'
