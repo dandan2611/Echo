@@ -50,8 +50,7 @@ class SendCommandsTest {
         "Bob,local,0,0,0",
         "00000000-0000-0000-0000-000000000002,,0,1,0"
     })
-    void selectsNetworkUsersAndIntersectsSourceProxy(
-            String selector, String proxy, int alice, int bob, int carol) {
+    void selectsNetworkUsersAndIntersectsSourceProxy(String selector, String proxy, int alice, int bob, int carol) {
         Network network = network();
 
         network.fixture
@@ -68,29 +67,30 @@ class SendCommandsTest {
     void aggregatesSuccessAlreadyConnectedAndKickReason() {
         Network network = network();
 
-        network.fixture.commands().userSend(network.fixture.context(), "all", "lobby", null).join();
+        network.fixture
+                .commands()
+                .userSend(network.fixture.context(), "all", "lobby", null)
+                .join();
 
         assertThat(network.fixture.output())
-                .contains(
-                        "transferred=1 already_connected=1 failed=1",
-                        "1 x SERVER_DISCONNECTED: Maintenance");
+                .contains("transferred=1 already_connected=1 failed=1", "1 x SERVER_DISCONNECTED: Maintenance");
     }
 
     @Test
     void disconnectedOrTimedOutUsersDoNotAbortOtherTransfers() {
         Network network = network();
-        when(network.fixture.echo().getUserById(BOB))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(network.fixture.echo().getUserById(BOB)).thenReturn(EchoFuture.completed(Optional.empty()));
         when(network.carol.tryConnectToServer(anyString(), any(Duration.class)))
                 .thenReturn(echoFailed(new TimeoutException()));
 
-        network.fixture.commands().userSend(network.fixture.context(), "all", "lobby", null).join();
+        network.fixture
+                .commands()
+                .userSend(network.fixture.context(), "all", "lobby", null)
+                .join();
 
         assertThat(network.fixture.output())
                 .contains(
-                        "transferred=1 already_connected=0 failed=2",
-                        "User not found: " + BOB,
-                        "Operation timed out.");
+                        "transferred=1 already_connected=0 failed=2", "User not found: " + BOB, "Operation timed out.");
     }
 
     @ParameterizedTest
@@ -101,8 +101,7 @@ class SendCommandsTest {
         "all,lobby,missing,Proxy not found: missing",
         "Missing,lobby,,User not found: Missing"
     })
-    void rejectsInvalidSelectionBeforeAnyTransfer(
-            String selector, String server, String proxy, String error) {
+    void rejectsInvalidSelectionBeforeAnyTransfer(String selector, String server, String proxy, String error) {
         Network network = network();
         network.fixture.audience().playerId = null;
 
@@ -140,9 +139,7 @@ class SendCommandsTest {
                 .join();
 
         assertThat(network.fixture.output())
-                .contains(
-                        "transferred=0 already_connected=0 failed=0",
-                        "No users matched the source selection.");
+                .contains("transferred=0 already_connected=0 failed=0", "No users matched the source selection.");
     }
 
     @ParameterizedTest
@@ -169,7 +166,9 @@ class SendCommandsTest {
         Network network = network();
         TestManager manager = manager(network.fixture);
 
-        assertThatThrownBy(() -> manager.commandExecutor().executeCommand("none", command).join())
+        assertThatThrownBy(() -> manager.commandExecutor()
+                        .executeCommand("none", command)
+                        .join())
                 .hasRootCauseInstanceOf(org.incendo.cloud.exception.NoPermissionException.class);
         verify(network.alice, never()).tryConnectToServer(anyString(), any(Duration.class));
     }
@@ -179,68 +178,55 @@ class SendCommandsTest {
         Network network = network();
         TestManager manager = manager(network.fixture);
 
-        var targets = manager.suggestionFactory().suggest("velocity.command.send", "send ").join();
-        var servers =
-                manager.suggestionFactory().suggest("velocity.command.send", "send all ").join();
-        var proxies =
-                manager.suggestionFactory()
-                        .suggest("velocity.command.send", "send all lobby --proxy ")
-                        .join();
+        var targets = manager.suggestionFactory()
+                .suggest("velocity.command.send", "send ")
+                .join();
+        var servers = manager.suggestionFactory()
+                .suggest("velocity.command.send", "send all ")
+                .join();
+        var proxies = manager.suggestionFactory()
+                .suggest("velocity.command.send", "send all lobby --proxy ")
+                .join();
 
         assertThat(targets.list())
                 .extracting(Suggestion::suggestion)
                 .contains("Alice", "Bob", "all", "current", "server:quake");
         assertThat(servers.list()).extracting(Suggestion::suggestion).contains("lobby", "quake");
-        assertThat(proxies.list())
-                .extracting(Suggestion::suggestion)
-                .contains("all", "local", "proxy-1", "proxy-2");
+        assertThat(proxies.list()).extracting(Suggestion::suggestion).contains("all", "local", "proxy-1", "proxy-2");
     }
 
     @Test
     void suggestsMatchingUserBeyondFirstHundredNetworkMembers() {
         Network network = network();
-        var members =
-                java.util.stream.LongStream.rangeClosed(1, 101)
-                        .boxed()
-                        .collect(
-                                java.util.stream.Collectors.toMap(id -> new UUID(0, id), id -> 1L));
+        var members = java.util.stream.LongStream.rangeClosed(1, 101)
+                .boxed()
+                .collect(java.util.stream.Collectors.toMap(id -> new UUID(0, id), id -> 1L));
         User zelda = user(new UUID(0, 101), "Zelda", SUCCESS);
         when(network.fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(members));
-        when(network.fixture.echo().getUserById(new UUID(0, 101)))
-                .thenReturn(EchoFuture.completed(Optional.of(zelda)));
+        when(network.fixture.echo().getUserById(new UUID(0, 101))).thenReturn(EchoFuture.completed(Optional.of(zelda)));
 
-        var targets =
-                manager(network.fixture)
-                        .suggestionFactory()
-                        .suggest("velocity.command.send", "send Zel")
-                        .join();
+        var targets = manager(network.fixture)
+                .suggestionFactory()
+                .suggest("velocity.command.send", "send Zel")
+                .join();
 
         assertThat(targets.list()).extracting(Suggestion::suggestion).containsExactly("Zelda");
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "send all resource-199",
-                "send server:resource-199",
-                "send all lobby --proxy resource-199"
-            })
+    @ValueSource(strings = {"send all resource-199", "send server:resource-199", "send all lobby --proxy resource-199"})
     void suggestsMatchingResourceBeyondFirstHundred(String input) {
         Network network = network();
-        var resources =
-                java.util.stream.IntStream.range(0, 200)
-                        .boxed()
-                        .collect(
-                                java.util.stream.Collectors.toMap(
-                                        id -> "resource-" + id, id -> 1L));
+        var resources = java.util.stream.IntStream.range(0, 200)
+                .boxed()
+                .collect(java.util.stream.Collectors.toMap(id -> "resource-" + id, id -> 1L));
         when(network.fixture.echo().getServers()).thenReturn(EchoFuture.completed(resources));
         when(network.fixture.echo().getProxies()).thenReturn(EchoFuture.completed(resources));
 
-        var targets =
-                manager(network.fixture)
-                        .suggestionFactory()
-                        .suggest("velocity.command.send", input)
-                        .join();
+        var targets = manager(network.fixture)
+                .suggestionFactory()
+                .suggest("velocity.command.send", input)
+                .join();
 
         assertThat(targets.list()).extracting(Suggestion::suggestion).hasSize(1);
         assertThat(targets.list().getFirst().suggestion()).endsWith("resource-199");
@@ -254,47 +240,21 @@ class SendCommandsTest {
         Map<UUID, User> users = Map.of(ALICE, alice, BOB, bob, CAROL, carol);
         Map<String, User> names = Map.of("alice", alice, "bob", bob, "carol", carol);
         Map<String, Server> servers =
-                Map.of(
-                        "lobby",
-                        server(Map.of(CAROL, 1L)),
-                        "quake",
-                        server(Map.of(ALICE, 1L, BOB, 1L)));
+                Map.of("lobby", server(Map.of(CAROL, 1L)), "quake", server(Map.of(ALICE, 1L, BOB, 1L)));
         Map<String, Proxy> proxies =
-                Map.of(
-                        "proxy-1",
-                        proxy(Map.of(ALICE, 1L, CAROL, 1L)),
-                        "proxy-2",
-                        proxy(Map.of(BOB, 1L)));
-        when(fixture.echo().getAllUsers())
-                .thenReturn(EchoFuture.completed(Map.of(ALICE, 1L, BOB, 1L, CAROL, 1L)));
+                Map.of("proxy-1", proxy(Map.of(ALICE, 1L, CAROL, 1L)), "proxy-2", proxy(Map.of(BOB, 1L)));
+        when(fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(Map.of(ALICE, 1L, BOB, 1L, CAROL, 1L)));
         when(fixture.echo().getUserById(any()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(users.get(call.getArgument(0)))));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(users.get(call.getArgument(0)))));
         when(fixture.echo().getUserByUsername(anyString()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(
-                                                names.get(
-                                                        call.<String>getArgument(0)
-                                                                .toLowerCase(
-                                                                        java.util.Locale.ROOT)))));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(
+                        names.get(call.<String>getArgument(0).toLowerCase(java.util.Locale.ROOT)))));
         when(fixture.echo().getServerById(anyString()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(servers.get(call.getArgument(0)))));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(servers.get(call.getArgument(0)))));
         when(fixture.echo().getProxyById(anyString()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(proxies.get(call.getArgument(0)))));
-        when(fixture.echo().getServers())
-                .thenReturn(EchoFuture.completed(Map.of("lobby", 1L, "quake", 1L)));
-        when(fixture.echo().getProxies())
-                .thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L, "proxy-2", 1L)));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(proxies.get(call.getArgument(0)))));
+        when(fixture.echo().getServers()).thenReturn(EchoFuture.completed(Map.of("lobby", 1L, "quake", 1L)));
+        when(fixture.echo().getProxies()).thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L, "proxy-2", 1L)));
         when(fixture.echo().getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(fixture.echo().getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
         fixture.audience().playerId = ALICE;
@@ -304,21 +264,16 @@ class SendCommandsTest {
     private static User user(
             UUID id,
             String name,
-            fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest.ServerSwitchRequestStatus
-                    status) {
+            fr.codinbox.echo.api.messaging.impl.ServerSwitchRequest.ServerSwitchRequestStatus status) {
         User user = mock(User.class);
         when(user.getId()).thenReturn(id);
         when(user.getUsername()).thenReturn(EchoFuture.completed(Optional.of(name)));
         when(user.getCurrentServerId()).thenReturn(EchoFuture.completed(Optional.of("quake")));
         when(user.tryConnectToServer(anyString(), any(Duration.class)))
-                .thenReturn(
-                        EchoFuture.completed(
-                                new PlayerResponse(
-                                        status == SUCCESS,
-                                        status,
-                                        status == SERVER_DISCONNECTED
-                                                ? "{\"text\":\"Maintenance\"}"
-                                                : null)));
+                .thenReturn(EchoFuture.completed(new PlayerResponse(
+                        status == SUCCESS,
+                        status,
+                        status == SERVER_DISCONNECTED ? "{\"text\":\"Maintenance\"}" : null)));
         return user;
     }
 
@@ -336,8 +291,7 @@ class SendCommandsTest {
 
     private static TestManager manager(Fixture fixture) {
         TestManager manager = new TestManager();
-        EchoCommands<String> commands =
-                new EchoCommands<>(fixture.echo(), fixture.audience(), "echo|echoproxy");
+        EchoCommands<String> commands = new EchoCommands<>(fixture.echo(), fixture.audience(), "echo|echoproxy");
         AnnotationParser<String> parser = new AnnotationParser<>(manager, String.class);
         commands.register(parser);
         commands.registerSend(parser);

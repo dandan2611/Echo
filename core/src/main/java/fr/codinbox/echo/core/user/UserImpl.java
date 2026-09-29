@@ -38,13 +38,8 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
 
     @Override
     public @NotNull EchoFuture<Void> tryConnectToProxy(@NotNull Proxy proxy) {
-        return EchoFuture.of(
-                this.currentProxy()
-                        .thenCompose(
-                                current ->
-                                        current.sendMessage(
-                                                new ProxySwitchRequest(
-                                                        proxy.getId(), super.getId()))));
+        return EchoFuture.of(this.currentProxy()
+                .thenCompose(current -> current.sendMessage(new ProxySwitchRequest(proxy.getId(), super.getId()))));
     }
 
     @Override
@@ -61,47 +56,36 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
 
         final long deadline = Math.addExact(this.currentTimeMillis.getAsLong(), timeout.toMillis());
         final CompletableFuture<Proxy> currentProxy = this.currentProxy();
-        final long proxyLookupTimeoutMillis =
-                Math.max(0, deadline - this.currentTimeMillis.getAsLong());
-        return EchoFuture.of(
-                currentProxy
-                        .copy()
-                        .orTimeout(proxyLookupTimeoutMillis, TimeUnit.MILLISECONDS)
-                        .thenCompose(
-                                proxy -> {
-                                    final long remainingMillis =
-                                            deadline - this.currentTimeMillis.getAsLong();
-                                    if (remainingMillis < 1)
-                                        return CompletableFuture.failedFuture(
-                                                new TimeoutException(
-                                                        "Server switch deadline elapsed"));
+        final long proxyLookupTimeoutMillis = Math.max(0, deadline - this.currentTimeMillis.getAsLong());
+        return EchoFuture.of(currentProxy
+                .copy()
+                .orTimeout(proxyLookupTimeoutMillis, TimeUnit.MILLISECONDS)
+                .thenCompose(proxy -> {
+                    final long remainingMillis = deadline - this.currentTimeMillis.getAsLong();
+                    if (remainingMillis < 1)
+                        return CompletableFuture.failedFuture(new TimeoutException("Server switch deadline elapsed"));
 
-                                    final ServerSwitchRequest request =
-                                            new ServerSwitchRequest(id, this.getId());
-                                    final var client = Echo.getClient();
-                                    request.setReplyTopic(client.getLocalTopic());
-                                    request.setTransferDeadlineEpochMillis(deadline);
-                                    final MessageTarget target =
-                                            MessageTarget.builder()
-                                                    .withProxy(proxy.getId())
-                                                    .build();
-                                    final String topic = target.getTargets().iterator().next();
-                                    return client.getMessagingProvider()
-                                            .request(
-                                                    topic,
-                                                    request,
-                                                    ServerSwitchRequest.Response.class,
-                                                    Duration.ofMillis(remainingMillis));
-                                })
-                        .thenApply(
-                                response -> {
-                                    final ServerSwitchRequest.PlayerResponse playerResponse =
-                                            response.getResponses().get(this.getId());
-                                    if (playerResponse == null)
-                                        throw new IllegalStateException(
-                                                "Proxy response omitted player " + this.getId());
-                                    return playerResponse;
-                                }));
+                    final ServerSwitchRequest request = new ServerSwitchRequest(id, this.getId());
+                    final var client = Echo.getClient();
+                    request.setReplyTopic(client.getLocalTopic());
+                    request.setTransferDeadlineEpochMillis(deadline);
+                    final MessageTarget target =
+                            MessageTarget.builder().withProxy(proxy.getId()).build();
+                    final String topic = target.getTargets().iterator().next();
+                    return client.getMessagingProvider()
+                            .request(
+                                    topic,
+                                    request,
+                                    ServerSwitchRequest.Response.class,
+                                    Duration.ofMillis(remainingMillis));
+                })
+                .thenApply(response -> {
+                    final ServerSwitchRequest.PlayerResponse playerResponse =
+                            response.getResponses().get(this.getId());
+                    if (playerResponse == null)
+                        throw new IllegalStateException("Proxy response omitted player " + this.getId());
+                    return playerResponse;
+                }));
     }
 
     @Override
@@ -112,12 +96,10 @@ public class UserImpl extends AbstractPropertyHolder<UUID> implements User {
 
     private java.util.concurrent.CompletableFuture<Proxy> currentProxy() {
         return this.getCurrentProxyId()
-                .thenCompose(
-                        currentProxyId -> {
-                            if (currentProxyId.isEmpty())
-                                throw new UserHasNoProxyException(this.getId());
-                            return Echo.getClient().getProxyById(currentProxyId.get());
-                        })
+                .thenCompose(currentProxyId -> {
+                    if (currentProxyId.isEmpty()) throw new UserHasNoProxyException(this.getId());
+                    return Echo.getClient().getProxyById(currentProxyId.get());
+                })
                 .thenApply(proxy -> proxy.orElseThrow(UnknownProxyException::new))
                 .toCompletableFuture();
     }

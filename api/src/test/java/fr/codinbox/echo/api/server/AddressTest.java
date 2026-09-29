@@ -30,19 +30,16 @@ class AddressTest {
 
     @Test
     void fromString_noColon_throwsIllegalArgumentException() {
-        assertThatThrownBy(() -> Address.fromString("localhost"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Address.fromString("localhost")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void fromString_tooManyParts_throwsIllegalArgumentException() {
-        assertThatThrownBy(() -> Address.fromString("a:b:c"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Address.fromString("a:b:c")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void fromString_invalidPort_throwsNumberFormatException() {
-        assertThatThrownBy(() -> Address.fromString("localhost:abc"))
-                .isInstanceOf(NumberFormatException.class);
+        assertThatThrownBy(() -> Address.fromString("localhost:abc")).isInstanceOf(NumberFormatException.class);
     }
 }

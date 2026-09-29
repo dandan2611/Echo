@@ -45,19 +45,13 @@ class VelocityCommandAdapterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "send server:quake lobby --proxy all",
-                "echo user send server:quake lobby --proxy all"
-            })
+    @ValueSource(strings = {"send server:quake lobby --proxy all", "echo user send server:quake lobby --proxy all"})
     void brigadierAcceptsUnquotedServerSelectors(String input) throws Exception {
         var echo = mock(fr.codinbox.echo.api.EchoClient.class);
         var server = mock(fr.codinbox.echo.api.server.Server.class);
         when(echo.getServerById(anyString()))
-                .thenReturn(
-                        fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(server)));
-        when(server.getConnectedUsers())
-                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Map.of()));
+                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(server)));
+        when(server.getConnectedUsers()).thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Map.of()));
         CommandSource sender = permittedSender();
 
         dispatcher(echo).execute(input, sender);
@@ -87,17 +81,15 @@ class VelocityCommandAdapterTest {
         "echo user list all --group server --page 1,quake (1): Alice",
         "glist --group proxy all,proxy-1 (1): Alice"
     })
-    void brigadierRoutesGlistSelectorsAndFlagsWithOptionalSelector(String input, String expected)
-            throws Exception {
+    void brigadierRoutesGlistSelectorsAndFlagsWithOptionalSelector(String input, String expected) throws Exception {
         var echo = listedNetwork();
         CommandSource sender = permittedSender();
         CompletableFuture<Component> response = responseFrom(sender);
 
         dispatcher(echo).execute(input, sender);
 
-        assertThat(
-                        PlainTextComponentSerializer.plainText()
-                                .serialize(response.orTimeout(2, TimeUnit.SECONDS).join()))
+        assertThat(PlainTextComponentSerializer.plainText()
+                        .serialize(response.orTimeout(2, TimeUnit.SECONDS).join()))
                 .contains("Total: 1", expected)
                 .doesNotContain("ERROR:");
     }
@@ -107,35 +99,26 @@ class VelocityCommandAdapterTest {
         var server = mock(fr.codinbox.echo.api.server.Server.class);
         var user = mock(fr.codinbox.echo.api.user.User.class);
         var id = new java.util.UUID(0, 1);
-        when(echo.getAllUsers())
-                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Map.of(id, 1L)));
-        when(echo.getUserById(id))
-                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(user)));
+        when(echo.getAllUsers()).thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Map.of(id, 1L)));
+        when(echo.getUserById(id)).thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(user)));
         when(echo.getServerById("quake"))
-                .thenReturn(
-                        fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(server)));
+                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of(server)));
         when(server.getConnectedUsers())
                 .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Map.of(id, 1L)));
-        when(user.getUsername())
-                .thenReturn(
-                        fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of("Alice")));
+        when(user.getUsername()).thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of("Alice")));
         when(user.getCurrentServerId())
-                .thenReturn(
-                        fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of("quake")));
+                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of("quake")));
         when(user.getCurrentProxyId())
-                .thenReturn(
-                        fr.codinbox.echo.api.EchoFuture.completed(
-                                java.util.Optional.of("proxy-1")));
+                .thenReturn(fr.codinbox.echo.api.EchoFuture.completed(java.util.Optional.of("proxy-1")));
         return echo;
     }
 
     private static CompletableFuture<Component> responseFrom(CommandSource sender) {
         CompletableFuture<Component> response = new CompletableFuture<>();
-        doAnswer(
-                        call -> {
-                            response.complete(call.getArgument(0));
-                            return null;
-                        })
+        doAnswer(call -> {
+                    response.complete(call.getArgument(0));
+                    return null;
+                })
                 .when(sender)
                 .sendMessage(any(Component.class));
         return response;
@@ -150,30 +133,23 @@ class VelocityCommandAdapterTest {
     private static com.mojang.brigadier.CommandDispatcher<CommandSource> dispatcher(
             fr.codinbox.echo.api.EchoClient echo) {
         var proxy = mock(com.velocitypowered.api.proxy.ProxyServer.class, RETURNS_DEEP_STUBS);
-        var manager =
-                new org.incendo.cloud.velocity.VelocityCommandManager<CommandSource>(
-                        mock(com.velocitypowered.api.plugin.PluginContainer.class),
-                        proxy,
-                        org.incendo.cloud.execution.ExecutionCoordinator.simpleCoordinator(),
-                        org.incendo.cloud.SenderMapper.identity());
+        var manager = new org.incendo.cloud.velocity.VelocityCommandManager<CommandSource>(
+                mock(com.velocitypowered.api.plugin.PluginContainer.class),
+                proxy,
+                org.incendo.cloud.execution.ExecutionCoordinator.simpleCoordinator(),
+                org.incendo.cloud.SenderMapper.identity());
         EchoPlugin.configureCommands(manager);
-        var parser =
-                new org.incendo.cloud.annotations.AnnotationParser<>(manager, CommandSource.class);
-        var commands =
-                new fr.codinbox.echo.commands.EchoCommands<>(
-                        echo, EchoPlugin.commandAudience(), EchoPlugin.COMMAND_ROOT);
+        var parser = new org.incendo.cloud.annotations.AnnotationParser<>(manager, CommandSource.class);
+        var commands = new fr.codinbox.echo.commands.EchoCommands<>(
+                echo, EchoPlugin.commandAudience(), EchoPlugin.COMMAND_ROOT);
         commands.register(parser);
         commands.registerSend(parser);
         commands.registerGlist(parser);
-        var captured =
-                org.mockito.ArgumentCaptor.forClass(
-                        com.velocitypowered.api.command.BrigadierCommand.class);
+        var captured = org.mockito.ArgumentCaptor.forClass(com.velocitypowered.api.command.BrigadierCommand.class);
         verify(proxy.getCommandManager(), atLeastOnce())
-                .register(
-                        any(com.velocitypowered.api.command.CommandMeta.class), captured.capture());
+                .register(any(com.velocitypowered.api.command.CommandMeta.class), captured.capture());
         var dispatcher = new com.mojang.brigadier.CommandDispatcher<CommandSource>();
-        captured.getAllValues()
-                .forEach(command -> dispatcher.getRoot().addChild(command.getNode()));
+        captured.getAllValues().forEach(command -> dispatcher.getRoot().addChild(command.getNode()));
         return dispatcher;
     }
 }

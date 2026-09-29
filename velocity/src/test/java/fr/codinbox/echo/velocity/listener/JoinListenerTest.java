@@ -33,9 +33,15 @@ class JoinListenerTest {
 
     private JoinListener listener;
 
-    @Mock private ProxyServer mockProxyServer;
-    @Mock private EchoClient mockClient;
-    @Mock private Player mockPlayer;
+    @Mock
+    private ProxyServer mockProxyServer;
+
+    @Mock
+    private EchoClient mockClient;
+
+    @Mock
+    private Player mockPlayer;
+
     private ConcurrentMap<UUID, String> userSessions;
 
     private final UUID playerUuid = UUID.randomUUID();
@@ -66,8 +72,7 @@ class JoinListenerTest {
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
-            when(mockClient.createUser(
-                            eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), eq("session-1")))
+            when(mockClient.createUser(eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), eq("session-1")))
                     .thenReturn(EchoFuture.completed(mock(User.class)));
 
             LoginEvent event = mock(LoginEvent.class);
@@ -167,9 +172,7 @@ class JoinListenerTest {
         when(replacement.getUniqueId()).thenReturn(playerUuid);
         when(replacement.getUsername()).thenReturn("TestPlayer");
         AtomicInteger token = new AtomicInteger();
-        listener =
-                new JoinListener(
-                        () -> true, userSessions, () -> "session-" + token.incrementAndGet());
+        listener = new JoinListener(() -> true, userSessions, () -> "session-" + token.incrementAndGet());
 
         try (MockedStatic<Echo> echoMock = mockStatic(Echo.class)) {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
@@ -177,8 +180,7 @@ class JoinListenerTest {
             User firstUser = mock(User.class);
             User replacementUser = mock(User.class);
             when(mockClient.createUser(eq(playerUuid), eq("TestPlayer"), eq("proxy-1"), any()))
-                    .thenReturn(
-                            EchoFuture.completed(firstUser), EchoFuture.completed(replacementUser));
+                    .thenReturn(EchoFuture.completed(firstUser), EchoFuture.completed(replacementUser));
 
             LoginEvent firstLogin = mock(LoginEvent.class);
             when(firstLogin.getPlayer()).thenReturn(mockPlayer);

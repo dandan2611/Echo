@@ -6,8 +6,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A handle to an active topic subscription that can be cancelled.
  *
- * <p>Returned by {@link MessagingProvider#subscribe(String, MessageHandler)}. Call {@link
- * #cancel()} to unsubscribe from the topic.
+ * <p>Returned by {@link MessagingProvider#subscribe(String, MessageHandler)}. Call {@link #cancel()} to unsubscribe
+ * from the topic.
  *
  * @see MessagingProvider#subscribe(String, MessageHandler)
  */

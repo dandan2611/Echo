@@ -71,8 +71,7 @@ public final class EchoCommands<S> {
     private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration DEFAULT_LEASE = Duration.ofSeconds(15);
     private static final int SUGGESTION_LIMIT = 100;
-    private static final PropertyKey<String> PROPERTY_SERVER_TYPE =
-            new PropertyKey<>("server_type");
+    private static final PropertyKey<String> PROPERTY_SERVER_TYPE = new PropertyKey<>("server_type");
     private static final Executor VIRTUAL_THREADS = Thread::startVirtualThread;
 
     private final EchoClient echo;
@@ -84,8 +83,7 @@ public final class EchoCommands<S> {
     private final Supplier<QueueService> queueLoader;
     private final Supplier<OnDemandServers> onDemandLoader;
     private final Logger logger;
-    private final ConcurrentMap<String, ServerPlacement.Reservation> reservations =
-            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ServerPlacement.Reservation> reservations = new ConcurrentHashMap<>();
 
     public EchoCommands(EchoClient echo, CommandAudience<S> audience, String rootSyntax) {
         this(
@@ -115,17 +113,14 @@ public final class EchoCommands<S> {
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 
-    /**
-     * Installs root aliases through Cloud's annotation string processor and registers all handlers.
-     */
+    /** Installs root aliases through Cloud's annotation string processor and registers all handlers. */
     public Collection<org.incendo.cloud.Command<S>> register(AnnotationParser<S> parser) {
         Objects.requireNonNull(parser, "parser");
         // Allow flag-only invocations such as `user list --group proxy` to skip the optional
         // selector.
         parser.manager().settings().set(ManagerSetting.LIBERAL_FLAG_PARSING, true);
         var previous = parser.stringProcessor();
-        parser.stringProcessor(
-                input -> previous.processString(input).replace("${root}", this.rootSyntax));
+        parser.stringProcessor(input -> previous.processString(input).replace("${root}", this.rootSyntax));
         return parser.parse(this);
     }
 
@@ -168,10 +163,7 @@ public final class EchoCommands<S> {
     @Command("${root}")
     @Permission("echo.command.root")
     public CompletableFuture<Void> root(CommandContext<S> context) {
-        return send(
-                context,
-                this.format.success(
-                        "Echo administration is available. Use " + this.root + " help."));
+        return send(context, this.format.success("Echo administration is available. Use " + this.root + " help."));
     }
 
     @Command("${root} help")
@@ -192,9 +184,8 @@ public final class EchoCommands<S> {
     @Command("${root} version")
     @Permission("echo.command.version")
     public CompletableFuture<Void> version(CommandContext<S> context) {
-        String version =
-                Optional.ofNullable(EchoCommands.class.getPackage().getImplementationVersion())
-                        .orElse("development");
+        String version = Optional.ofNullable(EchoCommands.class.getPackage().getImplementationVersion())
+                .orElse("development");
         return send(context, this.format.rows("Echo version", Map.of("version", version)));
     }
 
@@ -204,20 +195,19 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 this::networkCounts,
-                counts ->
-                        this.format.rows(
-                                "Echo status",
-                                Map.of(
-                                        "local type",
-                                        this.echo.getCurrentResourceType(),
-                                        "local id",
-                                        this.echo.getCurrentResourceId().orElse("unconfigured"),
-                                        "servers",
-                                        counts.servers(),
-                                        "proxies",
-                                        counts.proxies(),
-                                        "users",
-                                        counts.users())));
+                counts -> this.format.rows(
+                        "Echo status",
+                        Map.of(
+                                "local type",
+                                this.echo.getCurrentResourceType(),
+                                "local id",
+                                this.echo.getCurrentResourceId().orElse("unconfigured"),
+                                "servers",
+                                counts.servers(),
+                                "proxies",
+                                counts.proxies(),
+                                "users",
+                                counts.users())));
     }
 
     @Command("${root} monitor resources")
@@ -225,41 +215,22 @@ public final class EchoCommands<S> {
     public CompletableFuture<Void> monitorResources(CommandContext<S> context) {
         return execute(
                 context,
-                () ->
-                        this.echo
-                                .getServers()
-                                .thenCombine(this.echo.getProxies(), ResourceMaps::new)
-                                .thenCombine(
-                                        this.echo.getAllUsers(),
-                                        (resources, users) -> {
-                                            List<String> lines = new ArrayList<>();
-                                            resources.servers().entrySet().stream()
-                                                    .sorted(Map.Entry.comparingByKey())
-                                                    .forEach(
-                                                            entry ->
-                                                                    lines.add(
-                                                                            "server "
-                                                                                    + entry.getKey()
-                                                                                    + " "
-                                                                                    + this.format
-                                                                                            .instant(
-                                                                                                    entry
-                                                                                                            .getValue())));
-                                            resources.proxies().entrySet().stream()
-                                                    .sorted(Map.Entry.comparingByKey())
-                                                    .forEach(
-                                                            entry ->
-                                                                    lines.add(
-                                                                            "proxy "
-                                                                                    + entry.getKey()
-                                                                                    + " "
-                                                                                    + this.format
-                                                                                            .instant(
-                                                                                                    entry
-                                                                                                            .getValue())));
-                                            lines.add("users " + users.size());
-                                            return lines;
-                                        }),
+                () -> this.echo
+                        .getServers()
+                        .thenCombine(this.echo.getProxies(), ResourceMaps::new)
+                        .thenCombine(this.echo.getAllUsers(), (resources, users) -> {
+                            List<String> lines = new ArrayList<>();
+                            resources.servers().entrySet().stream()
+                                    .sorted(Map.Entry.comparingByKey())
+                                    .forEach(entry -> lines.add(
+                                            "server " + entry.getKey() + " " + this.format.instant(entry.getValue())));
+                            resources.proxies().entrySet().stream()
+                                    .sorted(Map.Entry.comparingByKey())
+                                    .forEach(entry -> lines.add(
+                                            "proxy " + entry.getKey() + " " + this.format.instant(entry.getValue())));
+                            lines.add("users " + users.size());
+                            return lines;
+                        }),
                 lines -> this.format.list("Echo resources", lines));
     }
 
@@ -269,20 +240,15 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 this::health,
-                results ->
-                        this.format.list(
-                                "Resource health",
-                                results.stream()
-                                        .map(
-                                                result ->
-                                                        result.type()
-                                                                + " "
-                                                                + result.id()
-                                                                + ": "
-                                                                + (result.alive()
-                                                                        ? "alive"
-                                                                        : "missing"))
-                                        .toList()));
+                results -> this.format.list(
+                        "Resource health",
+                        results.stream()
+                                .map(result -> result.type()
+                                        + " "
+                                        + result.id()
+                                        + ": "
+                                        + (result.alive() ? "alive" : "missing"))
+                                .toList()));
     }
 
     @Command("${root} monitor queues")
@@ -303,18 +269,12 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 this.echo::getServers,
-                servers ->
-                        this.format.list(
-                                "Servers",
-                                servers.entrySet().stream()
-                                        .sorted(Map.Entry.comparingByKey())
-                                        .map(
-                                                entry ->
-                                                        entry.getKey()
-                                                                + " "
-                                                                + this.format.instant(
-                                                                        entry.getValue()))
-                                        .toList()));
+                servers -> this.format.list(
+                        "Servers",
+                        servers.entrySet().stream()
+                                .sorted(Map.Entry.comparingByKey())
+                                .map(entry -> entry.getKey() + " " + this.format.instant(entry.getValue()))
+                                .toList()));
     }
 
     @Command("${root} server info <id>")
@@ -323,28 +283,15 @@ public final class EchoCommands<S> {
             CommandContext<S> context, @Argument(value = "id", suggestions = "servers") String id) {
         return execute(
                 context,
-                () ->
-                        requireServer(id)
-                                .thenCompose(
-                                        server ->
-                                                address(server)
-                                                        .thenCombine(
-                                                                server.getConnectedUsers(),
-                                                                (address, users) ->
-                                                                        new ResourceInfo(
-                                                                                server.getId(),
-                                                                                address,
-                                                                                users.size(),
-                                                                                ""))
-                                                        .thenCombine(
-                                                                server.getAvailability(),
-                                                                (info, availability) ->
-                                                                        new ResourceInfo(
-                                                                                info.id(),
-                                                                                info.address(),
-                                                                                info.users(),
-                                                                                availability
-                                                                                        .toString()))),
+                () -> requireServer(id)
+                        .thenCompose(server -> address(server)
+                                .thenCombine(
+                                        server.getConnectedUsers(),
+                                        (address, users) -> new ResourceInfo(server.getId(), address, users.size(), ""))
+                                .thenCombine(
+                                        server.getAvailability(),
+                                        (info, availability) -> new ResourceInfo(
+                                                info.id(), info.address(), info.users(), availability.toString()))),
                 this::resourceInfo);
     }
 
@@ -384,10 +331,7 @@ public final class EchoCommands<S> {
     @Permission("echo.command.server.load")
     public CompletableFuture<Void> serverLoad(
             CommandContext<S> context, @Argument(value = "id", suggestions = "servers") String id) {
-        return execute(
-                context,
-                () -> requireServer(id).thenCompose(Server::getLoad),
-                this::serverLoadResult);
+        return execute(context, () -> requireServer(id).thenCompose(Server::getLoad), this::serverLoadResult);
     }
 
     @Command("${root} server load refresh <id>")
@@ -398,11 +342,7 @@ public final class EchoCommands<S> {
                 context,
                 "server.load.refresh",
                 id,
-                () ->
-                        control(
-                                EchoResourceType.SERVER,
-                                id,
-                                ResourceControlRequest.Action.REFRESH_LOAD),
+                () -> control(EchoResourceType.SERVER, id, ResourceControlRequest.Action.REFRESH_LOAD),
                 this::controlResult,
                 response -> response.getStatus().name());
     }
@@ -419,14 +359,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "server.drain",
-                                "server/" + id + " duration=" + minutes + "m",
-                                () -> drain(EchoResourceType.SERVER, id, minutes),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "server.drain",
+                        "server/" + id + " duration=" + minutes + "m",
+                        () -> drain(EchoResourceType.SERVER, id, minutes),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} server activate <id>")
@@ -439,18 +378,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " server activate " + id + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "server.activate",
-                                id,
-                                () ->
-                                        control(
-                                                EchoResourceType.SERVER,
-                                                id,
-                                                ResourceControlRequest.Action.ACTIVATE),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "server.activate",
+                        id,
+                        () -> control(EchoResourceType.SERVER, id, ResourceControlRequest.Action.ACTIVATE),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} server shutdown <id>")
@@ -463,18 +397,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " server shutdown " + id + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "server.shutdown",
-                                id,
-                                () ->
-                                        control(
-                                                EchoResourceType.SERVER,
-                                                id,
-                                                ResourceControlRequest.Action.SHUTDOWN),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "server.shutdown",
+                        id,
+                        () -> control(EchoResourceType.SERVER, id, ResourceControlRequest.Action.SHUTDOWN),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} proxy list")
@@ -483,18 +412,12 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 this.echo::getProxies,
-                proxies ->
-                        this.format.list(
-                                "Proxies",
-                                proxies.entrySet().stream()
-                                        .sorted(Map.Entry.comparingByKey())
-                                        .map(
-                                                entry ->
-                                                        entry.getKey()
-                                                                + " "
-                                                                + this.format.instant(
-                                                                        entry.getValue()))
-                                        .toList()));
+                proxies -> this.format.list(
+                        "Proxies",
+                        proxies.entrySet().stream()
+                                .sorted(Map.Entry.comparingByKey())
+                                .map(entry -> entry.getKey() + " " + this.format.instant(entry.getValue()))
+                                .toList()));
     }
 
     @Command("${root} proxy info <id>")
@@ -503,19 +426,12 @@ public final class EchoCommands<S> {
             CommandContext<S> context, @Argument(value = "id", suggestions = "proxies") String id) {
         return execute(
                 context,
-                () ->
-                        requireProxy(id)
-                                .thenCompose(
-                                        proxy ->
-                                                address(proxy)
-                                                        .thenCombine(
-                                                                proxy.getConnectedUsers(),
-                                                                (address, users) ->
-                                                                        new ResourceInfo(
-                                                                                proxy.getId(),
-                                                                                address,
-                                                                                users.size(),
-                                                                                "n/a"))),
+                () -> requireProxy(id)
+                        .thenCompose(proxy -> address(proxy)
+                                .thenCombine(
+                                        proxy.getConnectedUsers(),
+                                        (address, users) ->
+                                                new ResourceInfo(proxy.getId(), address, users.size(), "n/a"))),
                 this::resourceInfo);
     }
 
@@ -563,14 +479,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "proxy.drain",
-                                "proxy/" + id + " duration=" + minutes + "m",
-                                () -> drain(EchoResourceType.PROXY, id, minutes),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "proxy.drain",
+                        "proxy/" + id + " duration=" + minutes + "m",
+                        () -> drain(EchoResourceType.PROXY, id, minutes),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} proxy activate <id>")
@@ -583,18 +498,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " proxy activate " + id + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "proxy.activate",
-                                id,
-                                () ->
-                                        control(
-                                                EchoResourceType.PROXY,
-                                                id,
-                                                ResourceControlRequest.Action.ACTIVATE),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "proxy.activate",
+                        id,
+                        () -> control(EchoResourceType.PROXY, id, ResourceControlRequest.Action.ACTIVATE),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} proxy shutdown <id>")
@@ -607,18 +517,13 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " proxy shutdown " + id + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "proxy.shutdown",
-                                id,
-                                () ->
-                                        control(
-                                                EchoResourceType.PROXY,
-                                                id,
-                                                ResourceControlRequest.Action.SHUTDOWN),
-                                this::controlResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "proxy.shutdown",
+                        id,
+                        () -> control(EchoResourceType.PROXY, id, ResourceControlRequest.Action.SHUTDOWN),
+                        this::controlResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} user list [selector]")
@@ -640,29 +545,20 @@ public final class EchoCommands<S> {
                 () -> {
                     NetworkUserList.Group grouping = NetworkUserList.Group.parse(group);
                     int requestedPage = page == null ? 1 : page;
-                    if (requestedPage < 1)
-                        throw new IllegalArgumentException("Glist: --page must be at least 1.");
+                    if (requestedPage < 1) throw new IllegalArgumentException("Glist: --page must be at least 1.");
                     String invokedRoot =
                             context.rawInput().input().stripLeading().split("\\s+", 2)[0];
-                    String navigation =
-                            "/"
-                                    + invokedRoot
-                                    + (invokedRoot.equalsIgnoreCase("glist") ? "" : " user list")
-                                    + (selector == null ? "" : " " + selector)
-                                    + (proxy == null ? "" : " --proxy " + proxy)
-                                    + (group == null ? "" : " --group " + group)
-                                    + (count ? " --count" : "");
+                    String navigation = "/"
+                            + invokedRoot
+                            + (invokedRoot.equalsIgnoreCase("glist") ? "" : " user list")
+                            + (selector == null ? "" : " " + selector)
+                            + (proxy == null ? "" : " --proxy " + proxy)
+                            + (group == null ? "" : " --group " + group)
+                            + (count ? " --count" : "");
                     return selectUsers(context, source, proxy, "Glist")
                             .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                            .thenCompose(
-                                    users ->
-                                            new NetworkUserList(this.echo)
-                                                    .render(
-                                                            users,
-                                                            grouping,
-                                                            selector != null && !count,
-                                                            requestedPage,
-                                                            navigation));
+                            .thenCompose(users -> new NetworkUserList(this.echo)
+                                    .render(users, grouping, selector != null && !count, requestedPage, navigation));
                 },
                 Function.identity());
     }
@@ -670,23 +566,21 @@ public final class EchoCommands<S> {
     @Command("${root} user info <user>")
     @Permission("echo.command.user.info")
     public CompletableFuture<Void> userInfo(
-            CommandContext<S> context,
-            @Argument(value = "user", suggestions = "users") String user) {
+            CommandContext<S> context, @Argument(value = "user", suggestions = "users") String user) {
         return execute(
                 context,
                 () -> resolveUser(user).thenCompose(this::userDetails),
-                details ->
-                        this.format.rows(
-                                "User",
-                                Map.of(
-                                        "id",
-                                        details.id(),
-                                        "username",
-                                        details.username(),
-                                        "proxy",
-                                        details.proxy(),
-                                        "server",
-                                        details.server())));
+                details -> this.format.rows(
+                        "User",
+                        Map.of(
+                                "id",
+                                details.id(),
+                                "username",
+                                details.username(),
+                                "proxy",
+                                details.proxy(),
+                                "server",
+                                details.server())));
     }
 
     @Command("${root} user send <user> <server>")
@@ -700,18 +594,11 @@ public final class EchoCommands<S> {
                 context,
                 "user.send",
                 user + "->" + server + " proxy=" + (proxy == null ? "all" : proxy),
-                () ->
-                        requireServer(server)
-                                .thenCombine(
-                                        selectUsers(context, user, proxy, "Send"),
-                                        (target, users) -> users)
-                                .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                                .thenCompose(
-                                        users ->
-                                                sequence(
-                                                        users.stream()
-                                                                .map(id -> transfer(id, server))
-                                                                .toList())),
+                () -> requireServer(server)
+                        .thenCombine(selectUsers(context, user, proxy, "Send"), (target, users) -> users)
+                        .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                        .thenCompose(users -> sequence(
+                                users.stream().map(id -> transfer(id, server)).toList())),
                 results -> sendResult(server, results),
                 this::sendSummary);
     }
@@ -722,25 +609,14 @@ public final class EchoCommands<S> {
         if (selector.equalsIgnoreCase("all")) {
             selected = this.echo.getAllUsers().thenApply(users -> Set.copyOf(users.keySet()));
         } else if (selector.equalsIgnoreCase("current")) {
-            UUID executor =
-                    this.audience
-                            .playerId(context.sender())
-                            .orElseThrow(
-                                    () ->
-                                            new IllegalArgumentException(
-                                                    command
-                                                            + ": current requires a player; use server:<id> from console."));
-            selected =
-                    resolveUser(executor.toString())
-                            .thenCompose(User::getCurrentServerId)
-                            .thenCompose(
-                                    id ->
-                                            serverMembers(
-                                                    id.orElseThrow(
-                                                            () ->
-                                                                    new IllegalArgumentException(
-                                                                            command
-                                                                                    + ": you are not connected to a server."))));
+            UUID executor = this.audience
+                    .playerId(context.sender())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            command + ": current requires a player; use server:<id> from console."));
+            selected = resolveUser(executor.toString())
+                    .thenCompose(User::getCurrentServerId)
+                    .thenCompose(id -> serverMembers(id.orElseThrow(
+                            () -> new IllegalArgumentException(command + ": you are not connected to a server."))));
         } else if (selector.startsWith("server:")) {
             selected = serverMembers(selector.substring("server:".length()));
         } else {
@@ -752,24 +628,17 @@ public final class EchoCommands<S> {
             if (this.echo.getCurrentResourceType() != EchoResourceType.PROXY)
                 throw new IllegalArgumentException(
                         command + ": --proxy local requires a proxy; use --proxy <id> here.");
-            proxyId =
-                    this.echo
-                            .getCurrentResourceId()
-                            .orElseThrow(
-                                    () ->
-                                            new IllegalArgumentException(
-                                                    command + ": local proxy is not configured."));
+            proxyId = this.echo
+                    .getCurrentResourceId()
+                    .orElseThrow(() -> new IllegalArgumentException(command + ": local proxy is not configured."));
         }
         return selected.thenCombine(
                 requireProxy(proxyId).thenCompose(Proxy::getConnectedUsers),
-                (users, members) ->
-                        users.stream().filter(members::containsKey).collect(Collectors.toSet()));
+                (users, members) -> users.stream().filter(members::containsKey).collect(Collectors.toSet()));
     }
 
     private CompletableFuture<Set<UUID>> serverMembers(String id) {
-        return requireServer(id)
-                .thenCompose(Server::getConnectedUsers)
-                .thenApply(users -> Set.copyOf(users.keySet()));
+        return requireServer(id).thenCompose(Server::getConnectedUsers).thenApply(users -> Set.copyOf(users.keySet()));
     }
 
     private CompletableFuture<SendResult> transfer(UUID id, String server) {
@@ -779,36 +648,24 @@ public final class EchoCommands<S> {
                 .thenCompose(uuid -> resolveUser(uuid.toString()))
                 .orTimeout(CONTROL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                 .thenCompose(user -> user.tryConnectToServer(server, CONTROL_TIMEOUT))
-                .handle(
-                        (response, error) -> {
-                            if (error != null)
-                                return new SendResult(false, false, errorMessage(error));
-                            boolean already =
-                                    response.getStatus()
-                                            == ServerSwitchRequest.ServerSwitchRequestStatus
-                                                    .ALREADY_CONNECTED;
-                            return new SendResult(
-                                    response.isSuccessful() && !already,
-                                    already,
-                                    response.isSuccessful() || already
-                                            ? null
-                                            : transferReason(response));
-                        });
+                .handle((response, error) -> {
+                    if (error != null) return new SendResult(false, false, errorMessage(error));
+                    boolean already =
+                            response.getStatus() == ServerSwitchRequest.ServerSwitchRequestStatus.ALREADY_CONNECTED;
+                    return new SendResult(
+                            response.isSuccessful() && !already,
+                            already,
+                            response.isSuccessful() || already ? null : transferReason(response));
+                });
     }
 
     private String transferReason(ServerSwitchRequest.PlayerResponse response) {
         String reason = response.getStatus().name();
         if (response.getSerializedReason() != null) {
             try {
-                String text =
-                        PlainTextComponentSerializer.plainText()
-                                .serialize(
-                                        GsonComponentSerializer.gson()
-                                                .deserialize(response.getSerializedReason()));
-                reason +=
-                        ": "
-                                + text.substring(0, Math.min(200, text.length()))
-                                        .replaceAll("\\s+", " ");
+                String text = PlainTextComponentSerializer.plainText()
+                        .serialize(GsonComponentSerializer.gson().deserialize(response.getSerializedReason()));
+                reason += ": " + text.substring(0, Math.min(200, text.length())).replaceAll("\\s+", " ");
             } catch (RuntimeException ignored) {
                 // A malformed optional kick message must not hide the transfer status.
             }
@@ -833,9 +690,7 @@ public final class EchoCommands<S> {
         if (results.isEmpty()) lines.add("No users matched the source selection.");
         results.stream()
                 .filter(result -> result.failure() != null)
-                .collect(
-                        Collectors.groupingBy(
-                                SendResult::failure, java.util.TreeMap::new, Collectors.counting()))
+                .collect(Collectors.groupingBy(SendResult::failure, java.util.TreeMap::new, Collectors.counting()))
                 .forEach((reason, count) -> lines.add(count + " x " + reason));
         return this.format.list("Send -> " + server, lines);
     }
@@ -847,27 +702,19 @@ public final class EchoCommands<S> {
             @Argument(value = "user", suggestions = "users") String user,
             @Argument("reason") @Default("Disconnected by an administrator") String reason,
             @Flag("confirm") boolean confirm) {
-        String command =
-                this.root + " user disconnect " + user + " " + quote(reason) + " --confirm";
+        String command = this.root + " user disconnect " + user + " " + quote(reason) + " --confirm";
         return confirm(
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "user.disconnect",
-                                user,
-                                () ->
-                                        resolveUser(user)
-                                                .thenCompose(
-                                                        found ->
-                                                                this.remote.disconnect(
-                                                                        found,
-                                                                        reason,
-                                                                        CONTROL_TIMEOUT)),
-                                this::disconnectResult,
-                                response -> response.getStatus().name()));
+                () -> mutate(
+                        context,
+                        "user.disconnect",
+                        user,
+                        () -> resolveUser(user)
+                                .thenCompose(found -> this.remote.disconnect(found, reason, CONTROL_TIMEOUT)),
+                        this::disconnectResult,
+                        response -> response.getStatus().name()));
     }
 
     @Command("${root} queue list")
@@ -879,45 +726,30 @@ public final class EchoCommands<S> {
     @Command("${root} queue info <queue>")
     @Permission("echo.command.queue.info")
     public CompletableFuture<Void> queueInfo(
-            CommandContext<S> context,
-            @Argument(value = "queue", suggestions = "queues") String queue) {
+            CommandContext<S> context, @Argument(value = "queue", suggestions = "queues") String queue) {
         return execute(
                 context,
-                () ->
-                        queueAdministration()
-                                .listQueues()
-                                .thenCompose(
-                                        overviews ->
-                                                overviews.stream()
-                                                        .filter(
-                                                                overview ->
-                                                                        overview.definition()
-                                                                                .id()
-                                                                                .value()
-                                                                                .equals(queue))
-                                                        .findFirst()
-                                                        .map(CompletableFuture::completedFuture)
-                                                        .orElseGet(
-                                                                () ->
-                                                                        CompletableFuture
-                                                                                .failedFuture(
-                                                                                        new IllegalArgumentException(
-                                                                                                "Queue not found: "
-                                                                                                        + queue)))),
+                () -> queueAdministration()
+                        .listQueues()
+                        .thenCompose(overviews -> overviews.stream()
+                                .filter(overview ->
+                                        overview.definition().id().value().equals(queue))
+                                .findFirst()
+                                .map(CompletableFuture::completedFuture)
+                                .orElseGet(() -> CompletableFuture.failedFuture(
+                                        new IllegalArgumentException("Queue not found: " + queue)))),
                 this::queueOverview);
     }
 
     @Command("${root} queue tickets <queue>")
     @Permission("echo.command.queue.tickets")
     public CompletableFuture<Void> queueTickets(
-            CommandContext<S> context,
-            @Argument(value = "queue", suggestions = "queues") String queue) {
+            CommandContext<S> context, @Argument(value = "queue", suggestions = "queues") String queue) {
         return execute(
                 context,
                 () -> queueAdministration().listTickets(new QueueId(queue)),
-                tickets ->
-                        this.format.list(
-                                "Queue tickets", tickets.stream().map(this::ticketLine).toList()));
+                tickets -> this.format.list(
+                        "Queue tickets", tickets.stream().map(this::ticketLine).toList()));
     }
 
     @Command("${root} queue ticket <queue> <request>")
@@ -929,12 +761,8 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 () -> queueService().get(new QueueId(queue), request),
-                status ->
-                        status.map(this::queueStatus)
-                                .orElseGet(
-                                        () ->
-                                                this.format.error(
-                                                        "Queue ticket not found: " + request)));
+                status -> status.map(this::queueStatus)
+                        .orElseGet(() -> this.format.error("Queue ticket not found: " + request)));
     }
 
     @Command("${root} queue enqueue <queue> <request> <members>")
@@ -948,13 +776,7 @@ public final class EchoCommands<S> {
                 context,
                 "queue.enqueue",
                 queue + "/" + request,
-                () ->
-                        queueService()
-                                .enqueue(
-                                        new QueueRequest(
-                                                request,
-                                                new QueueId(queue),
-                                                parseMembers(members))),
+                () -> queueService().enqueue(new QueueRequest(request, new QueueId(queue), parseMembers(members))),
                 status -> this.format.success("Queue request is " + status.state() + "."),
                 status -> status.state().name());
     }
@@ -971,18 +793,15 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "queue.cancel",
-                                queue + "/" + request,
-                                () -> queueService().cancel(new QueueId(queue), request),
-                                changed ->
-                                        changed
-                                                ? this.format.success("Queue request cancelled.")
-                                                : this.format.warn(
-                                                        "Queue request was not cancellable."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "queue.cancel",
+                        queue + "/" + request,
+                        () -> queueService().cancel(new QueueId(queue), request),
+                        changed -> changed
+                                ? this.format.success("Queue request cancelled.")
+                                : this.format.warn("Queue request was not cancellable."),
+                        String::valueOf));
     }
 
     @Command("${root} queue pause <queue> <reason>")
@@ -997,17 +816,15 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "queue.pause",
-                                queue,
-                                () -> queueAdministration().pause(new QueueId(queue), reason),
-                                changed ->
-                                        changed
-                                                ? this.format.success("Queue paused.")
-                                                : this.format.warn("Queue was already paused."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "queue.pause",
+                        queue,
+                        () -> queueAdministration().pause(new QueueId(queue), reason),
+                        changed -> changed
+                                ? this.format.success("Queue paused.")
+                                : this.format.warn("Queue was already paused."),
+                        String::valueOf));
     }
 
     @Command("${root} queue resume <queue>")
@@ -1020,24 +837,21 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " queue resume " + queue + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "queue.resume",
-                                queue,
-                                () -> queueAdministration().resume(new QueueId(queue)),
-                                changed ->
-                                        changed
-                                                ? this.format.success("Queue resumed.")
-                                                : this.format.warn("Queue was not paused."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "queue.resume",
+                        queue,
+                        () -> queueAdministration().resume(new QueueId(queue)),
+                        changed -> changed
+                                ? this.format.success("Queue resumed.")
+                                : this.format.warn("Queue was not paused."),
+                        String::valueOf));
     }
 
     @Command("${root} queue wake <queue>")
     @Permission("echo.command.queue.wake")
     public CompletableFuture<Void> queueWake(
-            CommandContext<S> context,
-            @Argument(value = "queue", suggestions = "queues") String queue) {
+            CommandContext<S> context, @Argument(value = "queue", suggestions = "queues") String queue) {
         return mutate(
                 context,
                 "queue.wake",
@@ -1055,8 +869,7 @@ public final class EchoCommands<S> {
             @Argument("request") String request,
             @Flag("confirm") boolean confirm) {
         String command = this.root + " queue retry " + queue + " " + request + " --confirm";
-        return confirm(
-                context, confirm, command, () -> retry(context, "queue.retry", queue, request));
+        return confirm(context, confirm, command, () -> retry(context, "queue.retry", queue, request));
     }
 
     @Command("${root} queue requeue <queue> <request>")
@@ -1067,8 +880,7 @@ public final class EchoCommands<S> {
             @Argument("request") String request,
             @Flag("confirm") boolean confirm) {
         String command = this.root + " queue requeue " + queue + " " + request + " --confirm";
-        return confirm(
-                context, confirm, command, () -> retry(context, "queue.requeue", queue, request));
+        return confirm(context, confirm, command, () -> retry(context, "queue.requeue", queue, request));
     }
 
     @Command("${root} queue purge <queue> <olderThanMinutes>")
@@ -1078,39 +890,30 @@ public final class EchoCommands<S> {
             @Argument(value = "queue", suggestions = "queues") String queue,
             @Argument("olderThanMinutes") long olderThanMinutes,
             @Flag("confirm") boolean confirm) {
-        String command =
-                this.root + " queue purge " + queue + " " + olderThanMinutes + " --confirm";
+        String command = this.root + " queue purge " + queue + " " + olderThanMinutes + " --confirm";
         return confirm(
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "queue.purge",
-                                queue + " olderThan=" + olderThanMinutes + "m",
-                                () ->
-                                        queueAdministration()
-                                                .purgeTerminal(
-                                                        new QueueId(queue),
-                                                        positiveMinutes(olderThanMinutes)),
-                                count ->
-                                        this.format.success(
-                                                "Purged " + count + " terminal queue requests."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "queue.purge",
+                        queue + " olderThan=" + olderThanMinutes + "m",
+                        () -> queueAdministration()
+                                .purgeTerminal(new QueueId(queue), positiveMinutes(olderThanMinutes)),
+                        count -> this.format.success("Purged " + count + " terminal queue requests."),
+                        String::valueOf));
     }
 
     @Command("${root} placement status <server>")
     @Permission("echo.command.placement.status")
     public CompletableFuture<Void> placementStatus(
-            CommandContext<S> context,
-            @Argument(value = "server", suggestions = "servers") String server) {
+            CommandContext<S> context, @Argument(value = "server", suggestions = "servers") String server) {
         return execute(
                 context,
                 () -> placement().inspectServer(server),
-                status ->
-                        status.map(this::placementStatus)
-                                .orElseGet(() -> this.format.error("Server not found: " + server)));
+                status -> status.map(this::placementStatus)
+                        .orElseGet(() -> this.format.error("Server not found: " + server)));
     }
 
     @Command("${root} placement explain <serverType> <members> [policy]")
@@ -1127,13 +930,8 @@ public final class EchoCommands<S> {
                     ServerPlacement.Policy parsedPolicy = policy(policy);
                     String requestId = explainRequestId(serverType, parsedMembers, parsedPolicy);
                     return placement()
-                            .explain(
-                                    placementRequest(
-                                            requestId,
-                                            serverType,
-                                            parsedMembers,
-                                            parsedPolicy,
-                                            DEFAULT_LEASE));
+                            .explain(placementRequest(
+                                    requestId, serverType, parsedMembers, parsedPolicy, DEFAULT_LEASE));
                 },
                 this::placementExplanation);
     }
@@ -1147,18 +945,13 @@ public final class EchoCommands<S> {
     @Command("${root} placement reservation <request>")
     @Permission("echo.command.placement.reservation")
     public CompletableFuture<Void> placementReservation(
-            CommandContext<S> context,
-            @Argument(value = "request", suggestions = "placements") String request) {
+            CommandContext<S> context, @Argument(value = "request", suggestions = "placements") String request) {
         return execute(
                 context,
                 () -> placement().findActiveReservation(request),
-                reservation ->
-                        reservation
-                                .map(this::reservation)
-                                .orElseGet(
-                                        () ->
-                                                this.format.error(
-                                                        "Reservation not found: " + request)));
+                reservation -> reservation
+                        .map(this::reservation)
+                        .orElseGet(() -> this.format.error("Reservation not found: " + request)));
     }
 
     @Command("${root} placement reserve <request> <serverType> <members> [policy] [leaseSeconds]")
@@ -1174,26 +967,19 @@ public final class EchoCommands<S> {
                 context,
                 "placement.reserve",
                 request,
-                () ->
-                        placement()
-                                .reserve(
-                                        placementRequest(
-                                                request,
-                                                serverType,
-                                                parseMembers(members),
-                                                policy(policy),
-                                                positiveSeconds(leaseSeconds)))
-                                .thenApply(
-                                        reservation ->
-                                                reservation.map(
-                                                        value -> {
-                                                            this.reservations.put(request, value);
-                                                            return value;
-                                                        })),
+                () -> placement()
+                        .reserve(placementRequest(
+                                request,
+                                serverType,
+                                parseMembers(members),
+                                policy(policy),
+                                positiveSeconds(leaseSeconds)))
+                        .thenApply(reservation -> reservation.map(value -> {
+                            this.reservations.put(request, value);
+                            return value;
+                        })),
                 reservation ->
-                        reservation
-                                .map(this::reservation)
-                                .orElseGet(() -> this.format.warn("No eligible server.")),
+                        reservation.map(this::reservation).orElseGet(() -> this.format.warn("No eligible server.")),
                 reservation -> reservation.isPresent() ? "reserved" : "unavailable");
     }
 
@@ -1211,22 +997,16 @@ public final class EchoCommands<S> {
                     ServerPlacement.Reservation current = this.reservations.get(request);
                     if (current == null)
                         return CompletableFuture.failedFuture(
-                                new IllegalArgumentException(
-                                        "Reservation is not held by this process: " + request));
+                                new IllegalArgumentException("Reservation is not held by this process: " + request));
                     return placement()
                             .renew(current, positiveSeconds(leaseSeconds))
-                            .thenApply(
-                                    renewed ->
-                                            renewed.map(
-                                                    value -> {
-                                                        this.reservations.put(request, value);
-                                                        return value;
-                                                    }));
+                            .thenApply(renewed -> renewed.map(value -> {
+                                this.reservations.put(request, value);
+                                return value;
+                            }));
                 },
-                renewed ->
-                        renewed.map(this::reservation)
-                                .orElseGet(
-                                        () -> this.format.warn("Reservation is no longer active.")),
+                renewed -> renewed.map(this::reservation)
+                        .orElseGet(() -> this.format.warn("Reservation is no longer active.")),
                 renewed -> renewed.isPresent() ? "renewed" : "inactive");
     }
 
@@ -1240,35 +1020,24 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " placement release " + request + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "placement.release",
-                                request,
-                                () -> {
-                                    ServerPlacement.Reservation reservation =
-                                            this.reservations.get(request);
-                                    if (reservation == null)
-                                        return CompletableFuture.failedFuture(
-                                                new IllegalArgumentException(
-                                                        "Reservation is not held by this process: "
-                                                                + request));
-                                    return placement()
-                                            .release(reservation)
-                                            .thenApply(
-                                                    released -> {
-                                                        if (released)
-                                                            this.reservations.remove(
-                                                                    request, reservation);
-                                                        return released;
-                                                    });
-                                },
-                                released ->
-                                        released
-                                                ? this.format.success("Reservation released.")
-                                                : this.format.warn(
-                                                        "Reservation was absent or superseded."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "placement.release",
+                        request,
+                        () -> {
+                            ServerPlacement.Reservation reservation = this.reservations.get(request);
+                            if (reservation == null)
+                                return CompletableFuture.failedFuture(new IllegalArgumentException(
+                                        "Reservation is not held by this process: " + request));
+                            return placement().release(reservation).thenApply(released -> {
+                                if (released) this.reservations.remove(request, reservation);
+                                return released;
+                            });
+                        },
+                        released -> released
+                                ? this.format.success("Reservation released.")
+                                : this.format.warn("Reservation was absent or superseded."),
+                        String::valueOf));
     }
 
     @Command("${root} allocation list")
@@ -1277,37 +1046,24 @@ public final class EchoCommands<S> {
         return execute(
                 context,
                 () -> onDemandAdministration().listAllocations(),
-                allocations ->
-                        this.format.list(
-                                "Allocations",
-                                allocations.stream()
-                                        .sorted(
-                                                Comparator.comparing(
-                                                        OnDemandAdministration.Allocation
-                                                                ::requestId))
-                                        .map(
-                                                allocation ->
-                                                        allocation.requestId()
-                                                                + " -> "
-                                                                + allocation.serverId())
-                                        .toList()));
+                allocations -> this.format.list(
+                        "Allocations",
+                        allocations.stream()
+                                .sorted(Comparator.comparing(OnDemandAdministration.Allocation::requestId))
+                                .map(allocation -> allocation.requestId() + " -> " + allocation.serverId())
+                                .toList()));
     }
 
     @Command("${root} allocation info <request>")
     @Permission("echo.command.allocation.info")
     public CompletableFuture<Void> allocationInfo(
-            CommandContext<S> context,
-            @Argument(value = "request", suggestions = "allocations") String request) {
+            CommandContext<S> context, @Argument(value = "request", suggestions = "allocations") String request) {
         return execute(
                 context,
                 () -> onDemandAdministration().getAllocation(request),
-                allocation ->
-                        allocation
-                                .map(this::allocation)
-                                .orElseGet(
-                                        () ->
-                                                this.format.error(
-                                                        "Allocation not found: " + request)));
+                allocation -> allocation
+                        .map(this::allocation)
+                        .orElseGet(() -> this.format.error("Allocation not found: " + request)));
     }
 
     @Command("${root} allocation acquire <request> <type>")
@@ -1322,35 +1078,27 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 command,
-                () ->
-                        mutate(
-                                context,
-                                "allocation.acquire",
-                                request,
-                                () -> onDemandServers().acquire(new ServerRequest(request, type)),
-                                handle ->
-                                        this.format.success(
-                                                "Allocated server " + handle.id() + "."),
-                                ServerHandle::id));
+                () -> mutate(
+                        context,
+                        "allocation.acquire",
+                        request,
+                        () -> onDemandServers().acquire(new ServerRequest(request, type)),
+                        handle -> this.format.success("Allocated server " + handle.id() + "."),
+                        ServerHandle::id));
     }
 
     @Command("${root} allocation reconcile <request>")
     @Permission("echo.command.allocation.reconcile")
     public CompletableFuture<Void> allocationReconcile(
-            CommandContext<S> context,
-            @Argument(value = "request", suggestions = "allocations") String request) {
+            CommandContext<S> context, @Argument(value = "request", suggestions = "allocations") String request) {
         return mutate(
                 context,
                 "allocation.reconcile",
                 request,
                 () -> onDemandAdministration().reconcile(request),
-                reconciliation ->
-                        reconciliation
-                                .map(this::reconciliation)
-                                .orElseGet(
-                                        () ->
-                                                this.format.error(
-                                                        "Allocation not found: " + request)),
+                reconciliation -> reconciliation
+                        .map(this::reconciliation)
+                        .orElseGet(() -> this.format.error("Allocation not found: " + request)),
                 reconciliation -> reconciliation.isPresent() ? "reconciled" : "not_found");
     }
 
@@ -1364,26 +1112,25 @@ public final class EchoCommands<S> {
                 context,
                 confirm,
                 this.root + " allocation terminate " + request + " --confirm",
-                () ->
-                        mutate(
-                                context,
-                                "allocation.terminate",
-                                request,
-                                () -> onDemandAdministration().terminate(request),
-                                terminated ->
-                                        terminated
-                                                ? this.format.success("Allocation terminated.")
-                                                : this.format.warn("Allocation was not found."),
-                                String::valueOf));
+                () -> mutate(
+                        context,
+                        "allocation.terminate",
+                        request,
+                        () -> onDemandAdministration().terminate(request),
+                        terminated -> terminated
+                                ? this.format.success("Allocation terminated.")
+                                : this.format.warn("Allocation was not found."),
+                        String::valueOf));
     }
 
     @Suggestions("servers")
     public CompletableFuture<List<String>> serverSuggestions() {
         return this.echo
                 .getServers()
-                .thenApply(
-                        servers ->
-                                servers.keySet().stream().sorted().limit(SUGGESTION_LIMIT).toList())
+                .thenApply(servers -> servers.keySet().stream()
+                        .sorted()
+                        .limit(SUGGESTION_LIMIT)
+                        .toList())
                 .exceptionally(error -> List.of());
     }
 
@@ -1391,9 +1138,10 @@ public final class EchoCommands<S> {
     public CompletableFuture<List<String>> proxySuggestions() {
         return this.echo
                 .getProxies()
-                .thenApply(
-                        proxies ->
-                                proxies.keySet().stream().sorted().limit(SUGGESTION_LIMIT).toList())
+                .thenApply(proxies -> proxies.keySet().stream()
+                        .sorted()
+                        .limit(SUGGESTION_LIMIT)
+                        .toList())
                 .exceptionally(error -> List.of());
     }
 
@@ -1401,26 +1149,22 @@ public final class EchoCommands<S> {
     public CompletableFuture<List<String>> userSuggestions() {
         return this.echo
                 .getAllUsers()
-                .thenApply(
-                        users ->
-                                users.keySet().stream()
-                                        .map(UUID::toString)
-                                        .sorted()
-                                        .limit(SUGGESTION_LIMIT)
-                                        .toList())
+                .thenApply(users -> users.keySet().stream()
+                        .map(UUID::toString)
+                        .sorted()
+                        .limit(SUGGESTION_LIMIT)
+                        .toList())
                 .exceptionally(error -> List.of());
     }
 
     @Suggestions("glistSelectors")
     public CompletableFuture<List<String>> glistSelectorSuggestions() {
-        return sendServerSuggestions()
-                .thenApply(
-                        servers -> {
-                            List<String> values = new ArrayList<>(List.of("all", "current"));
-                            values.addAll(servers);
-                            servers.forEach(id -> values.add("server:" + id));
-                            return values.stream().distinct().toList();
-                        });
+        return sendServerSuggestions().thenApply(servers -> {
+            List<String> values = new ArrayList<>(List.of("all", "current"));
+            values.addAll(servers);
+            servers.forEach(id -> values.add("server:" + id));
+            return values.stream().distinct().toList();
+        });
     }
 
     @Suggestions("glistGroups")
@@ -1432,46 +1176,23 @@ public final class EchoCommands<S> {
     public CompletableFuture<List<String>> sendTargetSuggestions() {
         // ponytail: one lookup per network user; use a bulk username index if completion traffic
         // grows.
-        CompletableFuture<List<String>> names =
-                this.echo
-                        .getAllUsers()
-                        .thenCompose(
-                                users ->
-                                        sequence(
-                                                users.keySet().stream()
-                                                        .sorted()
-                                                        .map(
-                                                                id ->
-                                                                        resolveUser(id.toString())
-                                                                                .thenCompose(
-                                                                                        User
-                                                                                                ::getUsername)
-                                                                                .thenApply(
-                                                                                        name ->
-                                                                                                name
-                                                                                                        .orElse(
-                                                                                                                id
-                                                                                                                        .toString()))
-                                                                                .completeOnTimeout(
-                                                                                        id
-                                                                                                .toString(),
-                                                                                        1,
-                                                                                        TimeUnit
-                                                                                                .SECONDS)
-                                                                                .exceptionally(
-                                                                                        error ->
-                                                                                                id
-                                                                                                        .toString()))
-                                                        .toList()))
-                        .exceptionally(error -> List.of());
-        return names.thenCombine(
-                        sendServerSuggestions(),
-                        (users, servers) -> {
-                            List<String> values = new ArrayList<>(List.of("all", "current"));
-                            values.addAll(users);
-                            servers.forEach(id -> values.add("server:" + id));
-                            return List.copyOf(values);
-                        })
+        CompletableFuture<List<String>> names = this.echo
+                .getAllUsers()
+                .thenCompose(users -> sequence(users.keySet().stream()
+                        .sorted()
+                        .map(id -> resolveUser(id.toString())
+                                .thenCompose(User::getUsername)
+                                .thenApply(name -> name.orElse(id.toString()))
+                                .completeOnTimeout(id.toString(), 1, TimeUnit.SECONDS)
+                                .exceptionally(error -> id.toString()))
+                        .toList()))
+                .exceptionally(error -> List.of());
+        return names.thenCombine(sendServerSuggestions(), (users, servers) -> {
+                    List<String> values = new ArrayList<>(List.of("all", "current"));
+                    values.addAll(users);
+                    servers.forEach(id -> values.add("server:" + id));
+                    return List.copyOf(values);
+                })
                 .completeOnTimeout(List.of("all", "current"), 1, TimeUnit.SECONDS);
     }
 
@@ -1479,14 +1200,12 @@ public final class EchoCommands<S> {
     public CompletableFuture<List<String>> sendProxySuggestions() {
         return this.echo
                 .getProxies()
-                .thenApply(
-                        proxies -> {
-                            List<String> values = new ArrayList<>(List.of("all"));
-                            if (this.echo.getCurrentResourceType() == EchoResourceType.PROXY)
-                                values.add("local");
-                            values.addAll(proxies.keySet().stream().sorted().toList());
-                            return List.copyOf(values);
-                        })
+                .thenApply(proxies -> {
+                    List<String> values = new ArrayList<>(List.of("all"));
+                    if (this.echo.getCurrentResourceType() == EchoResourceType.PROXY) values.add("local");
+                    values.addAll(proxies.keySet().stream().sorted().toList());
+                    return List.copyOf(values);
+                })
                 .completeOnTimeout(List.of(), 1, TimeUnit.SECONDS)
                 .exceptionally(error -> List.of());
     }
@@ -1505,13 +1224,11 @@ public final class EchoCommands<S> {
         try {
             return queueAdministration()
                     .listQueues()
-                    .thenApply(
-                            queues ->
-                                    queues.stream()
-                                            .map(queue -> queue.definition().id().value())
-                                            .sorted()
-                                            .limit(SUGGESTION_LIMIT)
-                                            .toList())
+                    .thenApply(queues -> queues.stream()
+                            .map(queue -> queue.definition().id().value())
+                            .sorted()
+                            .limit(SUGGESTION_LIMIT)
+                            .toList())
                     .exceptionally(error -> List.of());
         } catch (RuntimeException error) {
             return CompletableFuture.completedFuture(List.of());
@@ -1523,13 +1240,11 @@ public final class EchoCommands<S> {
         try {
             return placement()
                     .listActiveReservations()
-                    .thenApply(
-                            values ->
-                                    values.stream()
-                                            .map(ServerPlacement.ActiveReservation::requestId)
-                                            .sorted()
-                                            .limit(SUGGESTION_LIMIT)
-                                            .toList())
+                    .thenApply(values -> values.stream()
+                            .map(ServerPlacement.ActiveReservation::requestId)
+                            .sorted()
+                            .limit(SUGGESTION_LIMIT)
+                            .toList())
                     .exceptionally(error -> List.of());
         } catch (RuntimeException error) {
             return CompletableFuture.completedFuture(List.of());
@@ -1541,13 +1256,11 @@ public final class EchoCommands<S> {
         try {
             return onDemandAdministration()
                     .listAllocations()
-                    .thenApply(
-                            values ->
-                                    values.stream()
-                                            .map(OnDemandAdministration.Allocation::requestId)
-                                            .sorted()
-                                            .limit(SUGGESTION_LIMIT)
-                                            .toList())
+                    .thenApply(values -> values.stream()
+                            .map(OnDemandAdministration.Allocation::requestId)
+                            .sorted()
+                            .limit(SUGGESTION_LIMIT)
+                            .toList())
                     .exceptionally(error -> List.of());
         } catch (RuntimeException error) {
             return CompletableFuture.completedFuture(List.of());
@@ -1562,138 +1275,69 @@ public final class EchoCommands<S> {
                         (servers, proxies) -> new NetworkCounts(servers.size(), proxies.size(), 0))
                 .thenCombine(
                         this.echo.getAllUsers(),
-                        (counts, users) ->
-                                new NetworkCounts(
-                                        counts.servers(), counts.proxies(), users.size()));
+                        (counts, users) -> new NetworkCounts(counts.servers(), counts.proxies(), users.size()));
     }
 
     private CompletableFuture<List<Health>> health() {
         return this.echo
                 .getServers()
                 .thenCombine(this.echo.getProxies(), ResourceMaps::new)
-                .thenCompose(
-                        resources -> {
-                            List<CompletableFuture<Health>> checks = new ArrayList<>();
-                            resources
-                                    .servers()
-                                    .keySet()
-                                    .forEach(
-                                            id ->
-                                                    checks.add(
-                                                            this.echo
-                                                                    .getServerById(id)
-                                                                    .thenCompose(
-                                                                            found ->
-                                                                                    found.map(
-                                                                                                    server ->
-                                                                                                            server.stillExists()
-                                                                                                                    .thenApply(
-                                                                                                                            alive ->
-                                                                                                                                    new Health(
-                                                                                                                                            "server",
-                                                                                                                                            id,
-                                                                                                                                            alive)))
-                                                                                            .orElseGet(
-                                                                                                    () ->
-                                                                                                            CompletableFuture
-                                                                                                                    .completedFuture(
-                                                                                                                            new Health(
-                                                                                                                                    "server",
-                                                                                                                                    id,
-                                                                                                                                    false))))));
-                            resources
-                                    .proxies()
-                                    .keySet()
-                                    .forEach(
-                                            id ->
-                                                    checks.add(
-                                                            this.echo
-                                                                    .getProxyById(id)
-                                                                    .thenCompose(
-                                                                            found ->
-                                                                                    found.map(
-                                                                                                    proxy ->
-                                                                                                            proxy.stillExists()
-                                                                                                                    .thenApply(
-                                                                                                                            alive ->
-                                                                                                                                    new Health(
-                                                                                                                                            "proxy",
-                                                                                                                                            id,
-                                                                                                                                            alive)))
-                                                                                            .orElseGet(
-                                                                                                    () ->
-                                                                                                            CompletableFuture
-                                                                                                                    .completedFuture(
-                                                                                                                            new Health(
-                                                                                                                                    "proxy",
-                                                                                                                                    id,
-                                                                                                                                    false))))));
-                            return sequence(checks)
-                                    .thenApply(
-                                            values ->
-                                                    values.stream()
-                                                            .sorted(
-                                                                    Comparator.comparing(
-                                                                                    Health::type)
-                                                                            .thenComparing(
-                                                                                    Health::id))
-                                                            .toList());
-                        });
+                .thenCompose(resources -> {
+                    List<CompletableFuture<Health>> checks = new ArrayList<>();
+                    resources
+                            .servers()
+                            .keySet()
+                            .forEach(id -> checks.add(this.echo
+                                    .getServerById(id)
+                                    .thenCompose(found -> found.map(server -> server.stillExists()
+                                                    .thenApply(alive -> new Health("server", id, alive)))
+                                            .orElseGet(() -> CompletableFuture.completedFuture(
+                                                    new Health("server", id, false))))));
+                    resources
+                            .proxies()
+                            .keySet()
+                            .forEach(id -> checks.add(this.echo
+                                    .getProxyById(id)
+                                    .thenCompose(found -> found.map(proxy -> proxy.stillExists()
+                                                    .thenApply(alive -> new Health("proxy", id, alive)))
+                                            .orElseGet(() -> CompletableFuture.completedFuture(
+                                                    new Health("proxy", id, false))))));
+                    return sequence(checks)
+                            .thenApply(values -> values.stream()
+                                    .sorted(Comparator.comparing(Health::type).thenComparing(Health::id))
+                                    .toList());
+                });
     }
 
     private CompletableFuture<Server> requireServer(String id) {
         return this.echo
                 .getServerById(id)
-                .thenCompose(
-                        found ->
-                                found.map(CompletableFuture::completedFuture)
-                                        .orElseGet(
-                                                () ->
-                                                        CompletableFuture.failedFuture(
-                                                                new IllegalArgumentException(
-                                                                        "Server not found: "
-                                                                                + id))));
+                .thenCompose(found -> found.map(CompletableFuture::completedFuture)
+                        .orElseGet(() -> CompletableFuture.failedFuture(
+                                new IllegalArgumentException("Server not found: " + id))));
     }
 
     private CompletableFuture<Proxy> requireProxy(String id) {
         return this.echo
                 .getProxyById(id)
-                .thenCompose(
-                        found ->
-                                found.map(CompletableFuture::completedFuture)
-                                        .orElseGet(
-                                                () ->
-                                                        CompletableFuture.failedFuture(
-                                                                new IllegalArgumentException(
-                                                                        "Proxy not found: "
-                                                                                + id))));
+                .thenCompose(found -> found.map(CompletableFuture::completedFuture)
+                        .orElseGet(() -> CompletableFuture.failedFuture(
+                                new IllegalArgumentException("Proxy not found: " + id))));
     }
 
     private CompletableFuture<User> resolveUser(String input) {
         try {
             return this.echo
                     .getUserById(UUID.fromString(input))
-                    .thenCompose(
-                            found ->
-                                    found.map(CompletableFuture::completedFuture)
-                                            .orElseGet(
-                                                    () ->
-                                                            CompletableFuture.failedFuture(
-                                                                    new IllegalArgumentException(
-                                                                            "User not found: "
-                                                                                    + input))));
+                    .thenCompose(found -> found.map(CompletableFuture::completedFuture)
+                            .orElseGet(() -> CompletableFuture.failedFuture(
+                                    new IllegalArgumentException("User not found: " + input))));
         } catch (IllegalArgumentException ignored) {
             return this.echo
                     .getUserByUsername(input)
-                    .thenCompose(
-                            found ->
-                                    found.map(CompletableFuture::completedFuture)
-                                            .orElseGet(
-                                                    () ->
-                                                            CompletableFuture.failedFuture(
-                                                                    new IllegalArgumentException(
-                                                                            "User not found: "
-                                                                                    + input))));
+                    .thenCompose(found -> found.map(CompletableFuture::completedFuture)
+                            .orElseGet(() -> CompletableFuture.failedFuture(
+                                    new IllegalArgumentException("User not found: " + input))));
         }
     }
 
@@ -1702,60 +1346,42 @@ public final class EchoCommands<S> {
                 .thenCombine(user.getCurrentProxyId(), Pair::new)
                 .thenCombine(
                         user.getCurrentServerId(),
-                        (values, server) ->
-                                new UserDetails(
-                                        user.getId().toString(),
-                                        values.first().orElse("unknown"),
-                                        values.second().orElse("none"),
-                                        server.orElse("none")));
+                        (values, server) -> new UserDetails(
+                                user.getId().toString(),
+                                values.first().orElse("unknown"),
+                                values.second().orElse("none"),
+                                server.orElse("none")));
     }
 
     private CompletableFuture<List<PropertyValue>> properties(PropertyHolder holder) {
         return holder.getPropertiesKeys()
-                .thenCompose(
-                        keys ->
-                                sequence(
-                                        keys.stream()
-                                                .sorted()
-                                                .map(
-                                                        key ->
-                                                                holder.<Object>getProperty(key)
-                                                                        .thenCombine(
-                                                                                holder
-                                                                                        .getPropertyTimeToLive(
-                                                                                                key),
-                                                                                (value, ttl) ->
-                                                                                        new PropertyValue(
-                                                                                                key,
-                                                                                                value,
-                                                                                                ttl)))
-                                                .toList()));
+                .thenCompose(keys -> sequence(keys.stream()
+                        .sorted()
+                        .map(key -> holder.<Object>getProperty(key)
+                                .thenCombine(
+                                        holder.getPropertyTimeToLive(key),
+                                        (value, ttl) -> new PropertyValue(key, value, ttl)))
+                        .toList()));
     }
 
     private CompletableFuture<PropertyValue> property(PropertyHolder holder, String key) {
         return holder.<Object>getProperty(key)
-                .thenCombine(
-                        holder.getPropertyTimeToLive(key),
-                        (value, ttl) -> new PropertyValue(key, value, ttl));
+                .thenCombine(holder.getPropertyTimeToLive(key), (value, ttl) -> new PropertyValue(key, value, ttl));
     }
 
     private CompletableFuture<ResourceControlRequest.Response> control(
             EchoResourceType type, String id, ResourceControlRequest.Action action) {
-        return this.remote.control(
-                new ResourceControlRequest(action, type, id, null), CONTROL_TIMEOUT);
+        return this.remote.control(new ResourceControlRequest(action, type, id, null), CONTROL_TIMEOUT);
     }
 
-    private CompletableFuture<ResourceControlRequest.Response> drain(
-            EchoResourceType type, String id, int minutes) {
+    private CompletableFuture<ResourceControlRequest.Response> drain(EchoResourceType type, String id, int minutes) {
         Duration deadline = positiveMinutes(minutes);
         return this.remote.control(
-                new ResourceControlRequest(
-                        ResourceControlRequest.Action.DRAIN, type, id, deadline, null),
+                new ResourceControlRequest(ResourceControlRequest.Action.DRAIN, type, id, deadline, null),
                 CONTROL_TIMEOUT);
     }
 
-    private CompletableFuture<Void> retry(
-            CommandContext<S> context, String action, String queue, String request) {
+    private CompletableFuture<Void> retry(CommandContext<S> context, String action, String queue, String request) {
         return mutate(
                 context,
                 action,
@@ -1763,32 +1389,22 @@ public final class EchoCommands<S> {
                 () -> {
                     QueueService service = queueService();
                     QueueId queueId = new QueueId(queue);
-                    return service.get(queueId, request)
-                            .thenCompose(
-                                    found -> {
-                                        if (found.isEmpty())
-                                            return CompletableFuture.completedFuture(
-                                                    new RetryResult(null, false));
-                                        QueueRequestStatus.State state = found.get().state();
-                                        if (state != QueueRequestStatus.State.FAILED
-                                                && state != QueueRequestStatus.State.CANCELLED)
-                                            return CompletableFuture.completedFuture(
-                                                    new RetryResult(state, false));
-                                        return service.administration()
-                                                .retry(queueId, request)
-                                                .thenApply(
-                                                        retried -> new RetryResult(state, retried));
-                                    });
+                    return service.get(queueId, request).thenCompose(found -> {
+                        if (found.isEmpty()) return CompletableFuture.completedFuture(new RetryResult(null, false));
+                        QueueRequestStatus.State state = found.get().state();
+                        if (state != QueueRequestStatus.State.FAILED && state != QueueRequestStatus.State.CANCELLED)
+                            return CompletableFuture.completedFuture(new RetryResult(state, false));
+                        return service.administration()
+                                .retry(queueId, request)
+                                .thenApply(retried -> new RetryResult(state, retried));
+                    });
                 },
                 result -> {
-                    if (result.state() == null)
-                        return this.format.error("Queue ticket not found: " + request);
+                    if (result.state() == null) return this.format.error("Queue ticket not found: " + request);
                     if (result.state() != QueueRequestStatus.State.FAILED
                             && result.state() != QueueRequestStatus.State.CANCELLED)
                         return this.format.error(
-                                "Retry is allowed only for FAILED/CANCELLED; current state is "
-                                        + result.state()
-                                        + ".");
+                                "Retry is allowed only for FAILED/CANCELLED; current state is " + result.state() + ".");
                     return result.retried()
                             ? this.format.success("Queue request retried.")
                             : this.format.warn("Queue request was not retried.");
@@ -1825,18 +1441,9 @@ public final class EchoCommands<S> {
     }
 
     private ServerPlacement.Request placementRequest(
-            String request,
-            String serverType,
-            Set<UUID> members,
-            ServerPlacement.Policy policy,
-            Duration lease) {
+            String request, String serverType, Set<UUID> members, ServerPlacement.Policy policy, Duration lease) {
         return new ServerPlacement.Request(
-                request,
-                members,
-                Set.of(),
-                Map.of(PROPERTY_SERVER_TYPE, serverType),
-                policy,
-                lease);
+                request, members, Set.of(), Map.of(PROPERTY_SERVER_TYPE, serverType), policy, lease);
     }
 
     private Component resourceInfo(ResourceInfo info) {
@@ -1857,15 +1464,11 @@ public final class EchoCommands<S> {
         return this.format.list(
                 title,
                 values.stream()
-                        .map(
-                                value ->
-                                        value.key()
-                                                + "="
-                                                + value.value()
-                                                        .map(String::valueOf)
-                                                        .orElse("<missing>")
-                                                + " ttl="
-                                                + this.format.duration(value.ttl()))
+                        .map(value -> value.key()
+                                + "="
+                                + value.value().map(String::valueOf).orElse("<missing>")
+                                + " ttl="
+                                + this.format.duration(value.ttl()))
                         .toList());
     }
 
@@ -1873,13 +1476,7 @@ public final class EchoCommands<S> {
         if (value.value().isEmpty()) return this.format.error("Property not found: " + value.key());
         return this.format.rows(
                 title,
-                Map.of(
-                        "key",
-                        value.key(),
-                        "value",
-                        value.value().get(),
-                        "ttl",
-                        this.format.duration(value.ttl())));
+                Map.of("key", value.key(), "value", value.value().get(), "ttl", this.format.duration(value.ttl())));
     }
 
     private Component serverLoadResult(Optional<ServerLoadSnapshot> snapshot) {
@@ -1899,59 +1496,41 @@ public final class EchoCommands<S> {
         if (response.isAccepted() && response.getStatus() == ResourceControlRequest.Status.ACCEPTED)
             return this.format.success(response.getMessage());
         if (response.isAccepted())
-            return this.format.error(
-                    unexpectedFailure(
-                            new IllegalStateException(
-                                    "Remote resource control returned "
-                                            + response.getStatus()
-                                            + " with acceptance")));
-        String message =
-                switch (response.getStatus()) {
-                    case INVALID_REQUEST -> "Remote request was invalid.";
-                    case WRONG_TARGET -> "Remote request reached the wrong target.";
-                    case EXPIRED, TIMED_OUT -> "Remote request timed out.";
-                    case NOT_ALLOWED -> "Remote action was not allowed.";
-                    case UNSUPPORTED_ACTION -> "Remote action is not supported.";
-                    case FAILED ->
-                            unexpectedFailure(
-                                    new IllegalStateException(
-                                            "Remote resource control failed: "
-                                                    + response.getMessage()));
-                    case ACCEPTED ->
-                            unexpectedFailure(
-                                    new IllegalStateException(
-                                            "Remote resource control returned accepted status without acceptance"));
-                };
+            return this.format.error(unexpectedFailure(new IllegalStateException(
+                    "Remote resource control returned " + response.getStatus() + " with acceptance")));
+        String message = switch (response.getStatus()) {
+            case INVALID_REQUEST -> "Remote request was invalid.";
+            case WRONG_TARGET -> "Remote request reached the wrong target.";
+            case EXPIRED, TIMED_OUT -> "Remote request timed out.";
+            case NOT_ALLOWED -> "Remote action was not allowed.";
+            case UNSUPPORTED_ACTION -> "Remote action is not supported.";
+            case FAILED ->
+                unexpectedFailure(
+                        new IllegalStateException("Remote resource control failed: " + response.getMessage()));
+            case ACCEPTED ->
+                unexpectedFailure(new IllegalStateException(
+                        "Remote resource control returned accepted status without acceptance"));
+        };
         return this.format.error(message);
     }
 
     private Component disconnectResult(UserDisconnectRequest.Response response) {
-        if (response.isAccepted()
-                && response.getStatus() == UserDisconnectRequest.Status.DISCONNECTED)
+        if (response.isAccepted() && response.getStatus() == UserDisconnectRequest.Status.DISCONNECTED)
             return this.format.success("User disconnected.");
         if (response.isAccepted())
-            return this.format.error(
-                    unexpectedFailure(
-                            new IllegalStateException(
-                                    "Remote disconnect returned "
-                                            + response.getStatus()
-                                            + " with acceptance")));
-        String message =
-                switch (response.getStatus()) {
-                    case PLAYER_NOT_FOUND -> "Player was not found.";
-                    case INVALID_REQUEST -> "Remote disconnect request was invalid.";
-                    case WRONG_TARGET -> "Remote disconnect request reached the wrong target.";
-                    case EXPIRED, TIMED_OUT -> "Remote disconnect request timed out.";
-                    case FAILED ->
-                            unexpectedFailure(
-                                    new IllegalStateException(
-                                            "Remote user disconnect failed: "
-                                                    + response.getMessage()));
-                    case DISCONNECTED ->
-                            unexpectedFailure(
-                                    new IllegalStateException(
-                                            "Remote disconnect returned disconnected status without acceptance"));
-                };
+            return this.format.error(unexpectedFailure(new IllegalStateException(
+                    "Remote disconnect returned " + response.getStatus() + " with acceptance")));
+        String message = switch (response.getStatus()) {
+            case PLAYER_NOT_FOUND -> "Player was not found.";
+            case INVALID_REQUEST -> "Remote disconnect request was invalid.";
+            case WRONG_TARGET -> "Remote disconnect request reached the wrong target.";
+            case EXPIRED, TIMED_OUT -> "Remote disconnect request timed out.";
+            case FAILED ->
+                unexpectedFailure(new IllegalStateException("Remote user disconnect failed: " + response.getMessage()));
+            case DISCONNECTED ->
+                unexpectedFailure(
+                        new IllegalStateException("Remote disconnect returned disconnected status without acceptance"));
+        };
         return this.format.error(message);
     }
 
@@ -1959,14 +1538,13 @@ public final class EchoCommands<S> {
         return this.format.list(
                 "Queues",
                 queues.stream()
-                        .sorted(Comparator.comparing(queue -> queue.definition().id().value()))
-                        .map(
-                                queue ->
-                                        queue.definition().id()
-                                                + " "
-                                                + (queue.paused() ? "paused" : "active")
-                                                + " "
-                                                + queue.counts())
+                        .sorted(Comparator.comparing(
+                                queue -> queue.definition().id().value()))
+                        .map(queue -> queue.definition().id()
+                                + " "
+                                + (queue.paused() ? "paused" : "active")
+                                + " "
+                                + queue.counts())
                         .toList());
     }
 
@@ -2017,7 +1595,10 @@ public final class EchoCommands<S> {
                         "version",
                         status.version(),
                         "members",
-                        status.request().members().stream().map(UUID::toString).sorted().toList(),
+                        status.request().members().stream()
+                                .map(UUID::toString)
+                                .sorted()
+                                .toList(),
                         "server",
                         Optional.ofNullable(status.serverId()).orElse("none"),
                         "failure",
@@ -2055,16 +1636,13 @@ public final class EchoCommands<S> {
         lines.add("selected: " + explanation.selectedServerId().orElse("none"));
         explanation
                 .candidates()
-                .forEach(
-                        candidate ->
-                                lines.add(
-                                        candidate.serverId()
-                                                + ": "
-                                                + candidate.rejectionReason()
-                                                + " effectiveLoad="
-                                                + (candidate.effectiveLoad().isPresent()
-                                                        ? candidate.effectiveLoad().getAsLong()
-                                                        : "unknown")));
+                .forEach(candidate -> lines.add(candidate.serverId()
+                        + ": "
+                        + candidate.rejectionReason()
+                        + " effectiveLoad="
+                        + (candidate.effectiveLoad().isPresent()
+                                ? candidate.effectiveLoad().getAsLong()
+                                : "unknown")));
         return this.format.list("Placement explanation", lines);
     }
 
@@ -2073,15 +1651,13 @@ public final class EchoCommands<S> {
                 "Placement reservations",
                 reservations.stream()
                         .sorted(Comparator.comparing(ServerPlacement.ActiveReservation::requestId))
-                        .map(
-                                value ->
-                                        value.requestId()
-                                                + " -> "
-                                                + value.serverId()
-                                                + " members="
-                                                + value.members().size()
-                                                + " expires="
-                                                + this.format.instant(value.expiresAt()))
+                        .map(value -> value.requestId()
+                                + " -> "
+                                + value.serverId()
+                                + " members="
+                                + value.members().size()
+                                + " expires="
+                                + this.format.instant(value.expiresAt()))
                         .toList());
     }
 
@@ -2094,7 +1670,10 @@ public final class EchoCommands<S> {
                         "server",
                         reservation.serverId(),
                         "members",
-                        reservation.members().stream().map(UUID::toString).sorted().toList(),
+                        reservation.members().stream()
+                                .map(UUID::toString)
+                                .sorted()
+                                .toList(),
                         "expires",
                         this.format.instant(reservation.expiresAt())));
     }
@@ -2108,15 +1687,17 @@ public final class EchoCommands<S> {
                         "server",
                         reservation.serverId(),
                         "members",
-                        reservation.members().stream().map(UUID::toString).sorted().toList(),
+                        reservation.members().stream()
+                                .map(UUID::toString)
+                                .sorted()
+                                .toList(),
                         "expires",
                         this.format.instant(reservation.expiresAt())));
     }
 
     private Component allocation(OnDemandAdministration.Allocation allocation) {
         return this.format.rows(
-                "Allocation",
-                Map.of("request", allocation.requestId(), "server", allocation.serverId()));
+                "Allocation", Map.of("request", allocation.requestId(), "server", allocation.serverId()));
     }
 
     private Component reconciliation(OnDemandAdministration.Reconciliation reconciliation) {
@@ -2136,10 +1717,7 @@ public final class EchoCommands<S> {
     }
 
     private CompletableFuture<Void> confirm(
-            CommandContext<S> context,
-            boolean confirmed,
-            String command,
-            Supplier<CompletableFuture<Void>> operation) {
+            CommandContext<S> context, boolean confirmed, String command, Supplier<CompletableFuture<Void>> operation) {
         if (!confirmed) return send(context, this.format.warn("Run: " + command));
         try {
             return operation.get();
@@ -2158,20 +1736,16 @@ public final class EchoCommands<S> {
         } catch (Throwable error) {
             return failed(context, error);
         }
-        return future.handle(
-                (value, error) -> {
-                    Component message;
-                    try {
-                        message =
-                                error == null
-                                        ? result.apply(value)
-                                        : this.format.error(errorMessage(error));
-                    } catch (Throwable failure) {
-                        message = this.format.error(errorMessage(failure));
-                    }
-                    this.audience.send(context.sender(), message);
-                    return null;
-                });
+        return future.handle((value, error) -> {
+            Component message;
+            try {
+                message = error == null ? result.apply(value) : this.format.error(errorMessage(error));
+            } catch (Throwable failure) {
+                message = this.format.error(errorMessage(failure));
+            }
+            this.audience.send(context.sender(), message);
+            return null;
+        });
     }
 
     private <T> CompletableFuture<Void> mutate(
@@ -2188,34 +1762,31 @@ public final class EchoCommands<S> {
             audit(context, action, target, "failed:" + unwrap(error).getClass().getSimpleName());
             return failed(context, error);
         }
-        return future.handle(
-                (value, error) -> {
-                    if (error != null) {
-                        audit(
-                                context,
-                                action,
-                                target,
-                                "failed:" + unwrap(error).getClass().getSimpleName());
-                        this.audience.send(
-                                context.sender(), this.format.error(errorMessage(error)));
-                    } else {
-                        try {
-                            String auditOutcome = outcome.apply(value);
-                            Component message = result.apply(value);
-                            audit(context, action, target, auditOutcome);
-                            this.audience.send(context.sender(), message);
-                        } catch (Throwable failure) {
-                            audit(
-                                    context,
-                                    action,
-                                    target,
-                                    "failed:" + unwrap(failure).getClass().getSimpleName());
-                            this.audience.send(
-                                    context.sender(), this.format.error(errorMessage(failure)));
-                        }
-                    }
-                    return null;
-                });
+        return future.handle((value, error) -> {
+            if (error != null) {
+                audit(
+                        context,
+                        action,
+                        target,
+                        "failed:" + unwrap(error).getClass().getSimpleName());
+                this.audience.send(context.sender(), this.format.error(errorMessage(error)));
+            } else {
+                try {
+                    String auditOutcome = outcome.apply(value);
+                    Component message = result.apply(value);
+                    audit(context, action, target, auditOutcome);
+                    this.audience.send(context.sender(), message);
+                } catch (Throwable failure) {
+                    audit(
+                            context,
+                            action,
+                            target,
+                            "failed:" + unwrap(failure).getClass().getSimpleName());
+                    this.audience.send(context.sender(), this.format.error(errorMessage(failure)));
+                }
+            }
+            return null;
+        });
     }
 
     private CompletableFuture<Void> failed(CommandContext<S> context, Throwable error) {
@@ -2228,16 +1799,14 @@ public final class EchoCommands<S> {
     }
 
     private void audit(CommandContext<S> context, String action, String target, String outcome) {
-        this.logger.info(
-                () ->
-                        "echo_audit sender="
-                                + auditField(this.audience.identity(context.sender()))
-                                + " action="
-                                + auditField(action)
-                                + " target="
-                                + auditField(target)
-                                + " outcome="
-                                + auditField(outcome));
+        this.logger.info(() -> "echo_audit sender="
+                + auditField(this.audience.identity(context.sender()))
+                + " action="
+                + auditField(action)
+                + " target="
+                + auditField(target)
+                + " outcome="
+                + auditField(outcome));
     }
 
     private String errorMessage(Throwable error) {
@@ -2268,8 +1837,7 @@ public final class EchoCommands<S> {
     }
 
     private static boolean isSafeArgumentFailure(Throwable cause) {
-        if (!(cause instanceof IllegalArgumentException) || cause.getMessage() == null)
-            return false;
+        if (!(cause instanceof IllegalArgumentException) || cause.getMessage() == null) return false;
         String message = cause.getMessage();
         return message.equals("members must contain at least one UUID")
                 || message.equals("minutes must be positive")
@@ -2311,14 +1879,12 @@ public final class EchoCommands<S> {
     }
 
     private static Set<UUID> parseMembers(String input) {
-        Set<UUID> members =
-                java.util.Arrays.stream(input.split(","))
-                        .map(String::trim)
-                        .filter(value -> !value.isEmpty())
-                        .map(UUID::fromString)
-                        .collect(Collectors.toUnmodifiableSet());
-        if (members.isEmpty())
-            throw new IllegalArgumentException("members must contain at least one UUID");
+        Set<UUID> members = java.util.Arrays.stream(input.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(UUID::fromString)
+                .collect(Collectors.toUnmodifiableSet());
+        if (members.isEmpty()) throw new IllegalArgumentException("members must contain at least one UUID");
         return members;
     }
 
@@ -2340,17 +1906,12 @@ public final class EchoCommands<S> {
         return Duration.ofSeconds(seconds);
     }
 
-    private static String explainRequestId(
-            String serverType, Set<UUID> members, ServerPlacement.Policy policy) {
-        String seed =
-                serverType
-                        + '|'
-                        + members.stream()
-                                .map(UUID::toString)
-                                .sorted()
-                                .collect(Collectors.joining(","))
-                        + '|'
-                        + policy;
+    private static String explainRequestId(String serverType, Set<UUID> members, ServerPlacement.Policy policy) {
+        String seed = serverType
+                + '|'
+                + members.stream().map(UUID::toString).sorted().collect(Collectors.joining(","))
+                + '|'
+                + policy;
         return "explain-" + UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -2362,15 +1923,15 @@ public final class EchoCommands<S> {
     private static String requireRoot(String root) {
         String value = Objects.requireNonNull(root, "rootSyntax");
         if (!value.matches("[A-Za-z0-9_/-]+(?:\\|[A-Za-z0-9_/-]+)*"))
-            throw new IllegalArgumentException(
-                    "rootSyntax must contain command literals separated by |");
+            throw new IllegalArgumentException("rootSyntax must contain command literals separated by |");
         return value;
     }
 
     private static <T> CompletableFuture<List<T>> sequence(List<CompletableFuture<T>> futures) {
         CompletableFuture<?>[] array = futures.toArray(CompletableFuture[]::new);
         return CompletableFuture.allOf(array)
-                .thenApply(ignored -> futures.stream().map(future -> future.getNow(null)).toList());
+                .thenApply(ignored ->
+                        futures.stream().map(future -> future.getNow(null)).toList());
     }
 
     private record NetworkCounts(int servers, int proxies, int users) {}

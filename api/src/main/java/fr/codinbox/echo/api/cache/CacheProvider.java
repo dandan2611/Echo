@@ -12,8 +12,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Technology-agnostic interface for cache operations.
  *
- * <p>Provides key-value storage, distributed maps, key scanning, and distributed locking.
- * Implementations may be backed by Redis, Memcached, or any other suitable store.
+ * <p>Provides key-value storage, distributed maps, key scanning, and distributed locking. Implementations may be backed
+ * by Redis, Memcached, or any other suitable store.
  *
  * <p>Access via {@link fr.codinbox.echo.api.EchoClient#getCacheProvider()}:
  *
@@ -40,8 +40,7 @@ public interface CacheProvider {
     /**
      * Initializes the cache provider.
      *
-     * <p>Called once during startup. Implementations should establish connections and prepare
-     * resources.
+     * <p>Called once during startup. Implementations should establish connections and prepare resources.
      *
      * @return a future that completes when initialization is done
      */
@@ -111,8 +110,7 @@ public interface CacheProvider {
      * @return a future that completes with {@code true} if the TTL was set
      */
     @NotNull
-    CompletableFuture<Boolean> expireObject(
-            final @NotNull String key, final @NotNull Instant instant);
+    CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Instant instant);
 
     /**
      * Sets a time-to-live duration on a key.
@@ -122,8 +120,7 @@ public interface CacheProvider {
      * @return a future that completes with {@code true} if the TTL was set
      */
     @NotNull
-    CompletableFuture<Boolean> expireObject(
-            final @NotNull String key, final @NotNull Duration duration);
+    CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Duration duration);
 
     /**
      * Deletes a key.
@@ -169,8 +166,8 @@ public interface CacheProvider {
     /**
      * Finds all keys matching a glob pattern.
      *
-     * <p>The pattern uses glob syntax (e.g. {@code "echo:*"}, {@code "user:*:props"}). All
-     * implementations must support glob patterns.
+     * <p>The pattern uses glob syntax (e.g. {@code "echo:*"}, {@code "user:*:props"}). All implementations must support
+     * glob patterns.
      *
      * @param pattern a glob pattern
      * @return a future that completes with the set of matching keys
@@ -181,18 +178,17 @@ public interface CacheProvider {
     /**
      * Acquires a distributed lock, executes the action, then releases it.
      *
-     * <p>The lock is acquired with the given wait and lease times. A non-positive lease lets
-     * implementations renew the lock until the action ends. If acquired, the supplier's future is
-     * awaited, then the lock is released. If the lock cannot be acquired within {@code waitTime},
-     * the action is not executed.
+     * <p>The lock is acquired with the given wait and lease times. A non-positive lease lets implementations renew the
+     * lock until the action ends. If acquired, the supplier's future is awaited, then the lock is released. If the lock
+     * cannot be acquired within {@code waitTime}, the action is not executed.
      *
      * @param key the lock key
      * @param waitTime maximum time to wait for the lock
      * @param leaseTime maximum time to hold the lock, or non-positive for automatic renewal
      * @param unit the time unit for waitTime and leaseTime
      * @param action the action to execute while holding the lock
-     * @return a future that completes with {@code true} if the lock was acquired and the action
-     *     executed, {@code false} if the lock could not be acquired
+     * @return a future that completes with {@code true} if the lock was acquired and the action executed, {@code false}
+     *     if the lock could not be acquired
      */
     @NotNull
     CompletableFuture<Boolean> withLock(

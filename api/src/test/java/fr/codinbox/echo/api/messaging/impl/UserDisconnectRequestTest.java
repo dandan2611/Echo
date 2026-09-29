@@ -14,8 +14,7 @@ class UserDisconnectRequestTest {
 
     @Test
     void constructorRejectsInvalidRequiredValues() {
-        assertThatThrownBy(
-                        () -> new UserDisconnectRequest(null, "session-1", USER_ID, "reason", 1L))
+        assertThatThrownBy(() -> new UserDisconnectRequest(null, "session-1", USER_ID, "reason", 1L))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("expectedProxyId");
         assertThatThrownBy(() -> new UserDisconnectRequest(" ", "session-1", USER_ID, "reason", 1L))
@@ -27,22 +26,16 @@ class UserDisconnectRequestTest {
         assertThatThrownBy(() -> new UserDisconnectRequest("proxy-1", " ", USER_ID, "reason", 1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("expectedSessionId is required");
-        assertThatThrownBy(
-                        () -> new UserDisconnectRequest("proxy-1", "session-1", null, "reason", 1L))
+        assertThatThrownBy(() -> new UserDisconnectRequest("proxy-1", "session-1", null, "reason", 1L))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("userId");
-        assertThatThrownBy(
-                        () -> new UserDisconnectRequest("proxy-1", "session-1", USER_ID, null, 1L))
+        assertThatThrownBy(() -> new UserDisconnectRequest("proxy-1", "session-1", USER_ID, null, 1L))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("reason");
-        assertThatThrownBy(
-                        () -> new UserDisconnectRequest("proxy-1", "session-1", USER_ID, " ", 1L))
+        assertThatThrownBy(() -> new UserDisconnectRequest("proxy-1", "session-1", USER_ID, " ", 1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("reason is required");
-        assertThatThrownBy(
-                        () ->
-                                new UserDisconnectRequest(
-                                        "proxy-1", "session-1", USER_ID, "reason", 0L))
+        assertThatThrownBy(() -> new UserDisconnectRequest("proxy-1", "session-1", USER_ID, "reason", 0L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("deadline must be positive");
     }
@@ -52,10 +45,8 @@ class UserDisconnectRequestTest {
         UserDisconnectRequest request = new UserDisconnectRequest();
         assertThat(request.validationError()).isEqualTo("expected proxy id is required");
 
-        assertThatThrownBy(() -> request.setExpectedProxyId(null))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> request.setExpectedSessionId(null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> request.setExpectedProxyId(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> request.setExpectedSessionId(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> request.setUserId(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> request.setReason(null)).isInstanceOf(NullPointerException.class);
 
@@ -80,8 +71,7 @@ class UserDisconnectRequestTest {
         UserDisconnectRequest.Response response = new UserDisconnectRequest.Response();
 
         assertThatThrownBy(() -> response.setStatus(null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> response.setMessage(null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> response.setMessage(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -92,16 +82,12 @@ class UserDisconnectRequestTest {
         assertThatThrownBy(() -> new UserDisconnectRequest.Response(request, false, null, "failed"))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("status");
-        assertThatThrownBy(
-                        () ->
-                                new UserDisconnectRequest.Response(
-                                        request, false, UserDisconnectRequest.Status.FAILED, null))
+        assertThatThrownBy(() ->
+                        new UserDisconnectRequest.Response(request, false, UserDisconnectRequest.Status.FAILED, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("message");
-        assertThatThrownBy(
-                        () ->
-                                new UserDisconnectRequest.Response(
-                                        null, false, UserDisconnectRequest.Status.FAILED, "failed"))
+        assertThatThrownBy(() ->
+                        new UserDisconnectRequest.Response(null, false, UserDisconnectRequest.Status.FAILED, "failed"))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("request");
     }

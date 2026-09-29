@@ -20,8 +20,7 @@ public final class OnDemandServersRegistry {
     }
 
     public static void register(final @NotNull OnDemandServers servers) {
-        if (!SERVERS.compareAndSet(null, servers))
-            throw new IllegalStateException("OnDemandServers is already loaded");
+        if (!SERVERS.compareAndSet(null, servers)) throw new IllegalStateException("OnDemandServers is already loaded");
     }
 
     public static void unregister(final @NotNull OnDemandServers servers) {

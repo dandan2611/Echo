@@ -9,17 +9,14 @@ import fr.codinbox.echo.velocity.utils.ProxyUtils;
 import java.util.logging.Logger;
 import org.jetbrains.annotations.NotNull;
 
-public final class ServerAvailabilityNotificationHandler
-        implements MessageHandler<ServerAvailabilityNotification> {
+public final class ServerAvailabilityNotificationHandler implements MessageHandler<ServerAvailabilityNotification> {
 
     private final Logger logger;
     private final ProxyServer proxy;
     private final EchoClient client;
 
     public ServerAvailabilityNotificationHandler(
-            final @NotNull Logger logger,
-            final @NotNull ProxyServer proxy,
-            final @NotNull EchoClient client) {
+            final @NotNull Logger logger, final @NotNull ProxyServer proxy, final @NotNull EchoClient client) {
         this.logger = logger;
         this.proxy = proxy;
         this.client = client;
@@ -30,12 +27,8 @@ public final class ServerAvailabilityNotificationHandler
         if (notification.getAvailability() == ServerAvailability.ACTIVE) {
             this.client
                     .getServerById(notification.getId())
-                    .thenAccept(
-                            server ->
-                                    server.ifPresent(
-                                            value ->
-                                                    ProxyUtils.registerServerIfActive(
-                                                            this.proxy, this.logger, value)));
+                    .thenAccept(server -> server.ifPresent(
+                            value -> ProxyUtils.registerServerIfActive(this.proxy, this.logger, value)));
         } else {
             ProxyUtils.unregisterServer(this.proxy, this.logger, notification.getId());
         }

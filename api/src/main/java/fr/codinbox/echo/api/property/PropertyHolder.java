@@ -11,9 +11,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A resource that supports type-safe key-value property storage backed by Redis.
  *
- * <p>Users, servers, and proxies all implement this interface. Properties are stored in Redis and
- * accessible from any node in the network. They support optional TTL (time-to-live) for automatic
- * expiration.
+ * <p>Users, servers, and proxies all implement this interface. Properties are stored in Redis and accessible from any
+ * node in the network. They support optional TTL (time-to-live) for automatic expiration.
  *
  * <pre>{@code
  * // Define typed keys
@@ -66,8 +65,7 @@ public interface PropertyHolder {
     /**
      * Gets the remaining time-to-live of a property in milliseconds.
      *
-     * <p>Returns {@code -1} if the property has no TTL set, or {@code -2} if the property does not
-     * exist.
+     * <p>Returns {@code -1} if the property has no TTL set, or {@code -2} if the property does not exist.
      *
      * <pre>{@code
      * long ttl = user.getPropertyTimeToLive(LEVEL).await();
@@ -90,8 +88,7 @@ public interface PropertyHolder {
      * @return a future that completes with the remaining TTL in milliseconds
      * @see #getPropertyTimeToLive(String)
      */
-    default @NotNull EchoFuture<@NotNull Long> getPropertyTimeToLive(
-            final @NotNull PropertyKey<?> key) {
+    default @NotNull EchoFuture<@NotNull Long> getPropertyTimeToLive(final @NotNull PropertyKey<?> key) {
         return this.getPropertyTimeToLive(key.key());
     }
 
@@ -126,8 +123,7 @@ public interface PropertyHolder {
      * @param <T> the value type
      * @return a future that completes when the property is set
      */
-    default @NotNull <T> EchoFuture<Void> setProperty(
-            final @NotNull PropertyKey<T> key, final @Nullable T value) {
+    default @NotNull <T> EchoFuture<Void> setProperty(final @NotNull PropertyKey<T> key, final @Nullable T value) {
         return this.setProperty(key.key(), value);
     }
 
@@ -146,8 +142,7 @@ public interface PropertyHolder {
      * @param key the typed property key
      * @return a future that completes with {@code true} if the property was deleted
      */
-    default @NotNull EchoFuture<@NotNull Boolean> deleteProperty(
-            final @NotNull PropertyKey<?> key) {
+    default @NotNull EchoFuture<@NotNull Boolean> deleteProperty(final @NotNull PropertyKey<?> key) {
         return this.deleteProperty(key.key());
     }
 
@@ -177,8 +172,7 @@ public interface PropertyHolder {
      * @param <T> the value type
      * @return a future that completes with the value, or empty if the property does not exist
      */
-    default @NotNull <T> EchoFuture<@NotNull Optional<T>> getProperty(
-            final @NotNull PropertyKey<T> key) {
+    default @NotNull <T> EchoFuture<@NotNull Optional<T>> getProperty(final @NotNull PropertyKey<T> key) {
         return this.getProperty(key.key());
     }
 
@@ -210,8 +204,7 @@ public interface PropertyHolder {
      * @return a future that completes with {@code true} if the TTL was set
      * @see #setExpire(String, Instant)
      */
-    default @NotNull EchoFuture<Boolean> setExpire(
-            final @NotNull PropertyKey<?> key, final @NotNull Instant instant) {
+    default @NotNull EchoFuture<Boolean> setExpire(final @NotNull PropertyKey<?> key, final @NotNull Instant instant) {
         return this.setExpire(key.key(), instant);
     }
 

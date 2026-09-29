@@ -18,8 +18,8 @@ public interface OnDemandServers {
     }
 
     /**
-     * Acquires one server and applies its requested Echo properties before completion. Reusing a
-     * request ID must return the same live allocation.
+     * Acquires one server and applies its requested Echo properties before completion. Reusing a request ID must return
+     * the same live allocation.
      *
      * @param request requested server type and idempotency key
      * @return the acquired Echo server

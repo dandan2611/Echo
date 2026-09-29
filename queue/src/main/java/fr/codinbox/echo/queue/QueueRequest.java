@@ -7,7 +7,9 @@ import org.jetbrains.annotations.NotNull;
 
 /** One idempotent and indivisible solo/party queue request. */
 public record QueueRequest(
-        @NotNull String requestId, @NotNull QueueId queueId, @NotNull Set<UUID> members) {
+        @NotNull String requestId,
+        @NotNull QueueId queueId,
+        @NotNull Set<UUID> members) {
 
     public QueueRequest {
         if (Objects.requireNonNull(requestId, "requestId").isBlank())

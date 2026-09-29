@@ -40,11 +40,7 @@ class Relay(socketserver.BaseRequestHandler):
                         hit = (
                             (unlock and mode == "unlock-lost")
                             or (acquire and mode == "acquire-reply-lost")
-                            or (
-                                commit
-                                and mode
-                                in ("commit-lost", "commit-reply-lost", "commit-replay")
-                            )
+                            or (commit and mode in ("commit-lost", "commit-reply-lost", "commit-replay"))
                         )
                         if hit:
                             state["mode"] = "none"
@@ -66,19 +62,14 @@ class Relay(socketserver.BaseRequestHandler):
                         with guard:
                             state["trace"].append(
                                 {
-                                    "operation": "commit"
-                                    if commit
-                                    else "unlock"
-                                    if unlock
-                                    else "acquire",
+                                    "operation": "commit" if commit else "unlock" if unlock else "acquire",
                                     "response": repr(response),
                                     "reply_dropped": hit and mode != "commit-replay",
                                 }
                             )
                     if hit and mode != "commit-replay":
                         print(
-                            "INJECT operation executed; response dropped: "
-                            + repr(response),
+                            "INJECT operation executed; response dropped: " + repr(response),
                             flush=True,
                         )
                         return
@@ -110,9 +101,7 @@ class Server(socketserver.ThreadingTCPServer):
 
 if __name__ == "__main__":
     threading.Thread(
-        target=http.server.ThreadingHTTPServer(
-            ("127.0.0.1", 16381), Control
-        ).serve_forever,
+        target=http.server.ThreadingHTTPServer(("127.0.0.1", 16381), Control).serve_forever,
         daemon=True,
     ).start()
     print("Lab proxy 127.0.0.1:16380 -> 127.0.0.1:16379; control 16381", flush=True)

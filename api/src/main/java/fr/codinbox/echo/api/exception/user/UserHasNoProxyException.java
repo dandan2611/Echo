@@ -6,8 +6,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Thrown when an operation requires the user to be connected to a proxy, but they are not.
  *
- * <p>This typically occurs when attempting to transfer a player to a server or proxy, but the
- * player has already disconnected from the network.
+ * <p>This typically occurs when attempting to transfer a player to a server or proxy, but the player has already
+ * disconnected from the network.
  *
  * @see fr.codinbox.echo.api.user.User#tryConnectToServer(String)
  * @see fr.codinbox.echo.api.user.User#tryConnectToProxy(fr.codinbox.echo.api.proxy.Proxy)
@@ -20,9 +20,6 @@ public class UserHasNoProxyException extends RuntimeException {
      * @param userId the UUID of the user who has no proxy
      */
     public UserHasNoProxyException(final @NotNull UUID userId) {
-        super(
-                "User with id '"
-                        + userId
-                        + "' has no proxy, it could be caused by a disconnection from the network");
+        super("User with id '" + userId + "' has no proxy, it could be caused by a disconnection from the network");
     }
 }

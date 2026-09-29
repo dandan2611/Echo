@@ -33,14 +33,12 @@ final class RedisPlacementStore implements PlacementStore {
     private static final String REGISTRY = "servers:map";
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String COMMIT = resource("commit.lua");
-    private static final String SNAPSHOT =
-            """
+    private static final String SNAPSHOT = """
             local t = redis.call('TIME')
             return {t[1], t[2], redis.call('GET', KEYS[1]) or '',
                     redis.call('HGETALL', KEYS[2]), redis.call('HGETALL', KEYS[3])}
             """;
-    private static final String READ =
-            """
+    private static final String READ = """
             local t = redis.call('TIME')
             return {redis.call('GET', KEYS[1]) or false, redis.call('PTTL', KEYS[1]), t[1], t[2]}
             """;
@@ -66,23 +64,20 @@ final class RedisPlacementStore implements PlacementStore {
             final Session session = new Session();
             // Subtract the complete elapsed time, conservatively including the snapshot round trip.
             session.redisDeadline(
-                    session.redisNow.plusNanos(
-                            Math.max(0, budget.toNanos() - (System.nanoTime() - started))));
+                    session.redisNow.plusNanos(Math.max(0, budget.toNanos() - (System.nanoTime() - started))));
             final T result = decision.apply(session);
             final String attempt = UUID.randomUUID().toString();
             results.put(attempt, result);
             final String committed = session.commit(operation, attempt);
             if (results.containsKey(committed)) return results.get(committed);
             if (!"CONFLICT".equals(committed))
-                throw new PlacementUnavailableException(
-                        "Placement operation expired before confirmation");
+                throw new PlacementUnavailableException("Placement operation expired before confirmation");
         }
         throw new PlacementUnavailableException("Placement conflict budget exhausted");
     }
 
     private final class Session implements Transaction {
-        private final List<Object> keys =
-                new ArrayList<>(List.of(REVISION, RESERVATIONS, REGISTRY, ""));
+        private final List<Object> keys = new ArrayList<>(List.of(REVISION, RESERVATIONS, REGISTRY, ""));
         private final Map<String, Read> reads = new LinkedHashMap<>();
         private final Map<String, byte[]> writes = new LinkedHashMap<>();
         private final Map<String, Instant> registrations = new LinkedHashMap<>();
@@ -95,12 +90,11 @@ final class RedisPlacementStore implements PlacementStore {
         private Instant deadline = Instant.MAX;
 
         Session() {
-            final List<?> data =
-                    script().eval(
-                                    RScript.Mode.READ_ONLY,
-                                    SNAPSHOT,
-                                    RScript.ReturnType.MULTI,
-                                    List.of(REVISION, RESERVATIONS, REGISTRY));
+            final List<?> data = script().eval(
+                            RScript.Mode.READ_ONLY,
+                            SNAPSHOT,
+                            RScript.ReturnType.MULTI,
+                            List.of(REVISION, RESERVATIONS, REGISTRY));
             redisNow = time(data.get(0), data.get(1));
             now = clock.instant();
             revision = text(data.get(2));
@@ -154,22 +148,14 @@ final class RedisPlacementStore implements PlacementStore {
 
         @Override
         public Object value(String key) {
-            final Read read =
-                    reads.computeIfAbsent(
-                            key,
-                            ignored -> {
-                                final List<?> data =
-                                        script().eval(
-                                                        RScript.Mode.READ_ONLY,
-                                                        READ,
-                                                        RScript.ReturnType.MULTI,
-                                                        List.of(key));
-                                final byte[] raw = (byte[]) data.get(0);
-                                final long ttl = ((Number) data.get(1)).longValue();
-                                if (ttl >= 0)
-                                    redisDeadline(time(data.get(2), data.get(3)).plusMillis(ttl));
-                                return new Read(raw, decode(raw, false), ttl);
-                            });
+            final Read read = reads.computeIfAbsent(key, ignored -> {
+                final List<?> data =
+                        script().eval(RScript.Mode.READ_ONLY, READ, RScript.ReturnType.MULTI, List.of(key));
+                final byte[] raw = (byte[]) data.get(0);
+                final long ttl = ((Number) data.get(1)).longValue();
+                if (ttl >= 0) redisDeadline(time(data.get(2), data.get(3)).plusMillis(ttl));
+                return new Read(raw, decode(raw, false), ttl);
+            });
             final Object value = read.value();
             if (value instanceof ServerAdmissionSnapshot snapshot && !snapshot.isStale(now))
                 validUntil(snapshot.validUntil());
@@ -195,54 +181,36 @@ final class RedisPlacementStore implements PlacementStore {
             final List<Object> arguments = new ArrayList<>();
             arguments.add(null);
             final List<Map<String, Object>> observations = new ArrayList<>();
-            reads.forEach(
-                    (key, read) -> {
-                        arguments.add(read.raw() == null ? new byte[0] : read.raw());
-                        observations.add(
-                                Map.of(
-                                        "key",
-                                        index(key),
-                                        "present",
-                                        read.raw() != null,
-                                        "value",
-                                        arguments.size()));
-                    });
+            reads.forEach((key, read) -> {
+                arguments.add(read.raw() == null ? new byte[0] : read.raw());
+                observations.add(Map.of("key", index(key), "present", read.raw() != null, "value", arguments.size()));
+            });
             final List<Map<String, Object>> changes = new ArrayList<>();
-            writes.forEach(
-                    (key, value) -> {
-                        arguments.add(value);
-                        changes.add(Map.of("key", index(key), "value", arguments.size()));
-                    });
+            writes.forEach((key, value) -> {
+                arguments.add(value);
+                changes.add(Map.of("key", index(key), "value", arguments.size()));
+            });
             final List<List<Integer>> registryArguments = new ArrayList<>();
-            registry.forEach(
-                    (key, value) -> {
-                        arguments.add(unbase64(key));
-                        arguments.add(unbase64(value));
-                        registryArguments.add(List.of(arguments.size() - 1, arguments.size()));
-                    });
+            registry.forEach((key, value) -> {
+                arguments.add(unbase64(key));
+                arguments.add(unbase64(value));
+                registryArguments.add(List.of(arguments.size() - 1, arguments.size()));
+            });
             final Map<String, Object> plan = new LinkedHashMap<>();
             final List<List<Integer>> registrationArguments = new ArrayList<>();
-            registrations.forEach(
-                    (id, createdAt) -> {
-                        arguments.add(
-                                encodeWith(id, client.getConfig().getCodec().getMapKeyEncoder()));
-                        arguments.add(
-                                encodeWith(
-                                        createdAt.toEpochMilli(),
-                                        client.getConfig().getCodec().getMapValueEncoder()));
-                        registrationArguments.add(List.of(arguments.size() - 1, arguments.size()));
-                    });
+            registrations.forEach((id, createdAt) -> {
+                arguments.add(encodeWith(id, client.getConfig().getCodec().getMapKeyEncoder()));
+                arguments.add(encodeWith(
+                        createdAt.toEpochMilli(), client.getConfig().getCodec().getMapValueEncoder()));
+                registrationArguments.add(List.of(arguments.size() - 1, arguments.size()));
+            });
             plan.put("registrations", registrationArguments);
             plan.put("deadline", deadline.toEpochMilli());
             plan.put("revision", revision);
             plan.put("registry", registryArguments);
             plan.put("reads", observations);
             plan.put("writes", changes);
-            plan.put(
-                    "changed",
-                    !registrations.isEmpty()
-                            || !writes.isEmpty()
-                            || !original.equals(reservations));
+            plan.put("changed", !registrations.isEmpty() || !writes.isEmpty() || !original.equals(reservations));
             plan.put(
                     "removed",
                     original.keySet().stream()
@@ -252,13 +220,8 @@ final class RedisPlacementStore implements PlacementStore {
             plan.put("attempt", attempt);
             try {
                 arguments.set(0, JSON.writeValueAsBytes(plan));
-                return text(
-                        script().eval(
-                                        RScript.Mode.READ_WRITE,
-                                        COMMIT,
-                                        RScript.ReturnType.VALUE,
-                                        keys,
-                                        arguments.toArray()));
+                return text(script().eval(
+                                RScript.Mode.READ_WRITE, COMMIT, RScript.ReturnType.VALUE, keys, arguments.toArray()));
             } catch (JsonProcessingException error) {
                 throw new IllegalStateException("Cannot encode placement commit", error);
             }
@@ -301,8 +264,7 @@ final class RedisPlacementStore implements PlacementStore {
         final ByteBuf buffer = Unpooled.wrappedBuffer(value);
         try {
             final Codec codec = client.getConfig().getCodec();
-            return (mapKey ? codec.getMapKeyDecoder() : codec.getValueDecoder())
-                    .decode(buffer, new State());
+            return (mapKey ? codec.getMapKeyDecoder() : codec.getValueDecoder()).decode(buffer, new State());
         } catch (IOException error) {
             throw new IllegalStateException("Cannot decode placement observation", error);
         } finally {
@@ -311,8 +273,7 @@ final class RedisPlacementStore implements PlacementStore {
     }
 
     private static Instant time(Object seconds, Object micros) {
-        return Instant.ofEpochSecond(
-                Long.parseLong(text(seconds)), Long.parseLong(text(micros)) * 1000);
+        return Instant.ofEpochSecond(Long.parseLong(text(seconds)), Long.parseLong(text(micros)) * 1000);
     }
 
     private static String text(Object value) {
@@ -327,9 +288,7 @@ final class RedisPlacementStore implements PlacementStore {
         final Map<String, String> map = new LinkedHashMap<>();
         for (int i = 0; i < list.size(); i += 2) {
             map.put(
-                    binary
-                            ? java.util.Base64.getEncoder().encodeToString((byte[]) list.get(i))
-                            : text(list.get(i)),
+                    binary ? java.util.Base64.getEncoder().encodeToString((byte[]) list.get(i)) : text(list.get(i)),
                     binary
                             ? java.util.Base64.getEncoder().encodeToString((byte[]) list.get(i + 1))
                             : text(list.get(i + 1)));

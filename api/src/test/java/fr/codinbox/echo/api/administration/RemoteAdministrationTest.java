@@ -56,14 +56,9 @@ class RemoteAdministrationTest {
     @Test
     void controlUsesOneExactServerTopicAndCallerTimeout() {
         ResourceControlRequest request =
-                new ResourceControlRequest(
-                        ResourceControlRequest.Action.PING,
-                        EchoResourceType.SERVER,
-                        "game-1",
-                        null);
+                new ResourceControlRequest(ResourceControlRequest.Action.PING, EchoResourceType.SERVER, "game-1", null);
         ResourceControlRequest.Response expected =
-                new ResourceControlRequest.Response(
-                        request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
+                new ResourceControlRequest.Response(request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
         when(this.messaging.request(
                         eq("server:game-1"),
                         eq(request),
@@ -93,21 +88,14 @@ class RemoteAdministrationTest {
         assertThatThrownBy(() -> this.administration.control(validControlRequest(), Duration.ZERO))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("timeout must be at least 1ms");
-        assertThatThrownBy(
-                        () ->
-                                this.administration.control(
-                                        validControlRequest(), Duration.ofMillis(-1)))
+        assertThatThrownBy(() -> this.administration.control(validControlRequest(), Duration.ofMillis(-1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("timeout must be at least 1ms");
-        assertThatThrownBy(
-                        () ->
-                                this.administration.control(
-                                        validControlRequest(), Duration.ofNanos(1)))
+        assertThatThrownBy(() -> this.administration.control(validControlRequest(), Duration.ofNanos(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("timeout must be at least 1ms");
 
-        RemoteAdministration overflowing =
-                new RemoteAdministration(this.echo, () -> Long.MAX_VALUE);
+        RemoteAdministration overflowing = new RemoteAdministration(this.echo, () -> Long.MAX_VALUE);
         assertThatThrownBy(() -> overflowing.control(validControlRequest(), Duration.ofMillis(1)))
                 .isInstanceOf(ArithmeticException.class)
                 .hasMessage("long overflow");
@@ -118,13 +106,12 @@ class RemoteAdministrationTest {
         ResourceControlRequest request = validControlRequest();
         IllegalStateException failure = new IllegalStateException("broker unavailable");
         when(this.messaging.request(
-                        "server:game-1",
-                        request,
-                        ResourceControlRequest.Response.class,
-                        Duration.ofSeconds(1)))
+                        "server:game-1", request, ResourceControlRequest.Response.class, Duration.ofSeconds(1)))
                 .thenReturn(failedFuture(failure));
 
-        assertThatThrownBy(() -> this.administration.control(request, Duration.ofSeconds(1)).join())
+        assertThatThrownBy(() -> this.administration
+                        .control(request, Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(IllegalStateException.class)
                 .hasRootCauseMessage("broker unavailable");
     }
@@ -141,50 +128,40 @@ class RemoteAdministrationTest {
                         any(UserDisconnectRequest.class),
                         eq(UserDisconnectRequest.Response.class),
                         eq(Duration.ofMillis(2_750))))
-                .thenAnswer(
-                        invocation -> {
-                            UserDisconnectRequest request = invocation.getArgument(1);
-                            return EchoFuture.completed(
-                                    new UserDisconnectRequest.Response(
-                                            request,
-                                            true,
-                                            UserDisconnectRequest.Status.DISCONNECTED,
-                                            "Player disconnected"));
-                        });
+                .thenAnswer(invocation -> {
+                    UserDisconnectRequest request = invocation.getArgument(1);
+                    return EchoFuture.completed(new UserDisconnectRequest.Response(
+                            request, true, UserDisconnectRequest.Status.DISCONNECTED, "Player disconnected"));
+                });
 
         AtomicLong now = new AtomicLong(1_000L);
-        RemoteAdministration administration =
-                new RemoteAdministration(this.echo, () -> now.getAndAdd(250L));
+        RemoteAdministration administration = new RemoteAdministration(this.echo, () -> now.getAndAdd(250L));
 
         administration.disconnect(user, "maintenance", Duration.ofSeconds(3)).join();
 
-        ArgumentCaptor<UserDisconnectRequest> request =
-                ArgumentCaptor.forClass(UserDisconnectRequest.class);
+        ArgumentCaptor<UserDisconnectRequest> request = ArgumentCaptor.forClass(UserDisconnectRequest.class);
         verify(this.messaging)
                 .request(
                         eq("proxy:proxy-2"),
                         request.capture(),
                         eq(UserDisconnectRequest.Response.class),
                         eq(Duration.ofMillis(2_750)));
-        assertThat(
-                        new Object[] {
-                            request.getValue().getExpectedProxyId(),
-                            request.getValue().getExpectedSessionId(),
-                            request.getValue().getUserId(),
-                            request.getValue().getReason(),
-                            request.getValue().getDeadlineEpochMillis(),
-                            request.getValue().getReplyTopic()
-                        })
-                .containsExactly(
-                        "proxy-2", "session-2", userId, "maintenance", 4_000L, "proxy:admin");
+        assertThat(new Object[] {
+                    request.getValue().getExpectedProxyId(),
+                    request.getValue().getExpectedSessionId(),
+                    request.getValue().getUserId(),
+                    request.getValue().getReason(),
+                    request.getValue().getDeadlineEpochMillis(),
+                    request.getValue().getReplyTopic()
+                })
+                .containsExactly("proxy-2", "session-2", userId, "maintenance", 4_000L, "proxy:admin");
     }
 
     @Test
     void disconnectRejectsInvalidArgumentsAndOverflowingDeadline() {
         User user = user(EchoFuture.completed(Optional.of("proxy-1")));
 
-        assertThatThrownBy(
-                        () -> this.administration.disconnect(null, "reason", Duration.ofSeconds(1)))
+        assertThatThrownBy(() -> this.administration.disconnect(null, "reason", Duration.ofSeconds(1)))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("user");
         assertThatThrownBy(() -> this.administration.disconnect(user, null, Duration.ofSeconds(1)))
@@ -197,8 +174,7 @@ class RemoteAdministrationTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("timeout");
 
-        RemoteAdministration overflowing =
-                new RemoteAdministration(this.echo, () -> Long.MAX_VALUE);
+        RemoteAdministration overflowing = new RemoteAdministration(this.echo, () -> Long.MAX_VALUE);
         assertThatThrownBy(() -> overflowing.disconnect(user, "reason", Duration.ofMillis(1)))
                 .isInstanceOf(ArithmeticException.class)
                 .hasMessage("long overflow");
@@ -208,15 +184,12 @@ class RemoteAdministrationTest {
     void disconnectFailsWhenUserHasNoProxy() {
         User user = user(EchoFuture.completed(Optional.empty()));
 
-        assertThatThrownBy(
-                        () ->
-                                this.administration
-                                        .disconnect(user, "reason", Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> this.administration
+                        .disconnect(user, "reason", Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(UserHasNoProxyException.class)
-                .hasRootCauseMessage(
-                        "User with id '00000000-0000-0000-0000-000000000002' has no proxy, "
-                                + "it could be caused by a disconnection from the network");
+                .hasRootCauseMessage("User with id '00000000-0000-0000-0000-000000000002' has no proxy, "
+                        + "it could be caused by a disconnection from the network");
         verify(this.messaging, never()).request(any(), any(), any(), any());
     }
 
@@ -225,14 +198,11 @@ class RemoteAdministrationTest {
         User user = user(EchoFuture.completed(Optional.of("proxy-1")));
         when(user.getSessionId()).thenReturn(EchoFuture.completed(Optional.empty()));
 
-        assertThatThrownBy(
-                        () ->
-                                this.administration
-                                        .disconnect(user, "reason", Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> this.administration
+                        .disconnect(user, "reason", Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(IllegalStateException.class)
-                .hasRootCauseMessage(
-                        "User with id '00000000-0000-0000-0000-000000000002' has no session");
+                .hasRootCauseMessage("User with id '00000000-0000-0000-0000-000000000002' has no session");
         verify(this.messaging, never()).request(any(), any(), any(), any());
     }
 
@@ -240,14 +210,11 @@ class RemoteAdministrationTest {
     void disconnectFailsWhenDeadlineElapsesDuringProxyLookup() {
         User user = user(EchoFuture.completed(Optional.of("proxy-1")));
         AtomicLong now = new AtomicLong(1_000L);
-        RemoteAdministration administration =
-                new RemoteAdministration(this.echo, () -> now.getAndAdd(1_000L));
+        RemoteAdministration administration = new RemoteAdministration(this.echo, () -> now.getAndAdd(1_000L));
 
-        assertThatThrownBy(
-                        () ->
-                                administration
-                                        .disconnect(user, "reason", Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> administration
+                        .disconnect(user, "reason", Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(TimeoutException.class)
                 .hasRootCauseMessage("User disconnect deadline elapsed");
         verify(this.messaging, never()).request(any(), any(), any(), any());
@@ -257,11 +224,9 @@ class RemoteAdministrationTest {
     void disconnectBoundsAnUnfinishedProxyLookup() {
         User user = user(new EchoFuture<>());
 
-        assertThatThrownBy(
-                        () ->
-                                this.administration
-                                        .disconnect(user, "reason", Duration.ofMillis(1))
-                                        .join())
+        assertThatThrownBy(() -> this.administration
+                        .disconnect(user, "reason", Duration.ofMillis(1))
+                        .join())
                 .hasRootCauseInstanceOf(TimeoutException.class);
         verify(this.messaging, never()).request(any(), any(), any(), any());
     }
@@ -269,14 +234,9 @@ class RemoteAdministrationTest {
     @Test
     void disconnectPropagatesProxyLookupAndMessagingFailures() {
         IllegalStateException lookupFailure = new IllegalStateException("cache unavailable");
-        assertThatThrownBy(
-                        () ->
-                                this.administration
-                                        .disconnect(
-                                                user(failedFuture(lookupFailure)),
-                                                "reason",
-                                                Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> this.administration
+                        .disconnect(user(failedFuture(lookupFailure)), "reason", Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(IllegalStateException.class)
                 .hasRootCauseMessage("cache unavailable");
 
@@ -289,18 +249,15 @@ class RemoteAdministrationTest {
                         eq(Duration.ofSeconds(1))))
                 .thenReturn(failedFuture(messagingFailure));
 
-        assertThatThrownBy(
-                        () ->
-                                this.administration
-                                        .disconnect(user, "reason", Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> this.administration
+                        .disconnect(user, "reason", Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseInstanceOf(IllegalStateException.class)
                 .hasRootCauseMessage("broker unavailable");
     }
 
     private ResourceControlRequest validControlRequest() {
-        return new ResourceControlRequest(
-                ResourceControlRequest.Action.PING, EchoResourceType.SERVER, "game-1", null);
+        return new ResourceControlRequest(ResourceControlRequest.Action.PING, EchoResourceType.SERVER, "game-1", null);
     }
 
     private User user(EchoFuture<Optional<String>> proxyId) {

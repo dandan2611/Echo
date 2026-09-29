@@ -25,8 +25,11 @@ class ServerStatusNotificationHandlerTest {
 
     private ServerStatusNotificationHandler handler;
 
-    @Mock private ProxyServer mockProxy;
-    @Mock private Logger mockLogger;
+    @Mock
+    private ProxyServer mockProxy;
+
+    @Mock
+    private Logger mockLogger;
 
     @BeforeEach
     void setUp() {

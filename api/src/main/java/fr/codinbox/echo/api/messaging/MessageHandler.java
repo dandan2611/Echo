@@ -5,8 +5,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A functional interface for handling messages received on a topic.
  *
- * <p>Used with {@link MessagingProvider#subscribe(String, MessageHandler)} and {@link
- * MessagingProvider#subscribe(String, Class, MessageHandler)} to process incoming messages.
+ * <p>Used with {@link MessagingProvider#subscribe(String, MessageHandler)} and
+ * {@link MessagingProvider#subscribe(String, Class, MessageHandler)} to process incoming messages.
  *
  * <pre>{@code
  * // Raw handler (receives all message types)

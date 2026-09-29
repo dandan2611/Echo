@@ -10,12 +10,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A message requesting one or more players to be transferred to a different proxy.
  *
- * <p>This message is sent to the proxy that the target players are currently connected to. That
- * proxy handles the transfer by redirecting the players to the new proxy.
+ * <p>This message is sent to the proxy that the target players are currently connected to. That proxy handles the
+ * transfer by redirecting the players to the new proxy.
  *
- * <p>For most use cases, use {@link
- * fr.codinbox.echo.api.user.User#tryConnectToProxy(fr.codinbox.echo.api.proxy.Proxy)} instead of
- * constructing this message directly:
+ * <p>For most use cases, use {@link fr.codinbox.echo.api.user.User#tryConnectToProxy(fr.codinbox.echo.api.proxy.Proxy)}
+ * instead of constructing this message directly:
  *
  * <pre>{@code
  * // Preferred: use the User API

@@ -49,7 +49,8 @@ class HeartbeatTest extends RedisIntegrationTestBase {
 
         client.shutdown();
 
-        boolean exists = redissonClient.getBucket("heartbeat:server:hb-shutdown").isExists();
+        boolean exists =
+                redissonClient.getBucket("heartbeat:server:hb-shutdown").isExists();
         assertThat(exists).isFalse();
     }
 }

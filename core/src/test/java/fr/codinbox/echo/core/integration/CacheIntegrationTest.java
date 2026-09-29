@@ -74,7 +74,9 @@ class CacheIntegrationTest extends RedisIntegrationTestBase {
         cacheProvider.expireObject("test:expire", expireAt).join();
 
         org.rnorth.ducttape.unreliables.Unreliables.retryUntilTrue(
-                5, TimeUnit.SECONDS, () -> cacheProvider.getObject("test:expire").join() == null);
+                5,
+                TimeUnit.SECONDS,
+                () -> cacheProvider.getObject("test:expire").join() == null);
         assertThat(cacheProvider.getObject("test:expire").join()).isNull();
     }
 

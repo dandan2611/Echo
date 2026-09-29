@@ -6,9 +6,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A type-safe key for storing and retrieving properties on a {@link PropertyHolder}.
  *
- * <p>Property keys are identified by their string key and carry a generic type parameter to ensure
- * type safety at compile time. Two {@code PropertyKey} instances are equal if their string keys are
- * equal, regardless of the type parameter.
+ * <p>Property keys are identified by their string key and carry a generic type parameter to ensure type safety at
+ * compile time. Two {@code PropertyKey} instances are equal if their string keys are equal, regardless of the type
+ * parameter.
  *
  * <pre>{@code
  * // Define typed property keys
@@ -41,8 +41,7 @@ public record PropertyKey<T>(@NotNull String key) {
      * @param <T> the value type
      * @return a new property key
      */
-    public static <T> @NotNull PropertyKey<T> of(
-            final @NotNull String key, final @NotNull Class<T> clazz) {
+    public static <T> @NotNull PropertyKey<T> of(final @NotNull String key, final @NotNull Class<T> clazz) {
         return new PropertyKey<T>(key);
     }
 

@@ -22,14 +22,13 @@ class ServerLoadCodecTest {
     @Test
     void admissionSnapshotRoundTripsWithRealCountsAndMemberClassification() throws Exception {
         final Instant now = Instant.parse("2026-09-05T12:00:00Z");
-        final ServerAdmissionSnapshot snapshot =
-                new ServerAdmissionSnapshot(
-                        Map.of(UUID.randomUUID(), true, UUID.randomUUID(), false),
-                        Map.of(UUID.randomUUID(), false),
-                        100,
-                        120,
-                        now,
-                        now.plusSeconds(5));
+        final ServerAdmissionSnapshot snapshot = new ServerAdmissionSnapshot(
+                Map.of(UUID.randomUUID(), true, UUID.randomUUID(), false),
+                Map.of(UUID.randomUUID(), false),
+                100,
+                120,
+                now,
+                now.plusSeconds(5));
 
         assertThat(roundTrip(snapshot)).isEqualTo(snapshot);
     }
@@ -38,8 +37,7 @@ class ServerLoadCodecTest {
     void proxyThresholdIsTelemetryNotABackendHardCap() throws Exception {
         final Instant now = Instant.parse("2026-09-05T12:00:00Z");
         final ProxyLoadSnapshot snapshot =
-                new ProxyLoadSnapshot(
-                        476, 450, ProxyLoadSnapshot.SCALE_OUT_THRESHOLD, now, now.plusSeconds(5));
+                new ProxyLoadSnapshot(476, 450, ProxyLoadSnapshot.SCALE_OUT_THRESHOLD, now, now.plusSeconds(5));
 
         assertThat(roundTrip(snapshot)).isEqualTo(snapshot);
         assertThat(snapshot.scaleOutThreshold()).isEqualTo(475);
@@ -69,9 +67,7 @@ class ServerLoadCodecTest {
     @Test
     void serverLoadSnapshotRoundTripsBetweenConnectorCodecInstances() throws Exception {
         Instant sampledAt = Instant.parse("2026-09-04T08:45:00Z");
-        var snapshot =
-                new ServerLoadSnapshot(
-                        new ServerLoad(12, true), sampledAt, sampledAt.plusSeconds(30));
+        var snapshot = new ServerLoadSnapshot(new ServerLoad(12, true), sampledAt, sampledAt.plusSeconds(30));
         var writer = new JsonJacksonConnectorCodec();
         var reader = new JsonJacksonConnectorCodec();
         ByteBuf encoded = writer.getValueEncoder().encode(snapshot);

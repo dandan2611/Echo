@@ -31,8 +31,7 @@ public final class ResourceControlRequest extends EchoMessage {
             @NotNull String expectedResourceId,
             @Nullable String reason) {
         this.action = Objects.requireNonNull(action, "action");
-        this.expectedResourceType =
-                Objects.requireNonNull(expectedResourceType, "expectedResourceType");
+        this.expectedResourceType = Objects.requireNonNull(expectedResourceType, "expectedResourceType");
         this.expectedResourceId = requireId(expectedResourceId);
         this.reason = reason;
     }
@@ -59,8 +58,7 @@ public final class ResourceControlRequest extends EchoMessage {
             @Nullable String reason) {
         this(action, expectedResourceType, expectedResourceId, reason);
         this.deadlineEpochMillis = Objects.requireNonNull(deadline, "deadline").toEpochMilli();
-        if (this.deadlineEpochMillis < 1)
-            throw new IllegalArgumentException("absolute deadline must be positive");
+        if (this.deadlineEpochMillis < 1) throw new IllegalArgumentException("absolute deadline must be positive");
     }
 
     /** Returns null when fields received from Jackson form a valid request. */
@@ -70,8 +68,7 @@ public final class ResourceControlRequest extends EchoMessage {
         if (this.expectedResourceId == null || this.expectedResourceId.isBlank())
             return "expected resource id is required";
         if (this.executionDeadlineEpochMillis < 1) return "execution deadline must be positive";
-        if (this.deadlineDurationMillis < 0 || this.deadlineEpochMillis < 0)
-            return "deadline must be positive";
+        if (this.deadlineDurationMillis < 0 || this.deadlineEpochMillis < 0) return "deadline must be positive";
         if (this.deadlineDurationMillis > 0 && this.deadlineEpochMillis > 0)
             return "deadline duration and absolute deadline are mutually exclusive";
         return null;
@@ -80,9 +77,7 @@ public final class ResourceControlRequest extends EchoMessage {
     /** Resolves a relative deadline against receiver time; zero means no deadline. */
     public long resolveDrainDeadlineEpochMillis(long nowEpochMillis) {
         if (this.deadlineEpochMillis > 0) return this.deadlineEpochMillis;
-        return this.deadlineDurationMillis > 0
-                ? Math.addExact(nowEpochMillis, this.deadlineDurationMillis)
-                : 0;
+        return this.deadlineDurationMillis > 0 ? Math.addExact(nowEpochMillis, this.deadlineDurationMillis) : 0;
     }
 
     private static String requireId(String id) {

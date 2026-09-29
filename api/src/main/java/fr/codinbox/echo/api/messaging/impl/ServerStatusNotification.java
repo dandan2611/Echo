@@ -11,9 +11,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A notification message broadcast when a server is registered or unregistered from the network.
  *
- * <p>This message is sent automatically by Echo when servers come online or go offline (including
- * when the healthcheck system detects a dead server). Proxies listen for these notifications to
- * update their internal server lists.
+ * <p>This message is sent automatically by Echo when servers come online or go offline (including when the healthcheck
+ * system detects a dead server). Proxies listen for these notifications to update their internal server lists.
  *
  * <p>You can subscribe to these notifications to react to server status changes:
  *
@@ -50,8 +49,7 @@ public class ServerStatusNotification extends EchoMessage {
      * @param address the server address
      * @param status the server status
      */
-    public ServerStatusNotification(
-            @NotNull String id, @NotNull Address address, @NotNull Status status) {
+    public ServerStatusNotification(@NotNull String id, @NotNull Address address, @NotNull Status status) {
         this.id = id;
         this.address = address;
         this.status = status;

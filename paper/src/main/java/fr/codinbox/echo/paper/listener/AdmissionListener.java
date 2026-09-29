@@ -54,13 +54,7 @@ public final class AdmissionListener implements Listener, AutoCloseable {
             final @NotNull String serverId,
             final int publicCapacity,
             final int hardCapacity) {
-        this(
-                plugin,
-                placement,
-                serverId,
-                publicCapacity,
-                hardCapacity,
-                TimeUnit.MILLISECONDS.toNanos(100));
+        this(plugin, placement, serverId, publicCapacity, hardCapacity, TimeUnit.MILLISECONDS.toNanos(100));
     }
 
     AdmissionListener(
@@ -70,14 +64,7 @@ public final class AdmissionListener implements Listener, AutoCloseable {
             final int publicCapacity,
             final int hardCapacity,
             final long admissionWaitNanos) {
-        this(
-                plugin,
-                placement,
-                serverId,
-                publicCapacity,
-                hardCapacity,
-                admissionWaitNanos,
-                System::nanoTime);
+        this(plugin, placement, serverId, publicCapacity, hardCapacity, admissionWaitNanos, System::nanoTime);
     }
 
     AdmissionListener(
@@ -95,14 +82,13 @@ public final class AdmissionListener implements Listener, AutoCloseable {
         this.serverId = serverId;
         this.publicCapacity = publicCapacity;
         this.hardCapacity = hardCapacity;
-        this.writer =
-                new ThreadPoolExecutor(
-                        1,
-                        1,
-                        0,
-                        TimeUnit.MILLISECONDS,
-                        new ArrayBlockingQueue<>(2),
-                        Thread.ofPlatform().daemon().name("echo-admission-" + serverId).factory());
+        this.writer = new ThreadPoolExecutor(
+                1,
+                1,
+                0,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(2),
+                Thread.ofPlatform().daemon().name("echo-admission-" + serverId).factory());
         this.writer.prestartCoreThread();
     }
 
@@ -121,24 +107,21 @@ public final class AdmissionListener implements Listener, AutoCloseable {
                     || this.joining.containsKey(player.getUniqueId())
                     || this.plugin.getServer().getPlayer(player.getUniqueId()) != null
                     || !this.admit(player, null)) {
-                event.disallow(
-                        PlayerLoginEvent.Result.KICK_FULL,
-                        Component.text("This server has no available slot."));
+                event.disallow(PlayerLoginEvent.Result.KICK_FULL, Component.text("This server has no available slot."));
                 return;
             }
             this.joining.put(player.getUniqueId(), player);
         } catch (RuntimeException error) {
             event.disallow(
-                    PlayerLoginEvent.Result.KICK_OTHER,
-                    Component.text("Admission is unavailable. Please retry."));
+                    PlayerLoginEvent.Result.KICK_OTHER, Component.text("Admission is unavailable. Please retry."));
             this.plugin.getLogger().log(Level.WARNING, "Failed to check Echo admission", error);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onLoginResult(final @NotNull PlayerLoginEvent event) {
-        if (event.getResult() != PlayerLoginEvent.Result.ALLOWED
-                && this.removeJoining(event.getPlayer())) this.refresh();
+        if (event.getResult() != PlayerLoginEvent.Result.ALLOWED && this.removeJoining(event.getPlayer()))
+            this.refresh();
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -179,13 +162,9 @@ public final class AdmissionListener implements Listener, AutoCloseable {
         final boolean staff = player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION);
         final ServerAdmissionSnapshot snapshot = this.snapshot(excluded);
         final long deadline = System.nanoTime() + this.admissionWaitNanos;
-        final Future<Boolean> result =
-                this.writer.submit(
-                        () ->
-                                !this.writer.isShutdown()
-                                        && System.nanoTime() < deadline
-                                        && this.placement.admit(
-                                                this.serverId, member, staff, snapshot));
+        final Future<Boolean> result = this.writer.submit(() -> !this.writer.isShutdown()
+                && System.nanoTime() < deadline
+                && this.placement.admit(this.serverId, member, staff, snapshot));
         try {
             return result.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
         } catch (InterruptedException interrupted) {
@@ -213,15 +192,14 @@ public final class AdmissionListener implements Listener, AutoCloseable {
             final ServerAdmissionSnapshot snapshot = this.snapshot(null);
             this.plugin.publishTelemetry(snapshot);
             try {
-                this.writer.execute(
-                        () -> {
-                            try {
-                                if (!this.writer.isShutdown() && !snapshot.isStale(Instant.now()))
-                                    this.placement.publishAdmission(this.serverId, snapshot);
-                            } catch (RuntimeException error) {
-                                this.reportPublicationFailure(error);
-                            }
-                        });
+                this.writer.execute(() -> {
+                    try {
+                        if (!this.writer.isShutdown() && !snapshot.isStale(Instant.now()))
+                            this.placement.publishAdmission(this.serverId, snapshot);
+                    } catch (RuntimeException error) {
+                        this.reportPublicationFailure(error);
+                    }
+                });
             } catch (RejectedExecutionException busy) {
                 // One in-flight operation and two queued operations at most; retry on the next tick
                 // sample.
@@ -238,8 +216,7 @@ public final class AdmissionListener implements Listener, AutoCloseable {
             return;
         }
         final long now = this.nanoTime.getAsLong();
-        if (this.expirationReported
-                && now - this.lastExpirationReport < TimeUnit.MINUTES.toNanos(1)) {
+        if (this.expirationReported && now - this.lastExpirationReport < TimeUnit.MINUTES.toNanos(1)) {
             this.suppressedExpirations++;
             return;
         }
@@ -264,24 +241,15 @@ public final class AdmissionListener implements Listener, AutoCloseable {
 
     private ServerAdmissionSnapshot snapshot(final UUID excluded) {
         final Map<UUID, Boolean> online = new HashMap<>();
-        this.plugin
-                .getServer()
-                .getOnlinePlayers()
-                .forEach(
-                        player -> {
-                            if (!player.getUniqueId().equals(excluded))
-                                online.put(
-                                        player.getUniqueId(),
-                                        player.hasPermission(
-                                                ServerAdmissionSnapshot.STAFF_PERMISSION));
-                        });
+        this.plugin.getServer().getOnlinePlayers().forEach(player -> {
+            if (!player.getUniqueId().equals(excluded))
+                online.put(player.getUniqueId(), player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION));
+        });
         final Map<UUID, Boolean> pending = new HashMap<>();
-        this.joining.forEach(
-                (id, player) -> {
-                    if (!online.containsKey(id))
-                        pending.put(
-                                id, player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION));
-                });
+        this.joining.forEach((id, player) -> {
+            if (!online.containsKey(id))
+                pending.put(id, player.hasPermission(ServerAdmissionSnapshot.STAFF_PERMISSION));
+        });
         final Instant now = Instant.now();
         return new ServerAdmissionSnapshot(
                 online, pending, this.publicCapacity, this.hardCapacity, now, now.plusSeconds(5));

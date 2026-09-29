@@ -8,8 +8,7 @@ import org.jetbrains.annotations.NotNull;
 public interface ServerLoadManager {
 
     /**
-     * Installs the single third-party provider override. Closing the returned handle restores
-     * Echo's default provider.
+     * Installs the single third-party provider override. Closing the returned handle restores Echo's default provider.
      */
     @NotNull
     ProviderRegistration setProvider(@NotNull ServerLoadProvider provider);

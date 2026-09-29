@@ -67,8 +67,7 @@ class EchoPluginTest {
         Scheduler.TaskBuilder checkBuilder = taskBuilder();
         when(deadlineBuilder.delay(Duration.ofSeconds(30))).thenReturn(deadlineBuilder);
         when(checkBuilder.repeat(Duration.ofSeconds(1))).thenReturn(checkBuilder);
-        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class)))
-                .thenReturn(deadlineBuilder);
+        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class))).thenReturn(deadlineBuilder);
         ArgumentCaptor<Consumer<ScheduledTask>> check = consumerCaptor();
         when(this.scheduler.buildTask(eq(this.plugin), check.capture())).thenReturn(checkBuilder);
         when(this.proxy.getPlayerCount()).thenReturn(0);
@@ -88,8 +87,7 @@ class EchoPluginTest {
         Scheduler.TaskBuilder checkBuilder = taskBuilder();
         when(deadlineBuilder.delay(Duration.ofMinutes(30))).thenReturn(deadlineBuilder);
         when(checkBuilder.repeat(Duration.ofSeconds(1))).thenReturn(checkBuilder);
-        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class)))
-                .thenReturn(deadlineBuilder);
+        when(this.scheduler.buildTask(eq(this.plugin), any(Runnable.class))).thenReturn(deadlineBuilder);
         ArgumentCaptor<Consumer<ScheduledTask>> check = consumerCaptor();
         when(this.scheduler.buildTask(eq(this.plugin), check.capture())).thenReturn(checkBuilder);
         when(this.proxy.getPlayerCount()).thenReturn(1, 0);
@@ -183,9 +181,8 @@ class EchoPluginTest {
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
         when(this.scheduler.buildTask(eq(this.plugin), task.capture())).thenReturn(builder);
 
-        var disconnected =
-                this.plugin.disconnectPlayer(
-                        userId, "maintenance", "session-1", NOW.plusSeconds(1).toEpochMilli());
+        var disconnected = this.plugin.disconnectPlayer(
+                userId, "maintenance", "session-1", NOW.plusSeconds(1).toEpochMilli());
         setField(this.plugin, "clock", Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC));
         task.getValue().run();
 

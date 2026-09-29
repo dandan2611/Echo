@@ -35,12 +35,10 @@ class RedisQueueStoreIntegrationTest {
 
     private static final QueueId QUEUE_ID = new QueueId("survival:classic");
     private static final QueueDefinition DEFINITION =
-            new QueueDefinition(
-                    QUEUE_ID, "survival", Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED);
+            new QueueDefinition(QUEUE_ID, "survival", Map.of(), ServerPlacement.Policy.FILL_MOST_LOADED);
 
     @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
+    private static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
 
     private static RedissonClient firstClient;
     private static RedissonClient secondClient;
@@ -72,51 +70,45 @@ class RedisQueueStoreIntegrationTest {
         QueueRequest second = request("ticket-2");
         CountDownLatch start = new CountDownLatch(1);
 
-        CompletableFuture<Void> firstEnqueue =
-                CompletableFuture.runAsync(
-                        () -> {
-                            await(start);
-                            this.firstStore.enqueue(DEFINITION, first);
-                        });
-        CompletableFuture<Void> secondEnqueue =
-                CompletableFuture.runAsync(
-                        () -> {
-                            await(start);
-                            this.secondStore.enqueue(DEFINITION, second);
-                        });
+        CompletableFuture<Void> firstEnqueue = CompletableFuture.runAsync(() -> {
+            await(start);
+            this.firstStore.enqueue(DEFINITION, first);
+        });
+        CompletableFuture<Void> secondEnqueue = CompletableFuture.runAsync(() -> {
+            await(start);
+            this.secondStore.enqueue(DEFINITION, second);
+        });
         start.countDown();
         CompletableFuture.allOf(firstEnqueue, secondEnqueue).join();
 
-        QueueClaim claim =
-                this.firstStore.claim(DEFINITION, "worker", Duration.ofSeconds(30)).orElseThrow();
+        QueueClaim claim = this.firstStore
+                .claim(DEFINITION, "worker", Duration.ofSeconds(30))
+                .orElseThrow();
 
         assertThat(claim.run().state()).isEqualTo(RunState.ALLOCATING);
         assertThat(claim.run().revision()).isZero();
         assertThat(claim.requests())
                 .extracting(StoredRequest::requestId)
                 .containsExactlyInAnyOrder("ticket-1", "ticket-2");
-        assertThat(claim.requests())
-                .extracting(StoredRequest::sequence)
-                .containsExactlyInAnyOrder(0L, 1L);
+        assertThat(claim.requests()).extracting(StoredRequest::sequence).containsExactlyInAnyOrder(0L, 1L);
         this.firstStore.release(claim);
     }
 
     @Test
     void onlyOneWorkerOwnsTheClaimAndAReleasedOwnerCannotCommitAfterTakeover() {
         this.firstStore.enqueue(DEFINITION, request("ticket-1"));
-        QueueClaim first =
-                this.firstStore.claim(DEFINITION, "worker-1", Duration.ofSeconds(30)).orElseThrow();
+        QueueClaim first = this.firstStore
+                .claim(DEFINITION, "worker-1", Duration.ofSeconds(30))
+                .orElseThrow();
 
         assertThat(this.secondStore.claim(DEFINITION, "worker-2", Duration.ofSeconds(30)))
                 .isEmpty();
         this.firstStore.release(first);
-        QueueClaim second =
-                this.secondStore
-                        .claim(DEFINITION, "worker-2", Duration.ofSeconds(30))
-                        .orElseThrow();
+        QueueClaim second = this.secondStore
+                .claim(DEFINITION, "worker-2", Duration.ofSeconds(30))
+                .orElseThrow();
 
-        RunRecord staleUpdate =
-                first.run().next(RunState.READY, "game-1", null, null, false, 0, false, null);
+        RunRecord staleUpdate = first.run().next(RunState.READY, "game-1", null, null, false, 0, false, null);
         assertThat(this.firstStore.commit(first, staleUpdate, List.of())).isEmpty();
         assertThat(second.run()).isEqualTo(first.run());
         this.secondStore.release(second);
@@ -125,22 +117,26 @@ class RedisQueueStoreIntegrationTest {
     @Test
     void expiredClaimAllowsTakeoverAndStaleReleaseCannotDeleteItsSuccessor() {
         this.firstStore.enqueue(DEFINITION, request("ticket-1"));
-        QueueClaim first =
-                this.firstStore.claim(DEFINITION, "worker-1", Duration.ofSeconds(30)).orElseThrow();
+        QueueClaim first = this.firstStore
+                .claim(DEFINITION, "worker-1", Duration.ofSeconds(30))
+                .orElseThrow();
         assertThat(this.firstStore.renew(first, Duration.ofSeconds(45))).isTrue();
 
-        String claimKey =
-                firstClient.getKeys().getKeysByPattern("echo:queue:*:claim").iterator().next();
+        String claimKey = firstClient
+                .getKeys()
+                .getKeysByPattern("echo:queue:*:claim")
+                .iterator()
+                .next();
         firstClient.getBucket(claimKey).delete();
-        QueueClaim second =
-                this.secondStore
-                        .claim(DEFINITION, "worker-2", Duration.ofSeconds(30))
-                        .orElseThrow();
+        QueueClaim second = this.secondStore
+                .claim(DEFINITION, "worker-2", Duration.ofSeconds(30))
+                .orElseThrow();
         this.firstStore.release(first);
 
         assertThat(this.firstStore.renew(first, Duration.ofSeconds(30))).isFalse();
         assertThat(this.secondStore.renew(second, Duration.ofSeconds(30))).isTrue();
-        assertThat(this.firstStore.claim(DEFINITION, "worker-3", Duration.ofSeconds(30))).isEmpty();
+        assertThat(this.firstStore.claim(DEFINITION, "worker-3", Duration.ofSeconds(30)))
+                .isEmpty();
         this.secondStore.release(second);
     }
 
@@ -150,14 +146,8 @@ class RedisQueueStoreIntegrationTest {
 
         assertThat(this.secondStore.enqueue(DEFINITION, request))
                 .isEqualTo(this.firstStore.enqueue(DEFINITION, request));
-        assertThatThrownBy(
-                        () ->
-                                this.secondStore.enqueue(
-                                        DEFINITION,
-                                        new QueueRequest(
-                                                request.requestId(),
-                                                QUEUE_ID,
-                                                Set.of(UUID.randomUUID()))))
+        assertThatThrownBy(() -> this.secondStore.enqueue(
+                        DEFINITION, new QueueRequest(request.requestId(), QUEUE_ID, Set.of(UUID.randomUUID()))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("different payload");
     }
@@ -168,8 +158,7 @@ class RedisQueueStoreIntegrationTest {
 
     private static RedissonClient client() {
         Config config = new Config();
-        config.useSingleServer()
-                .setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
+        config.useSingleServer().setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
         return Redisson.create(config);
     }
 

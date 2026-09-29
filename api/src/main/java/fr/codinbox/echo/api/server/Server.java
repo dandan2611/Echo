@@ -12,8 +12,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Represents a backend server (e.g. a Paper instance) in the Echo network.
  *
- * <p>A server is identified by a unique string ID (e.g. {@code "lobby-1"}, {@code "survival-2"})
- * and provides access to its connected users, custom properties, network address, and messaging.
+ * <p>A server is identified by a unique string ID (e.g. {@code "lobby-1"}, {@code "survival-2"}) and provides access to
+ * its connected users, custom properties, network address, and messaging.
  *
  * <pre>{@code
  * // Get a server and inspect it
@@ -36,35 +36,26 @@ import org.jetbrains.annotations.NotNull;
  * @see fr.codinbox.echo.api.EchoClient#getServerById(String)
  * @see fr.codinbox.echo.api.EchoClient#getServers()
  */
-public interface Server
-        extends Identifiable<String>,
-                UserHolder,
-                PropertyHolder,
-                MessageRouter,
-                Joinable,
-                Cleanable {
+public interface Server extends Identifiable<String>, UserHolder, PropertyHolder, MessageRouter, Joinable, Cleanable {
 
     /** Property used to persist availability across proxy restarts. */
-    @NotNull PropertyKey<String> PROPERTY_AVAILABILITY = new PropertyKey<>("availability");
+    @NotNull
+    PropertyKey<String> PROPERTY_AVAILABILITY = new PropertyKey<>("availability");
 
     /** Property containing the last server load snapshot. */
-    @NotNull PropertyKey<ServerLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
+    @NotNull
+    PropertyKey<ServerLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
 
     /**
      * Gets whether this live server accepts new players.
      *
-     * <p>Servers registered before availability was introduced default to {@link
-     * ServerAvailability#ACTIVE}.
+     * <p>Servers registered before availability was introduced default to {@link ServerAvailability#ACTIVE}.
      *
      * @return the server availability
      */
     default @NotNull EchoFuture<@NotNull ServerAvailability> getAvailability() {
-        return EchoFuture.of(
-                this.getProperty(PROPERTY_AVAILABILITY)
-                        .thenApply(
-                                value ->
-                                        value.map(ServerAvailability::valueOf)
-                                                .orElse(ServerAvailability.ACTIVE)));
+        return EchoFuture.of(this.getProperty(PROPERTY_AVAILABILITY)
+                .thenApply(value -> value.map(ServerAvailability::valueOf).orElse(ServerAvailability.ACTIVE)));
     }
 
     /** Returns the last server load snapshot, or empty when none was published. */
@@ -80,8 +71,8 @@ public interface Server
     /**
      * Checks whether this server still exists in the network.
      *
-     * <p>A server may no longer exist if it has been shut down or cleaned up by the healthcheck
-     * system since this object was retrieved.
+     * <p>A server may no longer exist if it has been shut down or cleaned up by the healthcheck system since this
+     * object was retrieved.
      *
      * <pre>{@code
      * boolean exists = server.stillExists().await();

@@ -9,8 +9,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * An async-first distributed map abstraction backed by the cache provider.
  *
- * <p>Instances are lightweight handles — safe to create repeatedly via {@link
- * CacheProvider#getMap(String)}. Thread safety is inherited from the backend implementation.
+ * <p>Instances are lightweight handles — safe to create repeatedly via {@link CacheProvider#getMap(String)}. Thread
+ * safety is inherited from the backend implementation.
  *
  * @param <K> the map key type
  * @param <V> the map value type

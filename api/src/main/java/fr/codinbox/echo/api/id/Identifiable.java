@@ -7,12 +7,10 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Represents a resource that has a unique identity and a creation timestamp.
  *
- * <p>All Echo network resources ({@link fr.codinbox.echo.api.user.User User}, {@link
- * fr.codinbox.echo.api.server.Server Server}, {@link fr.codinbox.echo.api.proxy.Proxy Proxy})
- * implement this interface.
+ * <p>All Echo network resources ({@link fr.codinbox.echo.api.user.User User}, {@link fr.codinbox.echo.api.server.Server
+ * Server}, {@link fr.codinbox.echo.api.proxy.Proxy Proxy}) implement this interface.
  *
- * @param <T> the type of the identifier (e.g. {@link java.util.UUID} for users, {@link String} for
- *     servers and proxies)
+ * @param <T> the type of the identifier (e.g. {@link java.util.UUID} for users, {@link String} for servers and proxies)
  */
 public interface Identifiable<T> {
 

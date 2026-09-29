@@ -43,63 +43,50 @@ class EchoClientImplTest {
         CompletableFuture<Void> propertyWrite = new CompletableFuture<>();
         CountDownLatch propertyStarted = new CountDownLatch(1);
         stubProviderLifecycle(cache);
-        when(cache.setObject(anyString(), any()))
-                .thenAnswer(
-                        invocation -> {
-                            String key = invocation.getArgument(0);
-                            if (key.equals("server:test-server:property:server_type")) {
-                                propertyStarted.countDown();
-                                return propertyWrite;
-                            }
-                            return CompletableFuture.completedFuture(null);
-                        });
+        when(cache.setObject(anyString(), any())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            if (key.equals("server:test-server:property:server_type")) {
+                propertyStarted.countDown();
+                return propertyWrite;
+            }
+            return CompletableFuture.completedFuture(null);
+        });
         when(cache.setObject(anyString(), any(), any(Duration.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        EchoClientImpl client =
-                createClient(cache, Map.of(new PropertyKey<>("server_type"), "lobby"));
+        EchoClientImpl client = createClient(cache, Map.of(new PropertyKey<>("server_type"), "lobby"));
         CompletableFuture<Void> creation =
-                CompletableFuture.runAsync(
-                        () -> client.createLocalResource(new Address("127.0.0.1", 25565)));
+                CompletableFuture.runAsync(() -> client.createLocalResource(new Address("127.0.0.1", 25565)));
 
         assertThat(propertyStarted.await(1, TimeUnit.SECONDS)).isTrue();
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
-        verify(cache, never())
-                .setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
 
         propertyWrite.complete(null);
         creation.join();
 
-        verify(cache)
-                .setObject(
-                        eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
+        verify(cache).setObject(eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
-        verify(cache, never())
-                .expireObject(eq("heartbeat:server:test-server"), any(Duration.class));
+        verify(cache, never()).expireObject(eq("heartbeat:server:test-server"), any(Duration.class));
     }
 
     @Test
     void createLocalResource_whenInitialPropertyFails_doesNotCreateHeartbeat() {
         CacheProvider cache = mock(CacheProvider.class);
         stubProviderLifecycle(cache);
-        when(cache.setObject(anyString(), any()))
-                .thenAnswer(
-                        invocation -> {
-                            String key = invocation.getArgument(0);
-                            if (key.equals("server:test-server:property:server_type"))
-                                return CompletableFuture.failedFuture(
-                                        new IllegalStateException("Redis unavailable"));
-                            return CompletableFuture.completedFuture(null);
-                        });
+        when(cache.setObject(anyString(), any())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            if (key.equals("server:test-server:property:server_type"))
+                return CompletableFuture.failedFuture(new IllegalStateException("Redis unavailable"));
+            return CompletableFuture.completedFuture(null);
+        });
 
-        EchoClientImpl client =
-                createClient(cache, Map.of(new PropertyKey<>("server_type"), "lobby"));
+        EchoClientImpl client = createClient(cache, Map.of(new PropertyKey<>("server_type"), "lobby"));
 
         assertThatThrownBy(() -> client.createLocalResource(new Address("127.0.0.1", 25565)))
                 .hasRootCauseMessage("Redis unavailable");
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
-        verify(cache, never())
-                .setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
+        verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any(), any(Duration.class));
     }
 
     @Test
@@ -114,9 +101,7 @@ class EchoClientImplTest {
 
         emitHeartbeat.invoke(client);
 
-        verify(cache)
-                .setObject(
-                        eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
+        verify(cache).setObject(eq("heartbeat:server:test-server"), anyLong(), eq(Duration.ofSeconds(30)));
         verify(cache, never()).setObject(eq("heartbeat:server:test-server"), any());
         verify(cache, never()).expireObject(anyString(), any(Duration.class));
     }
@@ -127,13 +112,10 @@ class EchoClientImplTest {
         CacheProvider cache = mock(CacheProvider.class);
         stubProviderLifecycle(cache);
         when(cache.<String>getObject("user:%s:property:username".formatted(userId)))
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new IllegalStateException("username lookup failed")));
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("username lookup failed")));
         EchoClientImpl client = createClient(cache, Map.of());
 
-        assertThatThrownBy(() -> client.getUserById(userId).join())
-                .hasRootCauseMessage("username lookup failed");
+        assertThatThrownBy(() -> client.getUserById(userId).join()).hasRootCauseMessage("username lookup failed");
     }
 
     @Test
@@ -167,15 +149,12 @@ class EchoClientImplTest {
         CacheMap<String, Long> proxyUsers = mock(CacheMap.class);
         stubProviderLifecycle(cache);
         stubLifecycleLock(cache);
-        when(cache.setObject(anyString(), any()))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(cache.setObject(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         when(cache.<String, String>getMap("users:username_to_id")).thenReturn(usernames);
         when(cache.<String, Long>getMap("users:map")).thenReturn(users);
         when(cache.<String, Long>getMap("proxy:proxy-1:users")).thenReturn(proxyUsers);
-        when(usernames.putAsync("alice", userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-        when(users.fastPutAsync(eq(userId.toString()), anyLong()))
-                .thenReturn(CompletableFuture.completedFuture(true));
+        when(usernames.putAsync("alice", userId.toString())).thenReturn(CompletableFuture.completedFuture(null));
+        when(users.fastPutAsync(eq(userId.toString()), anyLong())).thenReturn(CompletableFuture.completedFuture(true));
         when(proxyUsers.fastPutAsync(eq(userId.toString()), anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(true));
         EchoClientImpl client = createClient(cache, Map.of());
@@ -220,12 +199,9 @@ class EchoClientImplTest {
         when(cache.<String, Long>getMap("server:server-1:users")).thenReturn(serverUsers);
         when(cache.<String, Long>getMap("proxy:proxy-1:users")).thenReturn(proxyUsers);
         when(usernames.removeAsync("alice")).thenReturn(usernameRemoval);
-        when(users.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
-        when(serverUsers.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
-        when(proxyUsers.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
+        when(users.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
+        when(serverUsers.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
+        when(proxyUsers.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
         EchoClientImpl client = createClient(cache, Map.of());
         User user = user(userId, "session-1");
         when(user.cleanup()).thenReturn(EchoFuture.completed(null));
@@ -257,41 +233,31 @@ class EchoClientImplTest {
         when(cache.<String, Long>getMap("server:server-1:users")).thenReturn(serverUsers);
         when(cache.<String, Long>getMap("proxy:proxy-1:users")).thenReturn(proxyUsers);
         when(usernames.removeAsync("alice"))
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new IllegalStateException("index unavailable")));
-        when(users.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
-        when(serverUsers.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
-        when(proxyUsers.fastRemoveAsync(userId.toString()))
-                .thenReturn(CompletableFuture.completedFuture(1L));
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("index unavailable")));
+        when(users.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
+        when(serverUsers.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
+        when(proxyUsers.fastRemoveAsync(userId.toString())).thenReturn(CompletableFuture.completedFuture(1L));
         EchoClientImpl client = createClient(cache, Map.of());
         User user = user(userId, "session-1");
 
-        assertThatThrownBy(() -> client.destroyUser(user, "session-1").join())
-                .hasRootCauseMessage("index unavailable");
+        assertThatThrownBy(() -> client.destroyUser(user, "session-1").join()).hasRootCauseMessage("index unavailable");
         verify(user, never()).cleanup();
     }
 
-    private EchoClientImpl createClient(
-            CacheProvider cache, Map<PropertyKey<String>, String> properties) {
+    private EchoClientImpl createClient(CacheProvider cache, Map<PropertyKey<String>, String> properties) {
         return createClient(cache, properties, null);
     }
 
     private EchoClientImpl createClient(
-            CacheProvider cache,
-            Map<PropertyKey<String>, String> properties,
-            ServerPlacement placement) {
+            CacheProvider cache, Map<PropertyKey<String>, String> properties, ServerPlacement placement) {
         MessagingProvider messaging = mock(MessagingProvider.class);
         when(messaging.init()).thenReturn(CompletableFuture.completedFuture(null));
-        EchoConfig.Builder builder =
-                EchoConfig.builder()
-                        .cacheProviderFactory(() -> cache)
-                        .messagingProviderFactory(() -> messaging)
-                        .resourceType(EchoResourceType.SERVER)
-                        .resourceId("test-server")
-                        .initialProperties(properties);
+        EchoConfig.Builder builder = EchoConfig.builder()
+                .cacheProviderFactory(() -> cache)
+                .messagingProviderFactory(() -> messaging)
+                .resourceType(EchoResourceType.SERVER)
+                .resourceId("test-server")
+                .initialProperties(properties);
         if (placement != null) builder.serverPlacement(placement);
         return new EchoClientImpl(builder.build());
     }
@@ -302,11 +268,10 @@ class EchoClientImplTest {
 
     private void stubLifecycleLock(CacheProvider cache) {
         when(cache.withLock(anyString(), anyLong(), anyLong(), eq(TimeUnit.SECONDS), any()))
-                .thenAnswer(
-                        invocation -> {
-                            Supplier<CompletableFuture<Void>> action = invocation.getArgument(4);
-                            return action.get().thenApply(ignored -> true);
-                        });
+                .thenAnswer(invocation -> {
+                    Supplier<CompletableFuture<Void>> action = invocation.getArgument(4);
+                    return action.get().thenApply(ignored -> true);
+                });
     }
 
     private User user(UUID userId, String sessionId) {

@@ -17,11 +17,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Represents a player connected to the Echo network.
  *
- * <p>A user is identified by their Minecraft {@link UUID} and tracked across the network with
- * properties for their username, current proxy, current server, and previous server.
+ * <p>A user is identified by their Minecraft {@link UUID} and tracked across the network with properties for their
+ * username, current proxy, current server, and previous server.
  *
- * <p>Users also support arbitrary custom properties via the {@link PropertyHolder} interface, and
- * can be transferred between servers and proxies.
+ * <p>Users also support arbitrary custom properties via the {@link PropertyHolder} interface, and can be transferred
+ * between servers and proxies.
  *
  * <pre>{@code
  * // Get a user and read their info
@@ -42,13 +42,16 @@ import org.jetbrains.annotations.NotNull;
 public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
 
     /** Property key for the user's username. */
-    @NotNull PropertyKey<String> PROPERTY_USERNAME = new PropertyKey<>("username");
+    @NotNull
+    PropertyKey<String> PROPERTY_USERNAME = new PropertyKey<>("username");
 
     /** Property key for the identifier of the proxy the user is currently connected to. */
-    @NotNull PropertyKey<String> PROPERTY_CURRENT_PROXY_ID = new PropertyKey<>("current_proxy_id");
+    @NotNull
+    PropertyKey<String> PROPERTY_CURRENT_PROXY_ID = new PropertyKey<>("current_proxy_id");
 
     /** Property key for the token identifying the user's current login session. */
-    @NotNull PropertyKey<String> PROPERTY_SESSION_ID = new PropertyKey<>("session_id");
+    @NotNull
+    PropertyKey<String> PROPERTY_SESSION_ID = new PropertyKey<>("session_id");
 
     /** Property key for the identifier of the server the user is currently on. */
     @NotNull
@@ -102,8 +105,8 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
     /**
      * Gets the {@link Proxy} this user is currently connected to.
      *
-     * <p>This resolves the proxy ID to a full {@link Proxy} object. Returns empty if the user has
-     * no proxy ID set or if the proxy no longer exists.
+     * <p>This resolves the proxy ID to a full {@link Proxy} object. Returns empty if the user has no proxy ID set or if
+     * the proxy no longer exists.
      *
      * <pre>{@code
      * Optional<Proxy> proxy = user.getCurrentProxy().await();
@@ -113,15 +116,9 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * @return a future that completes with the proxy, or empty if not connected
      */
     default @NotNull EchoFuture<@NotNull Optional<Proxy>> getCurrentProxy() {
-        return EchoFuture.of(
-                this.getCurrentProxyId()
-                        .thenCompose(
-                                pIdOpt ->
-                                        pIdOpt.map(s -> Echo.getClient().getProxyById(s))
-                                                .orElseGet(
-                                                        () ->
-                                                                EchoFuture.completed(
-                                                                        Optional.empty()))));
+        return EchoFuture.of(this.getCurrentProxyId()
+                .thenCompose(pIdOpt -> pIdOpt.map(s -> Echo.getClient().getProxyById(s))
+                        .orElseGet(() -> EchoFuture.completed(Optional.empty()))));
     }
 
     /**
@@ -150,8 +147,8 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
     /**
      * Gets the {@link Server} this user is currently on.
      *
-     * <p>This resolves the server ID to a full {@link Server} object. Returns empty if the user has
-     * no server ID set or if the server no longer exists.
+     * <p>This resolves the server ID to a full {@link Server} object. Returns empty if the user has no server ID set or
+     * if the server no longer exists.
      *
      * <pre>{@code
      * Optional<Server> server = user.getCurrentServer().await();
@@ -161,16 +158,10 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * @return a future that completes with the server, or empty if not on a server
      */
     default @NotNull EchoFuture<@NotNull Optional<Server>> getCurrentServer() {
-        return EchoFuture.of(
-                this.getCurrentServerId()
-                        .thenCompose(
-                                serverIdOpt ->
-                                        serverIdOpt
-                                                .map(s -> Echo.getClient().getServerById(s))
-                                                .orElseGet(
-                                                        () ->
-                                                                EchoFuture.completed(
-                                                                        Optional.empty()))));
+        return EchoFuture.of(this.getCurrentServerId()
+                .thenCompose(serverIdOpt -> serverIdOpt
+                        .map(s -> Echo.getClient().getServerById(s))
+                        .orElseGet(() -> EchoFuture.completed(Optional.empty()))));
     }
 
     /**
@@ -201,8 +192,8 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
     /**
      * Requests to transfer this user to a different proxy.
      *
-     * <p>This sends a {@link fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest} to the user's
-     * current proxy, which will handle the connection transfer.
+     * <p>This sends a {@link fr.codinbox.echo.api.messaging.impl.ProxySwitchRequest} to the user's current proxy, which
+     * will handle the connection transfer.
      *
      * <pre>{@code
      * Proxy targetProxy = client.getProxyById("proxy-us").await().orElseThrow();
@@ -218,8 +209,8 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
     /**
      * Requests to transfer this user to a different server by its identifier.
      *
-     * <p>This sends a {@link ServerSwitchRequest} to the user's current proxy, which performs the
-     * actual server switch. The response indicates whether the transfer was successful.
+     * <p>This sends a {@link ServerSwitchRequest} to the user's current proxy, which performs the actual server switch.
+     * The response indicates whether the transfer was successful.
      *
      * <pre>{@code
      * ServerSwitchRequest.PlayerResponse resp = user.tryConnectToServer("survival-1").await();
@@ -236,8 +227,7 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * @see ServerSwitchRequest.ServerSwitchRequestStatus
      */
     @NotNull
-    EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(
-            final @NotNull String id);
+    EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull String id);
 
     /** Bounded variant for workflows that must recover from a missing proxy reply. */
     default @NotNull EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(
@@ -260,6 +250,5 @@ public interface User extends Identifiable<UUID>, PropertyHolder, Cleanable {
      * @see #tryConnectToServer(String)
      */
     @NotNull
-    EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(
-            final @NotNull Server server);
+    EchoFuture<ServerSwitchRequest.@NotNull PlayerResponse> tryConnectToServer(final @NotNull Server server);
 }

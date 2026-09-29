@@ -14,11 +14,10 @@ class EnvUtilsTest {
 
     @Test
     void getInitialProperties_extractsOnlyPrefixedVariables() {
-        Map<String, String> environment =
-                Map.of(
-                        "ECHO_RESOURCE_PROPERTY_server_type", "lobby",
-                        "ECHO_RESOURCE_PROPERTY_region", "eu-west",
-                        "ECHO_RESOURCE_ID", "lobby-1");
+        Map<String, String> environment = Map.of(
+                "ECHO_RESOURCE_PROPERTY_server_type", "lobby",
+                "ECHO_RESOURCE_PROPERTY_region", "eu-west",
+                "ECHO_RESOURCE_ID", "lobby-1");
 
         assertThat(EnvUtils.getInitialProperties(environment))
                 .containsOnly(
@@ -40,10 +39,7 @@ class EnvUtilsTest {
 
     @Test
     void getInitialProperties_rejectsEmptyPropertyKey() {
-        assertThatThrownBy(
-                        () ->
-                                EnvUtils.getInitialProperties(
-                                        Map.of("ECHO_RESOURCE_PROPERTY_", "value")))
+        assertThatThrownBy(() -> EnvUtils.getInitialProperties(Map.of("ECHO_RESOURCE_PROPERTY_", "value")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("property key");
     }

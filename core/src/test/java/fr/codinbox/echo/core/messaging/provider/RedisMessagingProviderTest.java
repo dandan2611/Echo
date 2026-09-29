@@ -45,20 +45,15 @@ class RedisMessagingProviderTest {
         lenient().when(mockConnection.getClient()).thenReturn(client);
         lenient().when(client.getTopic("target")).thenReturn(topic);
         lenient().when(topic.publishAsync(any(EchoMessage.class))).thenReturn(publishFuture);
-        lenient()
-                .when(publishFuture.toCompletableFuture())
-                .thenReturn(CompletableFuture.completedFuture(1L));
+        lenient().when(publishFuture.toCompletableFuture()).thenReturn(CompletableFuture.completedFuture(1L));
         lenient()
                 .when(topic.addListener(eq(EchoMessage.class), any(MessageListener.class)))
-                .thenAnswer(
-                        invocation -> {
-                            listener = invocation.getArgument(1);
-                            return 17;
-                        });
+                .thenAnswer(invocation -> {
+                    listener = invocation.getArgument(1);
+                    return 17;
+                });
         lenient().when(topic.removeListenerAsync(anyInt())).thenReturn(removeFuture);
-        lenient()
-                .when(removeFuture.toCompletableFuture())
-                .thenReturn(CompletableFuture.completedFuture(null));
+        lenient().when(removeFuture.toCompletableFuture()).thenReturn(CompletableFuture.completedFuture(null));
         provider = new RedisMessagingProvider(mockConnection);
     }
 
@@ -69,8 +64,7 @@ class RedisMessagingProviderTest {
         AtomicInteger secondCalls = new AtomicInteger();
         MessageHandler<EchoMessage> firstHandler = ignored -> firstCalls.incrementAndGet();
         Subscription first = provider.subscribe("target", firstHandler);
-        Subscription second =
-                provider.subscribe("target", ignored -> secondCalls.incrementAndGet());
+        Subscription second = provider.subscribe("target", ignored -> secondCalls.incrementAndGet());
 
         assertThat(first.getTopic()).isEqualTo("target");
         assertThat(first.getHandler()).isSameAs(firstHandler);
@@ -145,11 +139,9 @@ class RedisMessagingProviderTest {
 
         EchoMessage original = mock(EchoMessage.class);
         when(original.getMessageId()).thenReturn(messageId);
-        provider.waitForReply(
-                original,
-                msg -> {
-                    throw new RuntimeException("boom");
-                });
+        provider.waitForReply(original, msg -> {
+            throw new RuntimeException("boom");
+        });
 
         EchoMessage reply = mock(EchoMessage.class);
         when(reply.getMessageId()).thenReturn(messageId);
@@ -162,12 +154,10 @@ class RedisMessagingProviderTest {
     void request_registersBeforePublishingAndAcceptsOnce() {
         TestMessage request = request();
         TestResponse response = responseTo(request);
-        when(topic.publishAsync(request))
-                .thenAnswer(
-                        ignored -> {
-                            provider.handleReply(response);
-                            return publishFuture;
-                        });
+        when(topic.publishAsync(request)).thenAnswer(ignored -> {
+            provider.handleReply(response);
+            return publishFuture;
+        });
 
         EchoFuture<TestResponse> result =
                 provider.request("target", request, TestResponse.class, Duration.ofSeconds(1));
@@ -184,13 +174,7 @@ class RedisMessagingProviderTest {
         TestMessage duplicate = request();
         duplicate.setMessageId(first.getMessageId());
 
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                        "target",
-                                        duplicate,
-                                        TestResponse.class,
-                                        Duration.ofSeconds(30)))
+        assertThatThrownBy(() -> provider.request("target", duplicate, TestResponse.class, Duration.ofSeconds(30)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(first.getMessageId().toString());
 
@@ -207,33 +191,15 @@ class RedisMessagingProviderTest {
     @Test
     void request_rejectsInvalidTimeoutAndMissingReplyTopic() {
         TestMessage request = request();
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                        "target",
-                                        request,
-                                        TestResponse.class,
-                                        Duration.ofSeconds(-1)))
+        assertThatThrownBy(() -> provider.request("target", request, TestResponse.class, Duration.ofSeconds(-1)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                        "target", request, TestResponse.class, Duration.ZERO))
+        assertThatThrownBy(() -> provider.request("target", request, TestResponse.class, Duration.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                        "target", request, TestResponse.class, Duration.ofNanos(1)))
+        assertThatThrownBy(() -> provider.request("target", request, TestResponse.class, Duration.ofNanos(1)))
                 .isInstanceOf(IllegalArgumentException.class);
 
         request.setReplyTopic(null);
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                        "target",
-                                        request,
-                                        TestResponse.class,
-                                        Duration.ofSeconds(1)))
+        assertThatThrownBy(() -> provider.request("target", request, TestResponse.class, Duration.ofSeconds(1)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Request has no reply topic");
         verify(topic, never()).publishAsync(request);
@@ -243,34 +209,22 @@ class RedisMessagingProviderTest {
     void request_publishFailureFailsAndRemovesWaiter() {
         TestMessage first = request();
         when(publishFuture.toCompletableFuture())
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new IllegalStateException("publish failed")));
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("publish failed")));
 
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                                "target",
-                                                first,
-                                                TestResponse.class,
-                                                Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> provider.request("target", first, TestResponse.class, Duration.ofSeconds(1))
+                        .join())
                 .hasRootCauseMessage("publish failed");
 
         TestMessage replay = request();
         replay.setMessageId(first.getMessageId());
         when(publishFuture.toCompletableFuture()).thenReturn(CompletableFuture.completedFuture(1L));
         TestResponse response = responseTo(replay);
-        when(topic.publishAsync(replay))
-                .thenAnswer(
-                        ignored -> {
-                            provider.handleReply(response);
-                            return publishFuture;
-                        });
-        assertThat(
-                        provider.request(
-                                        "target", replay, TestResponse.class, Duration.ofSeconds(1))
-                                .join())
+        when(topic.publishAsync(replay)).thenAnswer(ignored -> {
+            provider.handleReply(response);
+            return publishFuture;
+        });
+        assertThat(provider.request("target", replay, TestResponse.class, Duration.ofSeconds(1))
+                        .join())
                 .isSameAs(response);
     }
 
@@ -295,22 +249,15 @@ class RedisMessagingProviderTest {
         TestMessage replay = request();
         replay.setMessageId(messageId);
         TestResponse response = responseTo(replay);
-        when(topic.publishAsync(replay))
-                .thenAnswer(
-                        ignored -> {
-                            provider.handleReply(response);
-                            return publishFuture;
-                        });
+        when(topic.publishAsync(replay)).thenAnswer(ignored -> {
+            provider.handleReply(response);
+            return publishFuture;
+        });
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
         while (true) {
             try {
-                assertThat(
-                                provider.request(
-                                                "target",
-                                                replay,
-                                                TestResponse.class,
-                                                Duration.ofSeconds(1))
-                                        .join())
+                assertThat(provider.request("target", replay, TestResponse.class, Duration.ofSeconds(1))
+                                .join())
                         .isSameAs(response);
                 return;
             } catch (IllegalStateException waiterStillCleaningUp) {

@@ -20,8 +20,7 @@ public record QueueOptions(
         requirePositive(paperAckTimeout, "paperAckTimeout");
         requirePositive(transferTimeout, "transferTimeout");
         requirePositive(transferReconciliationTimeout, "transferReconciliationTimeout");
-        if (reservationTtl.compareTo(paperAckTimeout) <= 0
-                || reservationTtl.compareTo(transferTimeout) <= 0)
+        if (reservationTtl.compareTo(paperAckTimeout) <= 0 || reservationTtl.compareTo(transferTimeout) <= 0)
             throw new IllegalArgumentException(
                     "reservationTtl must be longer than paperAckTimeout and transferTimeout");
         if (pollInterval.compareTo(transferTimeout) >= 0)

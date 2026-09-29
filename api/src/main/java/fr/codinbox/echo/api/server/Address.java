@@ -78,8 +78,7 @@ public class Address {
     public static @NotNull Address fromString(final @NotNull String address) {
         final String[] parts = address.split(":");
 
-        if (parts.length != 2)
-            throw new IllegalArgumentException("Invalid address format: " + address);
+        if (parts.length != 2) throw new IllegalArgumentException("Invalid address format: " + address);
         return new Address(parts[0], Integer.parseInt(parts[1]));
     }
 }

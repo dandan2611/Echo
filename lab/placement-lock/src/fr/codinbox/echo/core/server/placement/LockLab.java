@@ -69,45 +69,39 @@ public final class LockLab {
                     System.out.println(
                             "FAULT cause=" + error.getCause().getClass().getSimpleName());
             }
-            System.out.println(
-                    "AFTER FAULT holds="
-                            + observer.getMap("placement:lock", StringCodec.INSTANCE).readAllMap());
-            String events =
-                    HttpClient.newHttpClient()
-                            .send(
-                                    HttpRequest.newBuilder(
-                                                    URI.create("http://127.0.0.1:16381/events"))
-                                            .build(),
-                                    HttpResponse.BodyHandlers.ofString())
-                            .body();
+            System.out.println("AFTER FAULT holds="
+                    + observer.getMap("placement:lock", StringCodec.INSTANCE).readAllMap());
+            String events = HttpClient.newHttpClient()
+                    .send(
+                            HttpRequest.newBuilder(URI.create("http://127.0.0.1:16381/events"))
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofString())
+                    .body();
             if (!mode.equals("baseline") && !events.contains("[\"" + mode + "\"]"))
                 throw new AssertionError("Fault not injected: " + events);
             if (pause) {
                 Thread.sleep(defaults ? 34000 : 4000);
-                System.out.println(
-                        "IDLE AFTER TTL holds="
-                                + observer.getMap("placement:lock", StringCodec.INSTANCE)
-                                        .readAllMap());
+                System.out.println("IDLE AFTER TTL holds="
+                        + observer.getMap("placement:lock", StringCodec.INSTANCE)
+                                .readAllMap());
             }
             boolean allAdmitted = true;
             boolean lastAdmitted = false;
             for (int i = 0; i < (defaults ? 34 : 12); i++) {
                 Thread.sleep(defaults ? 1000 : 400);
-                publisher.publishAdmission(
-                        "lab-sg", snapshot()); // same ordered writer/thread as Paper
+                publisher.publishAdmission("lab-sg", snapshot()); // same ordered writer/thread as Paper
                 boolean admitted = lobby.admit("lab-lobby", UUID.randomUUID(), false, snapshot());
                 allAdmitted &= admitted;
                 lastAdmitted = admitted;
-                System.out.println(
-                        "TICK "
-                                + i
-                                + " holds="
-                                + observer.getMap("placement:lock", StringCodec.INSTANCE)
-                                        .readAllMap()
-                                + " ttl="
-                                + observer.getLock("placement:lock").remainTimeToLive()
-                                + " emptyLobbyAdmits="
-                                + admitted);
+                System.out.println("TICK "
+                        + i
+                        + " holds="
+                        + observer.getMap("placement:lock", StringCodec.INSTANCE)
+                                .readAllMap()
+                        + " ttl="
+                        + observer.getLock("placement:lock").remainTimeToLive()
+                        + " emptyLobbyAdmits="
+                        + admitted);
             }
             System.out.println("INJECTOR " + events);
             if (!lastAdmitted)

@@ -35,8 +35,7 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.setObject(anyString(), any()))
-                    .thenReturn(CompletableFuture.completedFuture(null));
+            when(mockCache.setObject(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             holder.setProperty("key", "value");
@@ -52,8 +51,7 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.deleteObject(anyString()))
-                    .thenReturn(CompletableFuture.completedFuture(true));
+            when(mockCache.deleteObject(anyString())).thenReturn(CompletableFuture.completedFuture(true));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             holder.setProperty("key", null);
@@ -86,8 +84,7 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.deleteObject("test:myId:property:key"))
-                    .thenReturn(CompletableFuture.completedFuture(true));
+            when(mockCache.deleteObject("test:myId:property:key")).thenReturn(CompletableFuture.completedFuture(true));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             boolean result = holder.deleteProperty("key").join();
@@ -104,8 +101,7 @@ class AbstractPropertyHolderTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.hasObject("test:myId:property:key"))
-                    .thenReturn(CompletableFuture.completedFuture(true));
+            when(mockCache.hasObject("test:myId:property:key")).thenReturn(CompletableFuture.completedFuture(true));
 
             TestPropertyHolder holder = new TestPropertyHolder("myId");
             boolean result = holder.hasProperty("key").join();

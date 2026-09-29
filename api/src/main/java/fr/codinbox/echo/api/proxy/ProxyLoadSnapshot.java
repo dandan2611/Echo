@@ -18,13 +18,9 @@ public record ProxyLoadSnapshot(
     public ProxyLoadSnapshot {
         Objects.requireNonNull(sampledAt, "sampledAt");
         Objects.requireNonNull(validUntil, "validUntil");
-        if (totalCount < 0
-                || nonStaffCount < 0
-                || nonStaffCount > totalCount
-                || scaleOutThreshold <= 0)
+        if (totalCount < 0 || nonStaffCount < 0 || nonStaffCount > totalCount || scaleOutThreshold <= 0)
             throw new IllegalArgumentException("Invalid proxy counts or threshold");
-        if (!validUntil.isAfter(sampledAt))
-            throw new IllegalArgumentException("validUntil must follow sampledAt");
+        if (!validUntil.isAfter(sampledAt)) throw new IllegalArgumentException("validUntil must follow sampledAt");
     }
 
     public boolean isStale(final @NotNull Instant now) {

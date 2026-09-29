@@ -48,68 +48,47 @@ final class RedisQueueStore implements QueueStore {
 
     @Override
     public QueueRequestStatus enqueue(QueueDefinition definition, QueueRequest request) {
-        return this.locked(
-                definition.id(),
-                () -> {
-                    QueueState state = this.read(definition.id());
-                    StoredRequest existing = state.requests().get(request.requestId());
-                    if (existing != null) {
-                        if (!existing.samePayload(request))
-                            throw new IllegalStateException(
-                                    "Queue request ID has a different payload: "
-                                            + request.requestId());
-                        return existing.toStatus();
-                    }
-                    for (StoredRequest active : state.requests().values()) {
-                        if (!active.terminal()
-                                && active.members().stream().anyMatch(request.members()::contains))
-                            throw new IllegalStateException(
-                                    "A member already has an active request in this queue");
-                    }
+        return this.locked(definition.id(), () -> {
+            QueueState state = this.read(definition.id());
+            StoredRequest existing = state.requests().get(request.requestId());
+            if (existing != null) {
+                if (!existing.samePayload(request))
+                    throw new IllegalStateException("Queue request ID has a different payload: " + request.requestId());
+                return existing.toStatus();
+            }
+            for (StoredRequest active : state.requests().values()) {
+                if (!active.terminal() && active.members().stream().anyMatch(request.members()::contains))
+                    throw new IllegalStateException("A member already has an active request in this queue");
+            }
 
-                    StoredRequest added =
-                            StoredRequest.queued(
-                                    request, state.nextSequence(), this.clock.millis());
-                    Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
-                    requests.put(request.requestId(), added);
-                    RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
-                    this.write(
-                            definition.id(),
-                            state.withContent(state.nextSequence() + 1, requests, run));
-                    return added.toStatus();
-                });
+            StoredRequest added = StoredRequest.queued(request, state.nextSequence(), this.clock.millis());
+            Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
+            requests.put(request.requestId(), added);
+            RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
+            this.write(definition.id(), state.withContent(state.nextSequence() + 1, requests, run));
+            return added.toStatus();
+        });
     }
 
     @Override
     public Optional<QueueRequestStatus> get(QueueId queueId, String requestId) {
-        return Optional.ofNullable(this.read(queueId).requests().get(requestId))
-                .map(StoredRequest::toStatus);
+        return Optional.ofNullable(this.read(queueId).requests().get(requestId)).map(StoredRequest::toStatus);
     }
 
     @Override
     public boolean cancel(QueueId queueId, String requestId) {
-        return this.locked(
-                queueId,
-                () -> {
-                    QueueState state = this.read(queueId);
-                    StoredRequest request = state.requests().get(requestId);
-                    if (request == null || request.state() != QueueRequestStatus.State.QUEUED)
-                        return false;
-                    Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
-                    requests.put(
-                            requestId,
-                            request.withState(
-                                            QueueRequestStatus.State.CANCELLED,
-                                            null,
-                                            null,
-                                            Map.of(),
-                                            null)
-                                    .withUpdatedAt(this.clock.millis()));
-                    this.write(
-                            queueId,
-                            state.withContent(state.nextSequence(), requests, state.run()));
-                    return true;
-                });
+        return this.locked(queueId, () -> {
+            QueueState state = this.read(queueId);
+            StoredRequest request = state.requests().get(requestId);
+            if (request == null || request.state() != QueueRequestStatus.State.QUEUED) return false;
+            Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
+            requests.put(
+                    requestId,
+                    request.withState(QueueRequestStatus.State.CANCELLED, null, null, Map.of(), null)
+                            .withUpdatedAt(this.clock.millis()));
+            this.write(queueId, state.withContent(state.nextSequence(), requests, state.run()));
+            return true;
+        });
     }
 
     @Override
@@ -129,191 +108,142 @@ final class RedisQueueStore implements QueueStore {
 
     @Override
     public boolean pause(QueueId queueId, String reason) {
-        return this.locked(
-                queueId,
-                () -> {
-                    QueueState state = this.read(queueId);
-                    if (state.paused() && reason.equals(state.pauseReason())) return false;
-                    this.write(queueId, state.withPause(true, reason));
-                    return true;
-                });
+        return this.locked(queueId, () -> {
+            QueueState state = this.read(queueId);
+            if (state.paused() && reason.equals(state.pauseReason())) return false;
+            this.write(queueId, state.withPause(true, reason));
+            return true;
+        });
     }
 
     @Override
     public boolean resume(QueueId queueId) {
-        return this.locked(
-                queueId,
-                () -> {
-                    QueueState state = this.read(queueId);
-                    if (!state.paused()) return false;
-                    this.write(queueId, state.withPause(false, null));
-                    return true;
-                });
+        return this.locked(queueId, () -> {
+            QueueState state = this.read(queueId);
+            if (!state.paused()) return false;
+            this.write(queueId, state.withPause(false, null));
+            return true;
+        });
     }
 
     @Override
     public boolean retry(QueueId queueId, String requestId) {
-        return this.locked(
-                queueId,
-                () -> {
-                    QueueState state = this.read(queueId);
-                    StoredRequest request = state.requests().get(requestId);
-                    if (request == null
-                            || request.state() != QueueRequestStatus.State.FAILED
-                                    && request.state() != QueueRequestStatus.State.CANCELLED)
-                        return false;
-                    if (state.run() != null && requestId.equals(state.run().activeRequestId()))
-                        return false;
-                    for (StoredRequest active : state.requests().values()) {
-                        if (active != request
-                                && !active.terminal()
-                                && active.members().stream().anyMatch(request.members()::contains))
-                            throw new IllegalStateException(
-                                    "A member already has an active request in this queue");
-                    }
+        return this.locked(queueId, () -> {
+            QueueState state = this.read(queueId);
+            StoredRequest request = state.requests().get(requestId);
+            if (request == null
+                    || request.state() != QueueRequestStatus.State.FAILED
+                            && request.state() != QueueRequestStatus.State.CANCELLED) return false;
+            if (state.run() != null && requestId.equals(state.run().activeRequestId())) return false;
+            for (StoredRequest active : state.requests().values()) {
+                if (active != request
+                        && !active.terminal()
+                        && active.members().stream().anyMatch(request.members()::contains))
+                    throw new IllegalStateException("A member already has an active request in this queue");
+            }
 
-                    Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
-                    requests.put(
-                            requestId, request.requeued(state.nextSequence(), this.clock.millis()));
-                    RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
-                    this.write(queueId, state.withContent(state.nextSequence() + 1, requests, run));
-                    return true;
-                });
+            Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
+            requests.put(requestId, request.requeued(state.nextSequence(), this.clock.millis()));
+            RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
+            this.write(queueId, state.withContent(state.nextSequence() + 1, requests, run));
+            return true;
+        });
     }
 
     @Override
     public int purgeTerminal(QueueId queueId, Instant cutoff) {
-        return this.locked(
-                queueId,
-                () -> {
-                    QueueState state = this.read(queueId);
-                    String activeRequestId =
-                            state.run() == null ? null : state.run().activeRequestId();
-                    Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
-                    int before = requests.size();
-                    requests.values()
-                            .removeIf(
-                                    request ->
-                                            request.terminal()
-                                                    && request.updatedAtEpochMillis() != null
-                                                    && request.updatedAtEpochMillis()
-                                                            < cutoff.toEpochMilli()
-                                                    && !request.requestId()
-                                                            .equals(activeRequestId));
-                    int removed = before - requests.size();
-                    if (removed > 0)
-                        this.write(
-                                queueId,
-                                state.withContent(state.nextSequence(), requests, state.run()));
-                    return removed;
-                });
+        return this.locked(queueId, () -> {
+            QueueState state = this.read(queueId);
+            String activeRequestId = state.run() == null ? null : state.run().activeRequestId();
+            Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
+            int before = requests.size();
+            requests.values()
+                    .removeIf(request -> request.terminal()
+                            && request.updatedAtEpochMillis() != null
+                            && request.updatedAtEpochMillis() < cutoff.toEpochMilli()
+                            && !request.requestId().equals(activeRequestId));
+            int removed = before - requests.size();
+            if (removed > 0) this.write(queueId, state.withContent(state.nextSequence(), requests, state.run()));
+            return removed;
+        });
     }
 
     @Override
     public Optional<QueueClaim> claim(QueueDefinition definition, String workerId, Duration ttl) {
         String token = workerId + ":" + UUID.randomUUID();
-        return this.locked(
-                definition.id(),
-                () -> {
-                    QueueState state = this.read(definition.id());
-                    if (state.paused()) return Optional.empty();
-                    RBucket<String> claim = this.bucket(definition.id(), "claim");
-                    if (!claim.trySet(token, ttl.toMillis(), TimeUnit.MILLISECONDS))
-                        return Optional.empty();
-                    try {
-                        boolean queued =
-                                state.requests().values().stream()
-                                        .anyMatch(
-                                                request ->
-                                                        request.state()
-                                                                == QueueRequestStatus.State.QUEUED);
-                        RunRecord run = state.run();
-                        if (run == null && queued) {
-                            run = RunRecord.allocating();
-                            state = state.withContent(state.nextSequence(), state.requests(), run);
-                            this.write(definition.id(), state);
-                        }
-                        boolean freshUnusedServer =
-                                run != null && run.state() == RunState.READY && !run.handedOff();
-                        if (run == null
-                                || (run.state() == RunState.READY
-                                        && !queued
-                                        && !freshUnusedServer)) {
-                            this.deleteClaim(definition.id(), token);
-                            return Optional.empty();
-                        }
-                        return Optional.of(
-                                new QueueClaim(
-                                        definition.id(),
-                                        token,
-                                        run,
-                                        List.copyOf(state.requests().values())));
-                    } catch (RuntimeException error) {
-                        this.deleteClaim(definition.id(), token);
-                        throw error;
-                    }
-                });
+        return this.locked(definition.id(), () -> {
+            QueueState state = this.read(definition.id());
+            if (state.paused()) return Optional.empty();
+            RBucket<String> claim = this.bucket(definition.id(), "claim");
+            if (!claim.trySet(token, ttl.toMillis(), TimeUnit.MILLISECONDS)) return Optional.empty();
+            try {
+                boolean queued = state.requests().values().stream()
+                        .anyMatch(request -> request.state() == QueueRequestStatus.State.QUEUED);
+                RunRecord run = state.run();
+                if (run == null && queued) {
+                    run = RunRecord.allocating();
+                    state = state.withContent(state.nextSequence(), state.requests(), run);
+                    this.write(definition.id(), state);
+                }
+                boolean freshUnusedServer = run != null && run.state() == RunState.READY && !run.handedOff();
+                if (run == null || (run.state() == RunState.READY && !queued && !freshUnusedServer)) {
+                    this.deleteClaim(definition.id(), token);
+                    return Optional.empty();
+                }
+                return Optional.of(new QueueClaim(
+                        definition.id(),
+                        token,
+                        run,
+                        List.copyOf(state.requests().values())));
+            } catch (RuntimeException error) {
+                this.deleteClaim(definition.id(), token);
+                throw error;
+            }
+        });
     }
 
     @Override
-    public Optional<QueueClaim> commit(
-            QueueClaim expected, RunRecord next, Collection<StoredRequest> updates) {
-        return this.locked(
-                expected.queueId(),
-                () -> {
-                    if (!expected.token().equals(this.bucket(expected.queueId(), "claim").get()))
-                        return Optional.empty();
-                    QueueState state = this.read(expected.queueId());
-                    RunRecord current = state.run();
-                    if (current == null
-                            || current.revision() != expected.run().revision()
-                            || !current.placementId().equals(expected.run().placementId()))
-                        return Optional.empty();
-                    if (next != null && next.revision() != current.revision() + 1)
-                        throw new IllegalArgumentException(
-                                "The next run revision must increment by one");
+    public Optional<QueueClaim> commit(QueueClaim expected, RunRecord next, Collection<StoredRequest> updates) {
+        return this.locked(expected.queueId(), () -> {
+            if (!expected.token()
+                    .equals(this.bucket(expected.queueId(), "claim").get())) return Optional.empty();
+            QueueState state = this.read(expected.queueId());
+            RunRecord current = state.run();
+            if (current == null
+                    || current.revision() != expected.run().revision()
+                    || !current.placementId().equals(expected.run().placementId())) return Optional.empty();
+            if (next != null && next.revision() != current.revision() + 1)
+                throw new IllegalArgumentException("The next run revision must increment by one");
 
-                    Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
-                    long updatedAt = this.clock.millis();
-                    for (StoredRequest update : updates) {
-                        StoredRequest previous = requests.get(update.requestId());
-                        if (previous == null || update.version() != previous.version() + 1)
-                            throw new IllegalArgumentException(
-                                    "The request version must increment by one: "
-                                            + update.requestId());
-                        requests.put(update.requestId(), update.withUpdatedAt(updatedAt));
-                    }
-                    this.write(
-                            expected.queueId(),
-                            state.withContent(state.nextSequence(), requests, next));
-                    return Optional.of(
-                            new QueueClaim(
-                                    expected.queueId(),
-                                    expected.token(),
-                                    next,
-                                    List.copyOf(requests.values())));
-                });
+            Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
+            long updatedAt = this.clock.millis();
+            for (StoredRequest update : updates) {
+                StoredRequest previous = requests.get(update.requestId());
+                if (previous == null || update.version() != previous.version() + 1)
+                    throw new IllegalArgumentException(
+                            "The request version must increment by one: " + update.requestId());
+                requests.put(update.requestId(), update.withUpdatedAt(updatedAt));
+            }
+            this.write(expected.queueId(), state.withContent(state.nextSequence(), requests, next));
+            return Optional.of(
+                    new QueueClaim(expected.queueId(), expected.token(), next, List.copyOf(requests.values())));
+        });
     }
 
     @Override
     public boolean renew(QueueClaim expected, Duration ttl) {
-        return this.locked(
-                expected.queueId(),
-                () -> {
-                    RBucket<String> claim = this.bucket(expected.queueId(), "claim");
-                    return expected.token().equals(claim.get())
-                            && claim.expire(ttl.toMillis(), TimeUnit.MILLISECONDS);
-                });
+        return this.locked(expected.queueId(), () -> {
+            RBucket<String> claim = this.bucket(expected.queueId(), "claim");
+            return expected.token().equals(claim.get()) && claim.expire(ttl.toMillis(), TimeUnit.MILLISECONDS);
+        });
     }
 
     @Override
     public void release(QueueClaim claim) {
-        this.locked(
-                claim.queueId(),
-                () -> {
-                    this.deleteClaim(claim.queueId(), claim.token());
-                    return null;
-                });
+        this.locked(claim.queueId(), () -> {
+            this.deleteClaim(claim.queueId(), claim.token());
+            return null;
+        });
     }
 
     @Override
@@ -325,8 +255,7 @@ final class RedisQueueStore implements QueueStore {
         try {
             QueueState state = this.mapper.readValue(value, QueueState.class);
             if (state.formatVersion() != 1)
-                throw new IllegalStateException(
-                        "Unsupported queue state format: " + state.formatVersion());
+                throw new IllegalStateException("Unsupported queue state format: " + state.formatVersion());
             return state;
         } catch (JsonProcessingException error) {
             throw new IllegalStateException("Corrupt queue state for " + queueId, error);
@@ -363,9 +292,7 @@ final class RedisQueueStore implements QueueStore {
     private static String hash(String value) {
         try {
             return HexFormat.of()
-                    .formatHex(
-                            MessageDigest.getInstance("SHA-256")
-                                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);
         }
@@ -393,8 +320,7 @@ interface QueueStore extends AutoCloseable {
 
     Optional<QueueClaim> claim(QueueDefinition definition, String workerId, Duration ttl);
 
-    Optional<QueueClaim> commit(
-            QueueClaim expected, RunRecord next, Collection<StoredRequest> updates);
+    Optional<QueueClaim> commit(QueueClaim expected, RunRecord next, Collection<StoredRequest> updates);
 
     boolean renew(QueueClaim expected, Duration ttl);
 
@@ -416,13 +342,11 @@ record QueueState(
     }
 
     QueueState withContent(long nextSequence, Map<String, StoredRequest> requests, RunRecord run) {
-        return new QueueState(
-                this.formatVersion, nextSequence, requests, run, this.paused, this.pauseReason);
+        return new QueueState(this.formatVersion, nextSequence, requests, run, this.paused, this.pauseReason);
     }
 
     QueueState withPause(boolean paused, String reason) {
-        return new QueueState(
-                this.formatVersion, this.nextSequence, this.requests, this.run, paused, reason);
+        return new QueueState(this.formatVersion, this.nextSequence, this.requests, this.run, paused, reason);
     }
 }
 
@@ -475,8 +399,7 @@ record StoredRequest(
             Map<UUID, ServerSwitchRequest.PlayerResponse> newResponses,
             String newFailure) {
         Map<UUID, StoredPlayerResponse> storedResponses = new LinkedHashMap<>();
-        newResponses.forEach(
-                (id, response) -> storedResponses.put(id, StoredPlayerResponse.from(response)));
+        newResponses.forEach((id, response) -> storedResponses.put(id, StoredPlayerResponse.from(response)));
         return new StoredRequest(
                 this.sequence,
                 this.requestId,
@@ -539,9 +462,7 @@ record StoredRequest(
 
     QueueAdministration.QueueTicket toTicket() {
         return new QueueAdministration.QueueTicket(
-                this.toStatus(),
-                instant(this.createdAtEpochMillis),
-                instant(this.updatedAtEpochMillis));
+                this.toStatus(), instant(this.createdAtEpochMillis), instant(this.updatedAtEpochMillis));
     }
 
     private static Instant instant(Long epochMillis) {
@@ -550,17 +471,13 @@ record StoredRequest(
 }
 
 record StoredPlayerResponse(
-        boolean successful,
-        ServerSwitchRequest.ServerSwitchRequestStatus status,
-        String serializedReason) {
+        boolean successful, ServerSwitchRequest.ServerSwitchRequestStatus status, String serializedReason) {
     static StoredPlayerResponse from(ServerSwitchRequest.PlayerResponse response) {
-        return new StoredPlayerResponse(
-                response.isSuccessful(), response.getStatus(), response.getSerializedReason());
+        return new StoredPlayerResponse(response.isSuccessful(), response.getStatus(), response.getSerializedReason());
     }
 
     ServerSwitchRequest.PlayerResponse toResponse() {
-        return new ServerSwitchRequest.PlayerResponse(
-                this.successful, this.status, this.serializedReason);
+        return new ServerSwitchRequest.PlayerResponse(this.successful, this.status, this.serializedReason);
     }
 }
 
@@ -575,11 +492,7 @@ enum RunState {
 }
 
 record StoredReservation(
-        String requestId,
-        String token,
-        String serverId,
-        Set<UUID> members,
-        long expiresAtEpochMillis) {
+        String requestId, String token, String serverId, Set<UUID> members, long expiresAtEpochMillis) {
     static StoredReservation from(ServerPlacement.Reservation reservation) {
         return new StoredReservation(
                 reservation.requestId(),
@@ -613,18 +526,7 @@ record RunRecord(
         String abortFailure) {
 
     static RunRecord allocating() {
-        return new RunRecord(
-                UUID.randomUUID(),
-                0,
-                RunState.ALLOCATING,
-                null,
-                null,
-                null,
-                false,
-                0,
-                0,
-                false,
-                null);
+        return new RunRecord(UUID.randomUUID(), 0, RunState.ALLOCATING, null, null, null, false, 0, 0, false, null);
     }
 
     RunRecord preparing(
@@ -656,10 +558,9 @@ record RunRecord(
             long nextDeadline,
             boolean nextTerminateOnAbort,
             String nextAbortFailure) {
-        long preparationDeadline =
-                nextState == RunState.PREPARING || nextState == RunState.PREPARED
-                        ? this.preparationDeadlineEpochMillis
-                        : 0;
+        long preparationDeadline = nextState == RunState.PREPARING || nextState == RunState.PREPARED
+                ? this.preparationDeadlineEpochMillis
+                : 0;
         return new RunRecord(
                 this.placementId,
                 this.revision + 1,
@@ -677,5 +578,4 @@ record RunRecord(
 
 record QueueClaim(QueueId queueId, String token, RunRecord run, List<StoredRequest> requests) {}
 
-record QueueSnapshot(
-        boolean paused, String pauseReason, List<StoredRequest> requests, RunRecord run) {}
+record QueueSnapshot(boolean paused, String pauseReason, List<StoredRequest> requests, RunRecord run) {}

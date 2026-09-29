@@ -43,9 +43,7 @@ class ProxyImplTest {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.setObject(eq("proxy:testProxy:address"), any(Address.class)))
-                    .thenReturn(
-                            CompletableFuture.failedFuture(
-                                    new IllegalStateException("write failed")));
+                    .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("write failed")));
 
             assertThatThrownBy(() -> new ProxyImpl("testProxy", new Address("127.0.0.1", 25565)))
                     .hasRootCauseMessage("write failed");
@@ -59,8 +57,7 @@ class ProxyImplTest {
             CacheProvider mockCache = mock(CacheProvider.class);
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
-            when(mockCache.hasObject("heartbeat:proxy:testProxy"))
-                    .thenReturn(CompletableFuture.completedFuture(true));
+            when(mockCache.hasObject("heartbeat:proxy:testProxy")).thenReturn(CompletableFuture.completedFuture(true));
 
             ProxyImpl proxy = new ProxyImpl("testProxy", null);
             boolean result = proxy.stillExists().join();

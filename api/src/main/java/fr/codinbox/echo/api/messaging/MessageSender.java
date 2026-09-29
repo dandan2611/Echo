@@ -6,8 +6,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A resource that can send (publish) messages to targets on the network.
  *
- * <p>Implemented by {@link fr.codinbox.echo.api.server.Server Server} and {@link
- * fr.codinbox.echo.api.proxy.Proxy Proxy} via {@link MessageRouter}.
+ * <p>Implemented by {@link fr.codinbox.echo.api.server.Server Server} and {@link fr.codinbox.echo.api.proxy.Proxy
+ * Proxy} via {@link MessageRouter}.
  *
  * <pre>{@code
  * MessageTarget target = MessageTarget.server("lobby-1");
@@ -32,6 +32,5 @@ public interface MessageSender {
      * @return a future that completes when the message has been published
      */
     @NotNull
-    EchoFuture<Void> publishMessage(
-            final @NotNull MessageTarget target, final @NotNull EchoMessage message);
+    EchoFuture<Void> publishMessage(final @NotNull MessageTarget target, final @NotNull EchoMessage message);
 }

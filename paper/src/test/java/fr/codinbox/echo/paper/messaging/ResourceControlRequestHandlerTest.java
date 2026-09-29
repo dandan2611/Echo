@@ -61,11 +61,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.INVALID_REQUEST,
-                "action is required");
+        assertResponse(request, false, ResourceControlRequest.Status.INVALID_REQUEST, "action is required");
         verifyNoInteractions(this.plugin);
         verify(this.echo, never()).getCurrentResourceType();
     }
@@ -77,11 +73,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.WRONG_TARGET,
-                "Request targets another resource");
+        assertResponse(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
         verifyNoInteractions(this.plugin);
         verify(this.echo, never()).getCurrentResourceType();
     }
@@ -93,11 +85,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.WRONG_TARGET,
-                "Request targets another resource");
+        assertResponse(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
         verifyNoInteractions(this.plugin);
         verify(this.echo, never()).getCurrentResourceId();
     }
@@ -109,11 +97,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.WRONG_TARGET,
-                "Request targets another resource");
+        assertResponse(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
         verifyNoInteractions(this.plugin);
     }
 
@@ -124,11 +108,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.WRONG_TARGET,
-                "Request targets another resource");
+        assertResponse(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
         verifyNoInteractions(this.plugin);
     }
 
@@ -149,11 +129,7 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.INVALID_REQUEST,
-                "deadline is too large");
+        assertResponse(request, false, ResourceControlRequest.Status.INVALID_REQUEST, "deadline is too large");
         verifyNoInteractions(this.plugin);
     }
 
@@ -167,10 +143,8 @@ class ResourceControlRequestHandlerTest {
         this.handler.onReceive(shutdown);
         this.handler.onReceive(activate);
 
-        assertResponse(
-                shutdown, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
-        assertResponse(
-                activate, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
+        assertResponse(shutdown, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
+        assertResponse(activate, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
         verifyNoInteractions(this.plugin);
     }
 
@@ -183,22 +157,18 @@ class ResourceControlRequestHandlerTest {
 
         verify(this.plugin).beginDrain();
         verify(this.plugin, never()).beginDrain(any(Instant.class));
-        assertResponse(
-                request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
+        assertResponse(request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
     }
 
     @Test
     void relativeDeadlineIsResolvedAgainstTheHandlerClock() {
-        ResourceControlRequest request =
-                request(ResourceControlRequest.Action.DRAIN, Duration.ofSeconds(30));
-        when(this.plugin.beginDrain(NOW.plusSeconds(30)))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN, Duration.ofSeconds(30));
+        when(this.plugin.beginDrain(NOW.plusSeconds(30))).thenReturn(CompletableFuture.completedFuture(null));
 
         this.handler.onReceive(request);
 
         verify(this.plugin).beginDrain(NOW.plusSeconds(30));
-        assertResponse(
-                request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
+        assertResponse(request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
     }
 
     @Test
@@ -210,8 +180,7 @@ class ResourceControlRequestHandlerTest {
         this.handler.onReceive(request);
 
         verify(this.plugin).beginDrain(deadline);
-        assertResponse(
-                request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
+        assertResponse(request, true, ResourceControlRequest.Status.ACCEPTED, "Server drain started");
     }
 
     @Test
@@ -223,10 +192,8 @@ class ResourceControlRequestHandlerTest {
         this.handler.onReceive(request);
 
         verify(request, never()).reply(any(ResourceControlRequest.Response.class));
-        refreshed.complete(
-                new ServerLoadSnapshot(new ServerLoad(0, true), NOW, NOW.plusSeconds(1)));
-        assertResponse(
-                request, true, ResourceControlRequest.Status.ACCEPTED, "Server load refreshed");
+        refreshed.complete(new ServerLoadSnapshot(new ServerLoad(0, true), NOW, NOW.plusSeconds(1)));
+        assertResponse(request, true, ResourceControlRequest.Status.ACCEPTED, "Server load refreshed");
     }
 
     @Test
@@ -234,19 +201,13 @@ class ResourceControlRequestHandlerTest {
         ResourceControlRequest accepted = request(ResourceControlRequest.Action.ACTIVATE);
         ResourceControlRequest rejected = request(ResourceControlRequest.Action.ACTIVATE);
         when(this.plugin.activate())
-                .thenReturn(
-                        CompletableFuture.completedFuture(true),
-                        CompletableFuture.completedFuture(false));
+                .thenReturn(CompletableFuture.completedFuture(true), CompletableFuture.completedFuture(false));
 
         this.handler.onReceive(accepted);
         this.handler.onReceive(rejected);
 
         assertResponse(accepted, true, ResourceControlRequest.Status.ACCEPTED, "Server activated");
-        assertResponse(
-                rejected,
-                false,
-                ResourceControlRequest.Status.NOT_ALLOWED,
-                "Server is stopping or draining");
+        assertResponse(rejected, false, ResourceControlRequest.Status.NOT_ALLOWED, "Server is stopping or draining");
     }
 
     @Test
@@ -258,23 +219,14 @@ class ResourceControlRequestHandlerTest {
         this.handler.onReceive(accepted);
         this.handler.onReceive(rejected);
 
-        assertResponse(
-                accepted,
-                true,
-                ResourceControlRequest.Status.ACCEPTED,
-                "Server shutdown scheduled");
-        assertResponse(
-                rejected,
-                false,
-                ResourceControlRequest.Status.NOT_ALLOWED,
-                "Server is already stopping");
+        assertResponse(accepted, true, ResourceControlRequest.Status.ACCEPTED, "Server shutdown scheduled");
+        assertResponse(rejected, false, ResourceControlRequest.Status.NOT_ALLOWED, "Server is already stopping");
     }
 
     @Test
     void synchronousLifecycleFailureIsReported() {
         ResourceControlRequest request = request(ResourceControlRequest.Action.SHUTDOWN);
-        when(this.plugin.requestShutdown())
-                .thenThrow(new IllegalStateException("scheduler stopped"));
+        when(this.plugin.requestShutdown()).thenThrow(new IllegalStateException("scheduler stopped"));
 
         this.handler.onReceive(request);
 
@@ -288,18 +240,15 @@ class ResourceControlRequestHandlerTest {
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request, false, ResourceControlRequest.Status.FAILED, "IllegalStateException");
+        assertResponse(request, false, ResourceControlRequest.Status.FAILED, "IllegalStateException");
     }
 
     @Test
     void asynchronousLifecycleFailureIsUnwrapped() {
         ResourceControlRequest request = request(ResourceControlRequest.Action.ACTIVATE);
         when(this.plugin.activate())
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new CompletionException(
-                                        new IllegalStateException("registry offline"))));
+                .thenReturn(CompletableFuture.failedFuture(
+                        new CompletionException(new IllegalStateException("registry offline"))));
 
         this.handler.onReceive(request);
 
@@ -310,8 +259,7 @@ class ResourceControlRequestHandlerTest {
     void asynchronousFailureWithoutCauseOrMessageUsesItsType() {
         ResourceControlRequest request = request(ResourceControlRequest.Action.ACTIVATE);
         when(this.plugin.activate())
-                .thenReturn(
-                        CompletableFuture.failedFuture(new CompletionException((Throwable) null)));
+                .thenReturn(CompletableFuture.failedFuture(new CompletionException((Throwable) null)));
 
         this.handler.onReceive(request);
 
@@ -321,23 +269,18 @@ class ResourceControlRequestHandlerTest {
     @Test
     void timeoutFailureMapsToTimedOutWithoutWaiting() {
         TimeoutException timeout = new TimeoutException("operation deadline elapsed");
-        CompletableFuture<Boolean> operation =
-                new CompletableFuture<>() {
-                    @Override
-                    public CompletableFuture<Boolean> copy() {
-                        return CompletableFuture.failedFuture(timeout);
-                    }
-                };
+        CompletableFuture<Boolean> operation = new CompletableFuture<>() {
+            @Override
+            public CompletableFuture<Boolean> copy() {
+                return CompletableFuture.failedFuture(timeout);
+            }
+        };
         ResourceControlRequest request = request(ResourceControlRequest.Action.ACTIVATE);
         when(this.plugin.activate()).thenReturn(operation);
 
         this.handler.onReceive(request);
 
-        assertResponse(
-                request,
-                false,
-                ResourceControlRequest.Status.TIMED_OUT,
-                "operation deadline elapsed");
+        assertResponse(request, false, ResourceControlRequest.Status.TIMED_OUT, "operation deadline elapsed");
     }
 
     @Test
@@ -368,8 +311,7 @@ class ResourceControlRequestHandlerTest {
         verify(request, times(2)).reply(responses.capture());
         assertThat(responses.getAllValues().get(1).getMessageId()).isEqualTo(MESSAGE_ID);
         assertThat(responses.getAllValues().get(1).isAccepted()).isFalse();
-        assertThat(responses.getAllValues().get(1).getStatus())
-                .isEqualTo(ResourceControlRequest.Status.FAILED);
+        assertThat(responses.getAllValues().get(1).getStatus()).isEqualTo(ResourceControlRequest.Status.FAILED);
         assertThat(responses.getAllValues().get(1).getMessage()).isEqualTo("broker unavailable");
     }
 
@@ -402,27 +344,19 @@ class ResourceControlRequestHandlerTest {
         return request(new ResourceControlRequest(action, type, id, null));
     }
 
-    private static ResourceControlRequest request(
-            ResourceControlRequest.Action action, Duration deadline) {
-        return request(
-                new ResourceControlRequest(
-                        action, EchoResourceType.SERVER, "game-1", deadline, null));
+    private static ResourceControlRequest request(ResourceControlRequest.Action action, Duration deadline) {
+        return request(new ResourceControlRequest(action, EchoResourceType.SERVER, "game-1", deadline, null));
     }
 
-    private static ResourceControlRequest request(
-            ResourceControlRequest.Action action, Instant deadline) {
-        return request(
-                new ResourceControlRequest(
-                        action, EchoResourceType.SERVER, "game-1", deadline, null));
+    private static ResourceControlRequest request(ResourceControlRequest.Action action, Instant deadline) {
+        return request(new ResourceControlRequest(action, EchoResourceType.SERVER, "game-1", deadline, null));
     }
 
     private static ResourceControlRequest request(ResourceControlRequest request) {
         ResourceControlRequest spy = spy(request);
         spy.setExecutionDeadlineEpochMillis(NOW.plusSeconds(10).toEpochMilli());
         spy.setMessageId(MESSAGE_ID);
-        doReturn(EchoFuture.completed(null))
-                .when(spy)
-                .reply(any(ResourceControlRequest.Response.class));
+        doReturn(EchoFuture.completed(null)).when(spy).reply(any(ResourceControlRequest.Response.class));
         return spy;
     }
 
@@ -434,10 +368,7 @@ class ResourceControlRequestHandlerTest {
     }
 
     private static void assertResponse(
-            ResourceControlRequest request,
-            boolean accepted,
-            ResourceControlRequest.Status status,
-            String message) {
+            ResourceControlRequest request, boolean accepted, ResourceControlRequest.Status status, String message) {
         ResourceControlRequest.Response response = response(request);
         assertThat(response.getMessageId()).isEqualTo(request.getMessageId());
         assertThat(response.isAccepted()).isEqualTo(accepted);

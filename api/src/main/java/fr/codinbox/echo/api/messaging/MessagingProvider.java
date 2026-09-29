@@ -9,13 +9,12 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Technology-agnostic interface for the Echo pub/sub messaging system.
  *
- * <p>Provides methods to publish messages to topics, subscribe to topics with handlers, and manage
- * request/response reply correlation. Implementations may be backed by Redis, RabbitMQ, or any
- * other suitable messaging system.
+ * <p>Provides methods to publish messages to topics, subscribe to topics with handlers, and manage request/response
+ * reply correlation. Implementations may be backed by Redis, RabbitMQ, or any other suitable messaging system.
  *
- * <p>For most use cases, prefer the convenience methods on {@link EchoMessage} ({@link
- * EchoMessage#sendTo(MessageTarget)}, {@link EchoMessage#sendToServer(String)}, etc.) rather than
- * using this provider directly.
+ * <p>For most use cases, prefer the convenience methods on {@link EchoMessage}
+ * ({@link EchoMessage#sendTo(MessageTarget)}, {@link EchoMessage#sendToServer(String)}, etc.) rather than using this
+ * provider directly.
  *
  * <pre>{@code
  * MessagingProvider messaging = client.getMessagingProvider();
@@ -41,8 +40,7 @@ public interface MessagingProvider {
     /**
      * Initializes the messaging provider.
      *
-     * <p>Called once during startup. Implementations should establish connections and prepare
-     * resources.
+     * <p>Called once during startup. Implementations should establish connections and prepare resources.
      *
      * @return a future that completes when initialization is done
      */
@@ -71,8 +69,7 @@ public interface MessagingProvider {
      * @param <T> the message type
      * @return a future that completes when the message has been published
      */
-    <T extends EchoMessage> @NotNull EchoFuture<Void> publish(
-            final @NotNull String topic, final @NotNull T obj);
+    <T extends EchoMessage> @NotNull EchoFuture<Void> publish(final @NotNull String topic, final @NotNull T obj);
 
     /** Registers a typed reply waiter before publishing and bounds the full request lifecycle. */
     default <R extends EchoMessage> @NotNull EchoFuture<R> request(
@@ -80,9 +77,8 @@ public interface MessagingProvider {
             @NotNull EchoMessage request,
             @NotNull Class<R> responseType,
             @NotNull Duration timeout) {
-        return EchoFuture.of(
-                CompletableFuture.failedFuture(
-                        new UnsupportedOperationException("Bounded requests are not supported")));
+        return EchoFuture.of(CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Bounded requests are not supported")));
     }
 
     /**
@@ -101,20 +97,18 @@ public interface MessagingProvider {
     default <T extends EchoMessage> @NotNull EchoFuture<Void> publishAll(
             final @NotNull Iterable<String> topics, final @NotNull T obj) {
         EchoFuture<Void> future = EchoFuture.completed(null);
-        for (String topic : topics)
-            future = EchoFuture.of(future.thenCompose(v -> this.publish(topic, obj)));
+        for (String topic : topics) future = EchoFuture.of(future.thenCompose(v -> this.publish(topic, obj)));
         return future;
     }
 
     /**
      * Registers a raw reply handler for a message.
      *
-     * <p>When a reply with the same {@code messageId} is received, the consumer is invoked. It
-     * should return {@code true} to accept the reply (and stop listening) or {@code false} to keep
-     * waiting for another reply.
+     * <p>When a reply with the same {@code messageId} is received, the consumer is invoked. It should return
+     * {@code true} to accept the reply (and stop listening) or {@code false} to keep waiting for another reply.
      *
-     * <p>Prefer using {@link EchoMessage#onReply(Class, java.util.function.Consumer)} or {@link
-     * EchoMessage#awaitReply(Class)} for typed reply handling.
+     * <p>Prefer using {@link EchoMessage#onReply(Class, java.util.function.Consumer)} or
+     * {@link EchoMessage#awaitReply(Class)} for typed reply handling.
      *
      * @param message the original message to wait for replies to
      * @param consumer a function that processes replies and returns whether to stop listening
@@ -126,8 +120,8 @@ public interface MessagingProvider {
     /**
      * Subscribes to a topic with a raw message handler.
      *
-     * <p>All messages published to the topic will be dispatched to the handler, regardless of their
-     * type. For type-safe handling, use {@link #subscribe(String, Class, MessageHandler)} instead.
+     * <p>All messages published to the topic will be dispatched to the handler, regardless of their type. For type-safe
+     * handling, use {@link #subscribe(String, Class, MessageHandler)} instead.
      *
      * <pre>{@code
      * Subscription sub = messaging.subscribe("my-topic", message -> {
@@ -143,15 +137,14 @@ public interface MessagingProvider {
      * @return a subscription handle that can be used to cancel the subscription
      */
     @NotNull
-    Subscription subscribe(
-            final @NotNull String topic, final @NotNull MessageHandler<EchoMessage> handler);
+    Subscription subscribe(final @NotNull String topic, final @NotNull MessageHandler<EchoMessage> handler);
 
     /**
      * Subscribes to a topic with a typed message handler.
      *
-     * <p>Only messages of the specified type will be dispatched to the handler, eliminating the
-     * need for {@code instanceof} checks. Messages of other types published to the same topic are
-     * silently ignored by this subscription.
+     * <p>Only messages of the specified type will be dispatched to the handler, eliminating the need for
+     * {@code instanceof} checks. Messages of other types published to the same topic are silently ignored by this
+     * subscription.
      *
      * <pre>{@code
      * // Only receives AlertMessage instances
@@ -171,24 +164,19 @@ public interface MessagingProvider {
      * @return a subscription handle that can be used to cancel the subscription
      */
     default <T extends EchoMessage> @NotNull Subscription subscribe(
-            final @NotNull String topic,
-            final @NotNull Class<T> type,
-            final @NotNull MessageHandler<T> handler) {
-        return this.subscribe(
-                topic,
-                message -> {
-                    if (type.isInstance(message)) {
-                        handler.onReceive(type.cast(message));
-                    }
-                });
+            final @NotNull String topic, final @NotNull Class<T> type, final @NotNull MessageHandler<T> handler) {
+        return this.subscribe(topic, message -> {
+            if (type.isInstance(message)) {
+                handler.onReceive(type.cast(message));
+            }
+        });
     }
 
     /**
      * Attempts to dispatch a message as a reply to a pending request.
      *
-     * <p><b>Internal use only.</b> This is called by the messaging system when a message is
-     * received to check if it is a reply to an outstanding request registered via {@link
-     * #waitForReply(EchoMessage, Function)}.
+     * <p><b>Internal use only.</b> This is called by the messaging system when a message is received to check if it is
+     * a reply to an outstanding request registered via {@link #waitForReply(EchoMessage, Function)}.
      *
      * @param message the message to check as a potential reply
      * @return {@code true} if the message was handled as a reply, {@code false} otherwise

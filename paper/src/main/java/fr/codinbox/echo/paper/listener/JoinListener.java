@@ -21,8 +21,7 @@ public class JoinListener implements Listener {
     private final @NotNull EchoPaper plugin;
     private final @NotNull ServerLoadManager loadManager;
 
-    public JoinListener(
-            final @NotNull EchoPaper plugin, final @NotNull ServerLoadManager loadManager) {
+    public JoinListener(final @NotNull EchoPaper plugin, final @NotNull ServerLoadManager loadManager) {
         this.plugin = plugin;
         this.loadManager = loadManager;
     }
@@ -36,32 +35,26 @@ public class JoinListener implements Listener {
         final String currentResourceId = client.getCurrentResourceId().orElse(null);
         if (currentResourceId == null) return;
 
-        client.getUserById(player.getUniqueId())
-                .thenAcceptAsync(
-                        userOpt -> {
-                            if (userOpt.isEmpty()) {
-                                client.createUser(
-                                        player.getUniqueId(), player.getName(), currentResourceId);
-                                return;
-                            }
+        client.getUserById(player.getUniqueId()).thenAcceptAsync(userOpt -> {
+            if (userOpt.isEmpty()) {
+                client.createUser(player.getUniqueId(), player.getName(), currentResourceId);
+                return;
+            }
 
-                            final User user = userOpt.get();
+            final User user = userOpt.get();
 
-                            // Set user previous server ID in a non-blocking way
-                            user.getCurrentServerId()
-                                    .thenAccept(
-                                            currentServerIdOpt -> {
-                                                currentServerIdOpt.ifPresent(
-                                                        s -> user.setPreviousServerId(s));
-                                            });
+            // Set user previous server ID in a non-blocking way
+            user.getCurrentServerId().thenAccept(currentServerIdOpt -> {
+                currentServerIdOpt.ifPresent(s -> user.setPreviousServerId(s));
+            });
 
-                            final Optional<Server> echoServerOpt =
-                                    client.getServerById(currentResourceId).await();
+            final Optional<Server> echoServerOpt =
+                    client.getServerById(currentResourceId).await();
 
-                            if (echoServerOpt.isEmpty()) return;
+            if (echoServerOpt.isEmpty()) return;
 
-                            client.registerUserInServer(user, echoServerOpt.get());
-                        });
+            client.registerUserInServer(user, echoServerOpt.get());
+        });
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -71,18 +64,14 @@ public class JoinListener implements Listener {
         final EchoClient client = Echo.getClient();
 
         // If there is no proxy, destroy the user by ourselves
-        client.getProxies()
-                .thenAccept(
-                        proxyMap -> {
-                            if (!proxyMap.isEmpty()) return;
+        client.getProxies().thenAccept(proxyMap -> {
+            if (!proxyMap.isEmpty()) return;
 
-                            client.getUserById(player.getUniqueId())
-                                    .thenAccept(
-                                            userOpt -> {
-                                                if (userOpt.isEmpty()) return;
-                                                client.destroyUser(userOpt.get());
-                                            });
-                        });
+            client.getUserById(player.getUniqueId()).thenAccept(userOpt -> {
+                if (userOpt.isEmpty()) return;
+                client.destroyUser(userOpt.get());
+            });
+        });
     }
 
     private void scheduleLoadRefresh() {
@@ -91,18 +80,9 @@ public class JoinListener implements Listener {
                 .getScheduler()
                 .runTask(
                         this.plugin,
-                        () ->
-                                this.loadManager
-                                        .refresh()
-                                        .whenComplete(
-                                                (ignored, error) -> {
-                                                    if (error != null)
-                                                        this.plugin
-                                                                .getLogger()
-                                                                .log(
-                                                                        Level.WARNING,
-                                                                        "Failed to refresh Echo server load",
-                                                                        error);
-                                                }));
+                        () -> this.loadManager.refresh().whenComplete((ignored, error) -> {
+                            if (error != null)
+                                this.plugin.getLogger().log(Level.WARNING, "Failed to refresh Echo server load", error);
+                        }));
     }
 }

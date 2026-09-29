@@ -18,8 +18,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The main client interface for interacting with the Echo network.
  *
- * <p>Provides methods to query and manage users, servers, and proxies across the entire network, as
- * well as access to the messaging and caching subsystems.
+ * <p>Provides methods to query and manage users, servers, and proxies across the entire network, as well as access to
+ * the messaging and caching subsystems.
  *
  * <p>Obtain an instance via {@link Echo#getClient()}:
  *
@@ -33,8 +33,8 @@ import org.jetbrains.annotations.Nullable;
  * Map<String, Long> servers = client.getServers().await();
  * }</pre>
  *
- * <p>All methods returning {@link EchoFuture} can be used asynchronously (via {@code thenAccept},
- * {@code thenCompose}, etc.) or blocking (via {@link EchoFuture#await()}).
+ * <p>All methods returning {@link EchoFuture} can be used asynchronously (via {@code thenAccept}, {@code thenCompose},
+ * etc.) or blocking (via {@link EchoFuture#await()}).
  *
  * @see Echo#getClient()
  * @see EchoFuture
@@ -44,8 +44,7 @@ public interface EchoClient {
     /**
      * Gets all connected users across the entire network.
      *
-     * <p>Returns a map where keys are player UUIDs and values are their join timestamps
-     * (milliseconds since epoch).
+     * <p>Returns a map where keys are player UUIDs and values are their join timestamps (milliseconds since epoch).
      *
      * <pre>{@code
      * Map<UUID, Long> users = client.getAllUsers().await();
@@ -90,8 +89,8 @@ public interface EchoClient {
     /**
      * Registers or updates a user's username mapping.
      *
-     * <p>If the user already had a username registered, the old mapping is removed first. This is
-     * typically called automatically by the platform plugin when a player joins.
+     * <p>If the user already had a username registered, the old mapping is removed first. This is typically called
+     * automatically by the platform plugin when a player joins.
      *
      * @param id the user's UUID
      * @param username the username to register
@@ -103,8 +102,7 @@ public interface EchoClient {
     /**
      * Unregisters a user's username mapping.
      *
-     * <p>After this call, {@link #getUserByUsername(String)} will no longer find this user by their
-     * previous username.
+     * <p>After this call, {@link #getUserByUsername(String)} will no longer find this user by their previous username.
      *
      * @param user the user whose username mapping should be removed
      * @return a future that completes when the username is unregistered
@@ -115,8 +113,8 @@ public interface EchoClient {
     /**
      * Gets the cache provider.
      *
-     * <p><b>Warning:</b> This exposes low-level cache operations. Incorrect usage can corrupt the
-     * network state. Use the higher-level APIs (properties, messaging) when possible.
+     * <p><b>Warning:</b> This exposes low-level cache operations. Incorrect usage can corrupt the network state. Use
+     * the higher-level APIs (properties, messaging) when possible.
      *
      * <pre>{@code
      * CacheProvider cache = client.getCacheProvider();
@@ -171,8 +169,8 @@ public interface EchoClient {
     /**
      * Gets all registered servers on the network.
      *
-     * <p>Returns a map where keys are server identifiers and values are their registration
-     * timestamps (milliseconds since epoch).
+     * <p>Returns a map where keys are server identifiers and values are their registration timestamps (milliseconds
+     * since epoch).
      *
      * <pre>{@code
      * Map<String, Long> servers = client.getServers().await();
@@ -206,8 +204,8 @@ public interface EchoClient {
     /**
      * Gets all registered proxies on the network.
      *
-     * <p>Returns a map where keys are proxy identifiers and values are their registration
-     * timestamps (milliseconds since epoch).
+     * <p>Returns a map where keys are proxy identifiers and values are their registration timestamps (milliseconds
+     * since epoch).
      *
      * <pre>{@code
      * Map<String, Long> proxies = client.getProxies().await();
@@ -235,8 +233,7 @@ public interface EchoClient {
     /**
      * Gets the resource type of the current (local) node.
      *
-     * <p>Returns whether this node is running as a {@link EchoResourceType#SERVER} or a {@link
-     * EchoResourceType#PROXY}.
+     * <p>Returns whether this node is running as a {@link EchoResourceType#SERVER} or a {@link EchoResourceType#PROXY}.
      *
      * @return the current node's resource type
      */
@@ -254,33 +251,31 @@ public interface EchoClient {
     Optional<String> getCurrentResourceId();
 
     /**
-     * Changes whether the local server accepts new players and notifies every proxy. The current
-     * resource must be a server.
+     * Changes whether the local server accepts new players and notifies every proxy. The current resource must be a
+     * server.
      *
      * @param availability the new availability
      * @return a future completed after the value is persisted and advertised
      * @throws IllegalStateException if the local resource is not a server
      */
-    default @NotNull EchoFuture<Void> setLocalServerAvailability(
-            final @NotNull ServerAvailability availability) {
-        return EchoFuture.of(
-                java.util.concurrent.CompletableFuture.failedFuture(
-                        new UnsupportedOperationException("Server availability is not supported")));
+    default @NotNull EchoFuture<Void> setLocalServerAvailability(final @NotNull ServerAvailability availability) {
+        return EchoFuture.of(java.util.concurrent.CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Server availability is not supported")));
     }
 
     /**
      * Shuts down the Echo client, releasing all resources and connections.
      *
-     * <p>This is called automatically by the platform plugin on server shutdown. After calling this
-     * method, the client is no longer usable.
+     * <p>This is called automatically by the platform plugin on server shutdown. After calling this method, the client
+     * is no longer usable.
      */
     void shutdown();
 
     /**
      * Gets the messaging topic for the current (local) node.
      *
-     * <p>This is the topic that other nodes use to send messages directly to this node. It is
-     * derived from the node's resource type and identifier.
+     * <p>This is the topic that other nodes use to send messages directly to this node. It is derived from the node's
+     * resource type and identifier.
      *
      * @return the local messaging topic
      */
@@ -290,8 +285,8 @@ public interface EchoClient {
     /**
      * Creates a new user and registers it in the network.
      *
-     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when a
-     * player connects to the proxy. Manual usage may corrupt the network state.
+     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when a player connects to the
+     * proxy. Manual usage may corrupt the network state.
      *
      * @param uuid the player's UUID
      * @param username the player's username
@@ -300,9 +295,7 @@ public interface EchoClient {
      */
     @NotNull
     EchoFuture<@NotNull User> createUser(
-            final @NotNull UUID uuid,
-            final @NotNull String username,
-            final @NotNull String proxyId);
+            final @NotNull UUID uuid, final @NotNull String username, final @NotNull String proxyId);
 
     /** Creates a user for one exact login session. */
     default @NotNull EchoFuture<@NotNull User> createUser(
@@ -316,8 +309,8 @@ public interface EchoClient {
     /**
      * Destroys a user, removing all their data from the network.
      *
-     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when a
-     * player disconnects from the proxy. Manual usage may corrupt the network state.
+     * <p><b>Internal use only.</b> This is called automatically by the platform plugin when a player disconnects from
+     * the proxy. Manual usage may corrupt the network state.
      *
      * @param user the user to destroy
      * @return a future that completes when the user is fully cleaned up
@@ -326,16 +319,15 @@ public interface EchoClient {
     EchoFuture<Void> destroyUser(final @NotNull User user);
 
     /** Destroys the user only when the expected login session is still current. */
-    default @NotNull EchoFuture<Void> destroyUser(
-            final @NotNull User user, final @NotNull String expectedSessionId) {
+    default @NotNull EchoFuture<Void> destroyUser(final @NotNull User user, final @NotNull String expectedSessionId) {
         return this.destroyUser(user);
     }
 
     /**
      * Registers a user in a server, updating their current server tracking.
      *
-     * <p>This records the user as connected to the specified server. Pass {@code null} to
-     * unregister the user from their current server.
+     * <p>This records the user as connected to the specified server. Pass {@code null} to unregister the user from
+     * their current server.
      *
      * @param user the user to register
      * @param server the server to register the user in, or {@code null} to unregister

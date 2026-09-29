@@ -20,8 +20,7 @@ public final class QueueServiceRegistry {
     }
 
     public static void register(@NotNull QueueService service) {
-        if (!SERVICE.compareAndSet(null, service))
-            throw new IllegalStateException("A QueueService is already loaded");
+        if (!SERVICE.compareAndSet(null, service)) throw new IllegalStateException("A QueueService is already loaded");
     }
 
     public static void unregister(@NotNull QueueService service) {

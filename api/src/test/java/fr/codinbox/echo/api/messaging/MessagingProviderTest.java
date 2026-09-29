@@ -17,14 +17,8 @@ class MessagingProviderTest {
     void request_whenProviderDoesNotSupportIt_failsWithoutBreakingImplementations() {
         MessagingProvider provider = new LegacyMessagingProvider();
 
-        assertThatThrownBy(
-                        () ->
-                                provider.request(
-                                                "topic",
-                                                new TestMessage(),
-                                                TestMessage.class,
-                                                Duration.ofSeconds(1))
-                                        .join())
+        assertThatThrownBy(() -> provider.request("topic", new TestMessage(), TestMessage.class, Duration.ofSeconds(1))
+                        .join())
                 .hasCauseInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -41,19 +35,16 @@ class MessagingProviderTest {
         }
 
         @Override
-        public <T extends EchoMessage> @NotNull EchoFuture<Void> publish(
-                @NotNull String topic, @NotNull T obj) {
+        public <T extends EchoMessage> @NotNull EchoFuture<Void> publish(@NotNull String topic, @NotNull T obj) {
             return EchoFuture.completed(null);
         }
 
         @Override
         public void waitForReply(
-                @NotNull EchoMessage message,
-                @NotNull Function<@NotNull EchoMessage, @NotNull Boolean> consumer) {}
+                @NotNull EchoMessage message, @NotNull Function<@NotNull EchoMessage, @NotNull Boolean> consumer) {}
 
         @Override
-        public @NotNull Subscription subscribe(
-                @NotNull String topic, @NotNull MessageHandler<EchoMessage> handler) {
+        public @NotNull Subscription subscribe(@NotNull String topic, @NotNull MessageHandler<EchoMessage> handler) {
             return new Subscription() {
                 @Override
                 public @NotNull String getTopic() {

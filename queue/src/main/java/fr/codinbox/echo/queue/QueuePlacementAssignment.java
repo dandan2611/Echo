@@ -27,16 +27,13 @@ public record QueuePlacementAssignment(
         if (Objects.requireNonNull(requests, "requests").isEmpty())
             throw new IllegalArgumentException("requests must not be empty");
         Map<String, Set<UUID>> snapshot = new LinkedHashMap<>();
-        requests.forEach(
-                (requestId, members) -> {
-                    if (Objects.requireNonNull(requestId, "requestId").isBlank())
-                        throw new IllegalArgumentException("requestId must not be blank");
-                    Set<UUID> memberSnapshot =
-                            Set.copyOf(Objects.requireNonNull(members, "members"));
-                    if (memberSnapshot.isEmpty())
-                        throw new IllegalArgumentException("members must not be empty");
-                    snapshot.put(requestId, memberSnapshot);
-                });
+        requests.forEach((requestId, members) -> {
+            if (Objects.requireNonNull(requestId, "requestId").isBlank())
+                throw new IllegalArgumentException("requestId must not be blank");
+            Set<UUID> memberSnapshot = Set.copyOf(Objects.requireNonNull(members, "members"));
+            if (memberSnapshot.isEmpty()) throw new IllegalArgumentException("members must not be empty");
+            snapshot.put(requestId, memberSnapshot);
+        });
         requests = Map.copyOf(snapshot);
     }
 }

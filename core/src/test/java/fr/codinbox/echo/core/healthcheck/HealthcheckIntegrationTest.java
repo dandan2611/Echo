@@ -29,8 +29,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Multi-node integration tests for the healthcheck system. Uses short intervals (TTL=3s,
- * heartbeat=1s, scan=2s) for fast testing.
+ * Multi-node integration tests for the healthcheck system. Uses short intervals (TTL=3s, heartbeat=1s, scan=2s) for
+ * fast testing.
  */
 @Testcontainers
 @Tag("integration")
@@ -41,8 +41,7 @@ class HealthcheckIntegrationTest {
     private static final long TEST_SCAN_INTERVAL = 2;
 
     @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
+    private static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
 
     private static RedissonClient redissonClient;
     private static RedisConnection mockConnection;
@@ -51,8 +50,7 @@ class HealthcheckIntegrationTest {
     @BeforeAll
     static void setupRedisson() {
         Config config = new Config();
-        config.useSingleServer()
-                .setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
+        config.useSingleServer().setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
         redissonClient = Redisson.create(config);
         mockConnection = mock(RedisConnection.class);
         when(mockConnection.getClient()).thenReturn(redissonClient);
@@ -85,29 +83,23 @@ class HealthcheckIntegrationTest {
         }
     }
 
-    private EchoClientImpl createTestClient(
-            EchoResourceType type, String id, boolean cleanupEnabled) {
-        EchoConfig config =
-                EchoConfig.builder()
-                        .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
-                        .messagingProviderFactory(
-                                RedisProviderFactory.messagingFactory(mockConnection))
-                        .resourceType(type)
-                        .resourceId(id)
-                        .heartbeatTtlSeconds(TEST_HEARTBEAT_TTL)
-                        .heartbeatIntervalSeconds(TEST_HEARTBEAT_INTERVAL)
-                        .scanIntervalSeconds(TEST_SCAN_INTERVAL)
-                        .cleanupEnabled(cleanupEnabled)
-                        .build();
+    private EchoClientImpl createTestClient(EchoResourceType type, String id, boolean cleanupEnabled) {
+        EchoConfig config = EchoConfig.builder()
+                .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
+                .messagingProviderFactory(RedisProviderFactory.messagingFactory(mockConnection))
+                .resourceType(type)
+                .resourceId(id)
+                .heartbeatTtlSeconds(TEST_HEARTBEAT_TTL)
+                .heartbeatIntervalSeconds(TEST_HEARTBEAT_INTERVAL)
+                .scanIntervalSeconds(TEST_SCAN_INTERVAL)
+                .cleanupEnabled(cleanupEnabled)
+                .build();
         EchoClientImpl client = new EchoClientImpl(config);
         activeClients.add(client);
         return client;
     }
 
-    /**
-     * Scenario: 2 servers, 1 proxy. Proxy does the cleanup. One server crashes -> proxy detects and
-     * cleans up.
-     */
+    /** Scenario: 2 servers, 1 proxy. Proxy does the cleanup. One server crashes -> proxy detects and cleans up. */
     @Test
     void scenario_twoServers_oneProxy_serverCrash() throws InterruptedException {
         // Create proxy (will do scanning/cleanup)
@@ -150,8 +142,7 @@ class HealthcheckIntegrationTest {
     }
 
     /**
-     * Scenario: 2 servers, 0 proxy. Both servers have CLEANUP_ENABLED. One crashes -> the other
-     * detects and cleans up.
+     * Scenario: 2 servers, 0 proxy. Both servers have CLEANUP_ENABLED. One crashes -> the other detects and cleans up.
      */
     @Test
     void scenario_twoServers_noProxy_serverCrash() throws InterruptedException {
@@ -181,8 +172,8 @@ class HealthcheckIntegrationTest {
     }
 
     /**
-     * Scenario: 1 server, 2 proxies with cleanup. Server crashes -> only one proxy does the cleanup
-     * thanks to distributed lock.
+     * Scenario: 1 server, 2 proxies with cleanup. Server crashes -> only one proxy does the cleanup thanks to
+     * distributed lock.
      */
     @Test
     void scenario_oneServer_twoProxies_lockContention() throws InterruptedException {
@@ -223,8 +214,7 @@ class HealthcheckIntegrationTest {
     @Test
     void scenario_proxyCrash_serverCleansUpUsers() throws InterruptedException {
         // Create server with cleanup enabled
-        EchoClientImpl serverClient =
-                createTestClient(EchoResourceType.SERVER, "srv-cleanup", true);
+        EchoClientImpl serverClient = createTestClient(EchoResourceType.SERVER, "srv-cleanup", true);
         serverClient.createLocalResource(new Address("127.0.0.1", 25565));
         serverClient.registerServer("srv-cleanup").join();
 
@@ -237,7 +227,9 @@ class HealthcheckIntegrationTest {
         // Create user on the dead proxy
         UUID userId = UUID.randomUUID();
         User user = proxyClient.createUser(userId, "OrphanPlayer", "dead-proxy").join();
-        new fr.codinbox.echo.core.proxy.ProxyImpl("dead-proxy", null).registerUser(user).join();
+        new fr.codinbox.echo.core.proxy.ProxyImpl("dead-proxy", null)
+                .registerUser(user)
+                .join();
 
         // Delete proxy heartbeat
         redissonClient.getBucket("heartbeat:proxy:dead-proxy").delete();
@@ -260,8 +252,8 @@ class HealthcheckIntegrationTest {
     }
 
     /**
-     * Scenario: Server crash with players. Orphaned users (current_server_id = dead server) are
-     * destroyed. Redirected users (current_server_id = different server) are preserved.
+     * Scenario: Server crash with players. Orphaned users (current_server_id = dead server) are destroyed. Redirected
+     * users (current_server_id = different server) are preserved.
      */
     @Test
     void scenario_serverCrash_orphanedVsRedirectedUsers() throws InterruptedException {
@@ -278,8 +270,7 @@ class HealthcheckIntegrationTest {
 
         // Create alive server
         EchoTestUtils.resetEchoClient();
-        EchoClientImpl aliveServer =
-                createTestClient(EchoResourceType.SERVER, "alive-srv-u", false);
+        EchoClientImpl aliveServer = createTestClient(EchoResourceType.SERVER, "alive-srv-u", false);
         aliveServer.createLocalResource(new Address("127.0.0.1", 25566));
         aliveServer.registerServer("alive-srv-u").join();
         aliveServer.startHealthcheck();
@@ -288,7 +279,8 @@ class HealthcheckIntegrationTest {
         EchoTestUtils.resetEchoClient();
         EchoClientImpl setupClient = createTestClient(EchoResourceType.PROXY, "prx-users", false);
         UUID orphanId = UUID.randomUUID();
-        User orphanUser = setupClient.createUser(orphanId, "OrphanUser", "prx-users").join();
+        User orphanUser =
+                setupClient.createUser(orphanId, "OrphanUser", "prx-users").join();
         ServerImpl deadSrvRef = new ServerImpl("dead-srv-u", null);
         deadSrvRef.registerUser(orphanUser).join();
         orphanUser.setProperty("current_server_id", "dead-srv-u").join();
@@ -296,8 +288,9 @@ class HealthcheckIntegrationTest {
         // Create redirected user (registered in dead server's user map, but current_server_id
         // points elsewhere)
         UUID redirectedId = UUID.randomUUID();
-        User redirectedUser =
-                setupClient.createUser(redirectedId, "RedirectedUser", "prx-users").join();
+        User redirectedUser = setupClient
+                .createUser(redirectedId, "RedirectedUser", "prx-users")
+                .join();
         deadSrvRef.registerUser(redirectedUser).join();
         redirectedUser.setProperty("current_server_id", "alive-srv-u").join();
 
@@ -322,8 +315,8 @@ class HealthcheckIntegrationTest {
     }
 
     /**
-     * Scenario: False positive. Server marked suspect, heartbeat returns before second scan -> no
-     * cleanup. Uses direct scan calls for deterministic testing.
+     * Scenario: False positive. Server marked suspect, heartbeat returns before second scan -> no cleanup. Uses direct
+     * scan calls for deterministic testing.
      */
     @Test
     void scenario_falsePositive_heartbeatReturns() {

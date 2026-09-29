@@ -36,8 +36,7 @@ class ServerAvailabilityNotificationHandlerTest {
         when(server.getAddress()).thenReturn(new Address("127.0.0.1", 25565));
         when(server.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
 
-        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client)
-                .onReceive(notification);
+        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client).onReceive(notification);
 
         verify(proxy).registerServer(any(ServerInfo.class));
     }
@@ -54,8 +53,7 @@ class ServerAvailabilityNotificationHandlerTest {
         when(proxy.getServer("lobby-1")).thenReturn(Optional.of(registered));
         when(registered.getServerInfo()).thenReturn(info);
 
-        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client)
-                .onReceive(notification);
+        new ServerAvailabilityNotificationHandler(mock(Logger.class), proxy, client).onReceive(notification);
 
         verify(proxy).unregisterServer(info);
     }

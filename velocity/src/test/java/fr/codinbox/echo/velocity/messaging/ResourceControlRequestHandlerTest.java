@@ -33,9 +33,7 @@ class ResourceControlRequestHandlerTest {
     void setUp() {
         this.plugin = mock(EchoPlugin.class);
         this.echo = mock(EchoClient.class);
-        this.handler =
-                new ResourceControlRequestHandler(
-                        this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
+        this.handler = new ResourceControlRequestHandler(this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
         when(this.echo.getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(this.echo.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
     }
@@ -116,8 +114,7 @@ class ResourceControlRequestHandlerTest {
     @Test
     void overflowingRelativeDeadlineIsInvalid() {
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
-                .thenThrow(new ArithmeticException());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenThrow(new ArithmeticException());
 
         this.handler.onReceive(request);
 
@@ -131,8 +128,7 @@ class ResourceControlRequestHandlerTest {
     void drainUsesTheRequestedAbsoluteDeadline() {
         Instant deadline = NOW.plusSeconds(20);
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
-                .thenReturn(deadline.toEpochMilli());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenReturn(deadline.toEpochMilli());
         when(this.plugin.beginDrain(deadline)).thenReturn(true);
 
         this.handler.onReceive(request);
@@ -145,8 +141,7 @@ class ResourceControlRequestHandlerTest {
     void drainUsesTheResolvedRelativeDeadlineAndReportsRejection() {
         Instant deadline = NOW.plusSeconds(5);
         ResourceControlRequest request = request(ResourceControlRequest.Action.DRAIN);
-        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli()))
-                .thenReturn(deadline.toEpochMilli());
+        when(request.resolveDrainDeadlineEpochMillis(NOW.toEpochMilli())).thenReturn(deadline.toEpochMilli());
         when(this.plugin.beginDrain(deadline)).thenReturn(false);
 
         this.handler.onReceive(request);
@@ -252,9 +247,7 @@ class ResourceControlRequestHandlerTest {
     }
 
     private static ResourceControlRequest.Response assertResponse(
-            ResourceControlRequest request,
-            boolean accepted,
-            ResourceControlRequest.Status status) {
+            ResourceControlRequest request, boolean accepted, ResourceControlRequest.Status status) {
         ResourceControlRequest.Response response = response(request);
         assertThat(response.isAccepted()).isEqualTo(accepted);
         assertThat(response.getStatus()).isEqualTo(status);

@@ -14,11 +14,9 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID>
-        implements PropertyHolder, Cleanable {
+public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID> implements PropertyHolder, Cleanable {
 
-    public static final @NotNull PropertyKey<Long> CREATION_TIME_KEY =
-            new PropertyKey<>("creation_time");
+    public static final @NotNull PropertyKey<Long> CREATION_TIME_KEY = new PropertyKey<>("creation_time");
 
     private final @NotNull String keyPrefix;
 
@@ -32,19 +30,16 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID>
     }
 
     @Override
-    public @NotNull EchoFuture<Boolean> setExpire(
-            final @NotNull String key, final @NotNull Instant instant) {
-        return EchoFuture.of(
-                Echo.getClient().getCacheProvider().expireObject(this.concat(key), instant));
+    public @NotNull EchoFuture<Boolean> setExpire(final @NotNull String key, final @NotNull Instant instant) {
+        return EchoFuture.of(Echo.getClient().getCacheProvider().expireObject(this.concat(key), instant));
     }
 
     @Override
     public @NotNull <T> EchoFuture<@NotNull Optional<T>> getProperty(final @NotNull String key) {
-        return EchoFuture.of(
-                Echo.getClient()
-                        .getCacheProvider()
-                        .<T>getObject(this.concat(key))
-                        .thenApplyAsync(Optional::ofNullable));
+        return EchoFuture.of(Echo.getClient()
+                .getCacheProvider()
+                .<T>getObject(this.concat(key))
+                .thenApplyAsync(Optional::ofNullable));
     }
 
     @Override
@@ -53,18 +48,14 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID>
     }
 
     @Override
-    public @NotNull <T> EchoFuture<Void> setProperty(
-            final @NotNull String key, final @Nullable T value) {
-        if (value == null)
-            return EchoFuture.of(this.deleteProperty(key).thenApply(aBoolean -> null));
-        return EchoFuture.of(
-                Echo.getClient().getCacheProvider().setObject(this.concat(key), value));
+    public @NotNull <T> EchoFuture<Void> setProperty(final @NotNull String key, final @Nullable T value) {
+        if (value == null) return EchoFuture.of(this.deleteProperty(key).thenApply(aBoolean -> null));
+        return EchoFuture.of(Echo.getClient().getCacheProvider().setObject(this.concat(key), value));
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Long> getPropertyTimeToLive(final @NotNull String key) {
-        return EchoFuture.of(
-                Echo.getClient().getCacheProvider().getObjectRemainingTimeToLive(this.concat(key)));
+        return EchoFuture.of(Echo.getClient().getCacheProvider().getObjectRemainingTimeToLive(this.concat(key)));
     }
 
     @Override
@@ -74,20 +65,12 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID>
 
     @Override
     public @NotNull EchoFuture<@NotNull Set<String>> getPropertiesKeys() {
-        return EchoFuture.of(
-                Echo.getClient()
-                        .getCacheProvider()
-                        .getKeys(this.concat("*"))
-                        .thenApply(
-                                keys ->
-                                        keys.stream()
-                                                .map(
-                                                        key ->
-                                                                key.replaceFirst(
-                                                                        this.keyPrefix
-                                                                                + ":property:",
-                                                                        ""))
-                                                .collect(Collectors.toSet())));
+        return EchoFuture.of(Echo.getClient()
+                .getCacheProvider()
+                .getKeys(this.concat("*"))
+                .thenApply(keys -> keys.stream()
+                        .map(key -> key.replaceFirst(this.keyPrefix + ":property:", ""))
+                        .collect(Collectors.toSet())));
     }
 
     @Override
@@ -97,14 +80,9 @@ public abstract class AbstractPropertyHolder<ID> extends IdentifiableImpl<ID>
 
     @Override
     public @NotNull EchoFuture<Void> cleanup() {
-        return EchoFuture.of(
-                this.getPropertiesKeys()
-                        .thenComposeAsync(
-                                properties -> {
-                                    return CompletableFuture.allOf(
-                                            properties.stream()
-                                                    .map(this::deleteProperty)
-                                                    .toArray(CompletableFuture[]::new));
-                                }));
+        return EchoFuture.of(this.getPropertiesKeys().thenComposeAsync(properties -> {
+            return CompletableFuture.allOf(
+                    properties.stream().map(this::deleteProperty).toArray(CompletableFuture[]::new));
+        }));
     }
 }

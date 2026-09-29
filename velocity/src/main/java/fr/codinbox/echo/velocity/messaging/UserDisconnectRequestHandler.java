@@ -34,8 +34,7 @@ public final class UserDisconnectRequestHandler implements MessageHandler<UserDi
     public void onReceive(@NotNull UserDisconnectRequest request) {
         String validationError = request.validationError();
         if (validationError != null) {
-            this.reply(
-                    request, false, UserDisconnectRequest.Status.INVALID_REQUEST, validationError);
+            this.reply(request, false, UserDisconnectRequest.Status.INVALID_REQUEST, validationError);
             return;
         }
         if (this.echo.getCurrentResourceType() != EchoResourceType.PROXY
@@ -43,112 +42,66 @@ public final class UserDisconnectRequestHandler implements MessageHandler<UserDi
                         .getCurrentResourceId()
                         .filter(request.getExpectedProxyId()::equals)
                         .isEmpty()) {
-            this.reply(
-                    request,
-                    false,
-                    UserDisconnectRequest.Status.WRONG_TARGET,
-                    "Request targets another proxy");
+            this.reply(request, false, UserDisconnectRequest.Status.WRONG_TARGET, "Request targets another proxy");
             return;
         }
         long remainingMillis = request.getDeadlineEpochMillis() - this.clock.millis();
         if (remainingMillis < 1) {
-            this.reply(
-                    request,
-                    false,
-                    UserDisconnectRequest.Status.EXPIRED,
-                    "Request deadline elapsed");
+            this.reply(request, false, UserDisconnectRequest.Status.EXPIRED, "Request deadline elapsed");
             return;
         }
 
         try {
-            CompletableFuture<Boolean> disconnect =
-                    this.echo
-                            .getUserById(request.getUserId())
-                            .thenCompose(
-                                    user ->
-                                            user.map(
-                                                            value ->
-                                                                    value.getSessionId()
-                                                                            .thenCompose(
-                                                                                    sessionId ->
-                                                                                            sessionId
-                                                                                                            .filter(
-                                                                                                                    request
-                                                                                                                                    .getExpectedSessionId()
-                                                                                                                            ::equals)
-                                                                                                            .isPresent()
-                                                                                                    ? this
-                                                                                                            .plugin
-                                                                                                            .disconnectPlayer(
-                                                                                                                    request
-                                                                                                                            .getUserId(),
-                                                                                                                    request
-                                                                                                                            .getReason(),
-                                                                                                                    request
-                                                                                                                            .getExpectedSessionId(),
-                                                                                                                    request
-                                                                                                                            .getDeadlineEpochMillis())
-                                                                                                            .copy()
-                                                                                                            .orTimeout(
-                                                                                                                    remainingMillis,
-                                                                                                                    TimeUnit
-                                                                                                                            .MILLISECONDS)
-                                                                                                    : CompletableFuture
-                                                                                                            .completedFuture(
-                                                                                                                    false)))
-                                                    .orElseGet(
-                                                            () ->
-                                                                    CompletableFuture
-                                                                            .completedFuture(
-                                                                                    false)));
-            disconnect
-                    .copy()
-                    .orTimeout(remainingMillis, TimeUnit.MILLISECONDS)
-                    .whenComplete(
-                            (disconnected, error) -> {
-                                if (error == null) {
-                                    this.reply(
-                                            request,
-                                            Boolean.TRUE.equals(disconnected),
-                                            Boolean.TRUE.equals(disconnected)
-                                                    ? UserDisconnectRequest.Status.DISCONNECTED
-                                                    : UserDisconnectRequest.Status.PLAYER_NOT_FOUND,
-                                            Boolean.TRUE.equals(disconnected)
-                                                    ? "Player disconnected"
-                                                    : "Player is not connected to this proxy");
-                                    return;
-                                }
-                                Throwable cause =
-                                        error instanceof CompletionException
-                                                        && error.getCause() != null
-                                                ? error.getCause()
-                                                : error;
-                                this.reply(
-                                        request,
-                                        false,
-                                        cause instanceof TimeoutException
-                                                ? UserDisconnectRequest.Status.TIMED_OUT
-                                                : UserDisconnectRequest.Status.FAILED,
-                                        cause.getMessage() == null
-                                                ? cause.getClass().getSimpleName()
-                                                : cause.getMessage());
-                            });
+            CompletableFuture<Boolean> disconnect = this.echo
+                    .getUserById(request.getUserId())
+                    .thenCompose(user -> user.map(value -> value.getSessionId()
+                                    .thenCompose(sessionId -> sessionId
+                                                    .filter(request.getExpectedSessionId()::equals)
+                                                    .isPresent()
+                                            ? this.plugin
+                                                    .disconnectPlayer(
+                                                            request.getUserId(),
+                                                            request.getReason(),
+                                                            request.getExpectedSessionId(),
+                                                            request.getDeadlineEpochMillis())
+                                                    .copy()
+                                                    .orTimeout(remainingMillis, TimeUnit.MILLISECONDS)
+                                            : CompletableFuture.completedFuture(false)))
+                            .orElseGet(() -> CompletableFuture.completedFuture(false)));
+            disconnect.copy().orTimeout(remainingMillis, TimeUnit.MILLISECONDS).whenComplete((disconnected, error) -> {
+                if (error == null) {
+                    this.reply(
+                            request,
+                            Boolean.TRUE.equals(disconnected),
+                            Boolean.TRUE.equals(disconnected)
+                                    ? UserDisconnectRequest.Status.DISCONNECTED
+                                    : UserDisconnectRequest.Status.PLAYER_NOT_FOUND,
+                            Boolean.TRUE.equals(disconnected)
+                                    ? "Player disconnected"
+                                    : "Player is not connected to this proxy");
+                    return;
+                }
+                Throwable cause =
+                        error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
+                this.reply(
+                        request,
+                        false,
+                        cause instanceof TimeoutException
+                                ? UserDisconnectRequest.Status.TIMED_OUT
+                                : UserDisconnectRequest.Status.FAILED,
+                        cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage());
+            });
         } catch (RuntimeException error) {
             this.reply(
                     request,
                     false,
                     UserDisconnectRequest.Status.FAILED,
-                    error.getMessage() == null
-                            ? error.getClass().getSimpleName()
-                            : error.getMessage());
+                    error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
         }
     }
 
     private void reply(
-            UserDisconnectRequest request,
-            boolean accepted,
-            UserDisconnectRequest.Status status,
-            String message) {
+            UserDisconnectRequest request, boolean accepted, UserDisconnectRequest.Status status, String message) {
         request.reply(new UserDisconnectRequest.Response(request, accepted, status, message));
     }
 }

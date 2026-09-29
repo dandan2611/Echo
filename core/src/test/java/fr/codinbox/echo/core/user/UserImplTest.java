@@ -34,8 +34,7 @@ class UserImplTest {
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String CURRENT_PROXY_ID = "current-proxy";
-    private static final String PROXY_PROPERTY_KEY =
-            "user:%s:property:current_proxy_id".formatted(USER_ID);
+    private static final String PROXY_PROPERTY_KEY = "user:%s:property:current_proxy_id".formatted(USER_ID);
 
     private EchoClient client;
     private CacheProvider cache;
@@ -64,8 +63,7 @@ class UserImplTest {
         assertThat(new UserImpl(USER_ID).tryConnectToServer("target-server").join())
                 .isSameAs(expected);
 
-        ArgumentCaptor<ServerSwitchRequest> request =
-                ArgumentCaptor.forClass(ServerSwitchRequest.class);
+        ArgumentCaptor<ServerSwitchRequest> request = ArgumentCaptor.forClass(ServerSwitchRequest.class);
         ArgumentCaptor<Duration> remaining = ArgumentCaptor.forClass(Duration.class);
         verify(messaging)
                 .request(
@@ -90,8 +88,7 @@ class UserImplTest {
 
         new UserImpl(USER_ID).tryConnectToServer("target-server", timeout).join();
 
-        ArgumentCaptor<ServerSwitchRequest> request =
-                ArgumentCaptor.forClass(ServerSwitchRequest.class);
+        ArgumentCaptor<ServerSwitchRequest> request = ArgumentCaptor.forClass(ServerSwitchRequest.class);
         ArgumentCaptor<Duration> remaining = ArgumentCaptor.forClass(Duration.class);
         verify(messaging)
                 .request(
@@ -100,9 +97,7 @@ class UserImplTest {
                         eq(ServerSwitchRequest.Response.class),
                         remaining.capture());
         assertThat(request.getValue().getTransferDeadlineEpochMillis())
-                .isBetween(
-                        startedAt + timeout.toMillis(),
-                        System.currentTimeMillis() + timeout.toMillis());
+                .isBetween(startedAt + timeout.toMillis(), System.currentTimeMillis() + timeout.toMillis());
         assertThat(remaining.getValue()).isPositive().isLessThanOrEqualTo(timeout);
     }
 
@@ -110,8 +105,7 @@ class UserImplTest {
     void tryConnectToServer_rejectsTimeoutShorterThanOneMillisecond() {
         UserImpl user = new UserImpl(USER_ID);
 
-        assertThatThrownBy(
-                        () -> user.tryConnectToServer("target-server", Duration.ofNanos(999_999)))
+        assertThatThrownBy(() -> user.tryConnectToServer("target-server", Duration.ofNanos(999_999)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("timeout must be at least 1ms");
         verifyNoInteractions(cache, messaging);
@@ -124,11 +118,9 @@ class UserImplTest {
                 .thenReturn(CompletableFuture.completedFuture(CURRENT_PROXY_ID));
         when(client.getProxyById(CURRENT_PROXY_ID)).thenReturn(proxyLookup);
 
-        assertThatThrownBy(
-                        () ->
-                                new UserImpl(USER_ID)
-                                        .tryConnectToServer("target-server", Duration.ofMillis(50))
-                                        .join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server", Duration.ofMillis(50))
+                        .join())
                 .hasCauseInstanceOf(TimeoutException.class);
 
         assertThat(proxyLookup).isNotDone();
@@ -141,11 +133,9 @@ class UserImplTest {
         long[] times = {1_000, 1_000, 1_001};
         AtomicInteger index = new AtomicInteger();
 
-        assertThatThrownBy(
-                        () ->
-                                new UserImpl(USER_ID, () -> times[index.getAndIncrement()])
-                                        .tryConnectToServer("target-server", Duration.ofMillis(1))
-                                        .join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID, () -> times[index.getAndIncrement()])
+                        .tryConnectToServer("target-server", Duration.ofMillis(1))
+                        .join())
                 .hasCauseInstanceOf(TimeoutException.class);
 
         verifyNoInteractions(messaging);
@@ -153,10 +143,11 @@ class UserImplTest {
 
     @Test
     void tryConnectToServer_withoutCurrentProxyFails() {
-        when(cache.<String>getObject(PROXY_PROPERTY_KEY))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(cache.<String>getObject(PROXY_PROPERTY_KEY)).thenReturn(CompletableFuture.completedFuture(null));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasCauseInstanceOf(UserHasNoProxyException.class);
     }
 
@@ -164,20 +155,22 @@ class UserImplTest {
     void tryConnectToServer_withUnknownCurrentProxyFails() {
         when(cache.<String>getObject(PROXY_PROPERTY_KEY))
                 .thenReturn(CompletableFuture.completedFuture(CURRENT_PROXY_ID));
-        when(client.getProxyById(CURRENT_PROXY_ID))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(client.getProxyById(CURRENT_PROXY_ID)).thenReturn(EchoFuture.completed(Optional.empty()));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasCauseInstanceOf(UnknownProxyException.class);
     }
 
     @Test
     void tryConnectToServer_propagatesCurrentProxyPropertyFailure() {
         IllegalStateException failure = new IllegalStateException("property lookup failed");
-        when(cache.<String>getObject(PROXY_PROPERTY_KEY))
-                .thenReturn(CompletableFuture.failedFuture(failure));
+        when(cache.<String>getObject(PROXY_PROPERTY_KEY)).thenReturn(CompletableFuture.failedFuture(failure));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasRootCauseMessage("property lookup failed");
     }
 
@@ -186,10 +179,11 @@ class UserImplTest {
         IllegalStateException failure = new IllegalStateException("proxy lookup failed");
         when(cache.<String>getObject(PROXY_PROPERTY_KEY))
                 .thenReturn(CompletableFuture.completedFuture(CURRENT_PROXY_ID));
-        when(client.getProxyById(CURRENT_PROXY_ID))
-                .thenReturn(EchoFuture.of(CompletableFuture.failedFuture(failure)));
+        when(client.getProxyById(CURRENT_PROXY_ID)).thenReturn(EchoFuture.of(CompletableFuture.failedFuture(failure)));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasRootCauseMessage("proxy lookup failed");
     }
 
@@ -204,7 +198,9 @@ class UserImplTest {
                         any(Duration.class)))
                 .thenReturn(EchoFuture.of(CompletableFuture.failedFuture(failure)));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasRootCauseMessage("messaging failed");
     }
 
@@ -218,7 +214,9 @@ class UserImplTest {
                         any(Duration.class)))
                 .thenReturn(EchoFuture.completed(new ServerSwitchRequest.Response(Map.of())));
 
-        assertThatThrownBy(() -> new UserImpl(USER_ID).tryConnectToServer("target-server").join())
+        assertThatThrownBy(() -> new UserImpl(USER_ID)
+                        .tryConnectToServer("target-server")
+                        .join())
                 .hasRootCauseMessage("Proxy response omitted player " + USER_ID);
     }
 
@@ -234,37 +232,25 @@ class UserImplTest {
         verify(messaging)
                 .request(
                         eq("proxy:current-proxy"),
-                        argThat(
-                                request ->
-                                        ((ServerSwitchRequest) request)
-                                                .getServerId()
-                                                .equals("server-from-object")),
+                        argThat(request ->
+                                ((ServerSwitchRequest) request).getServerId().equals("server-from-object")),
                         eq(ServerSwitchRequest.Response.class),
-                        argThat(
-                                actual ->
-                                        actual.isPositive()
-                                                && actual.compareTo(Duration.ofSeconds(10)) <= 0));
+                        argThat(actual -> actual.isPositive() && actual.compareTo(Duration.ofSeconds(10)) <= 0));
     }
 
     @Test
     void tryConnectToProxy_sendsRequestThroughCurrentProxy() {
         Proxy targetProxy = mock(Proxy.class);
         when(targetProxy.getId()).thenReturn("target-proxy");
-        when(currentProxy.sendMessage(any(ProxySwitchRequest.class)))
-                .thenReturn(EchoFuture.completed(null));
+        when(currentProxy.sendMessage(any(ProxySwitchRequest.class))).thenReturn(EchoFuture.completed(null));
         stubCurrentProxy();
 
         new UserImpl(USER_ID).tryConnectToProxy(targetProxy).join();
 
         verify(currentProxy)
-                .sendMessage(
-                        argThat(
-                                message ->
-                                        message instanceof ProxySwitchRequest request
-                                                && request.getProxyId().equals("target-proxy")
-                                                && java.util.Arrays.equals(
-                                                        request.getUserUuids(),
-                                                        new UUID[] {USER_ID})));
+                .sendMessage(argThat(message -> message instanceof ProxySwitchRequest request
+                        && request.getProxyId().equals("target-proxy")
+                        && java.util.Arrays.equals(request.getUserUuids(), new UUID[] {USER_ID})));
         verify(targetProxy, never()).sendMessage(any());
     }
 
@@ -281,17 +267,14 @@ class UserImplTest {
     private void stubCurrentProxy() {
         when(cache.<String>getObject(PROXY_PROPERTY_KEY))
                 .thenReturn(CompletableFuture.completedFuture(CURRENT_PROXY_ID));
-        when(client.getProxyById(CURRENT_PROXY_ID))
-                .thenReturn(EchoFuture.completed(Optional.of(currentProxy)));
+        when(client.getProxyById(CURRENT_PROXY_ID)).thenReturn(EchoFuture.completed(Optional.of(currentProxy)));
         when(currentProxy.getId()).thenReturn(CURRENT_PROXY_ID);
     }
 
     private ServerSwitchRequest.PlayerResponse stubResponse(Duration timeout) {
-        ServerSwitchRequest.PlayerResponse playerResponse =
-                new ServerSwitchRequest.PlayerResponse(
-                        true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
-        ServerSwitchRequest.Response response =
-                new ServerSwitchRequest.Response(Map.of(USER_ID, playerResponse));
+        ServerSwitchRequest.PlayerResponse playerResponse = new ServerSwitchRequest.PlayerResponse(
+                true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
+        ServerSwitchRequest.Response response = new ServerSwitchRequest.Response(Map.of(USER_ID, playerResponse));
         when(messaging.request(
                         eq("proxy:current-proxy"),
                         any(ServerSwitchRequest.class),

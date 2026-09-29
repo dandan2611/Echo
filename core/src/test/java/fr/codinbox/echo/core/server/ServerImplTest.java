@@ -62,9 +62,7 @@ class ServerImplTest {
             echoMock.when(Echo::getClient).thenReturn(mockClient);
             when(mockClient.getCacheProvider()).thenReturn(mockCache);
             when(mockCache.setObject(eq("server:testServer:address"), any(Address.class)))
-                    .thenReturn(
-                            CompletableFuture.failedFuture(
-                                    new IllegalStateException("write failed")));
+                    .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("write failed")));
 
             assertThatThrownBy(() -> new ServerImpl("testServer", new Address("127.0.0.1", 25565)))
                     .hasRootCauseMessage("write failed");

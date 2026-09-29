@@ -17,12 +17,10 @@ class AgonesTelemetryTest {
         final EchoPlugin plugin = new EchoPlugin();
         final AgonesGameServerLifecycle sidecar = mock(AgonesGameServerLifecycle.class);
         final Instant now = Instant.now();
-        final java.lang.reflect.Field lifecycle =
-                EchoPlugin.class.getDeclaredField("agonesLifecycle");
+        final java.lang.reflect.Field lifecycle = EchoPlugin.class.getDeclaredField("agonesLifecycle");
         lifecycle.setAccessible(true);
         lifecycle.set(plugin, sidecar);
-        when(sidecar.publishTelemetry(now, 4, 3, 475))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(sidecar.publishTelemetry(now, 4, 3, 475)).thenReturn(CompletableFuture.completedFuture(null));
 
         plugin.publishTelemetry(now, 4, 3);
 

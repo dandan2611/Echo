@@ -35,8 +35,7 @@ final class CommandTestSupport {
         return fixture(() -> mock(QueueService.class), () -> mock(OnDemandServers.class));
     }
 
-    static Fixture fixture(
-            Supplier<QueueService> queueLoader, Supplier<OnDemandServers> onDemandLoader) {
+    static Fixture fixture(Supplier<QueueService> queueLoader, Supplier<OnDemandServers> onDemandLoader) {
         EchoClient echo = mock(EchoClient.class);
         QueueService queues = queueLoader.get();
         OnDemandServers onDemand = onDemandLoader.get();
@@ -57,8 +56,7 @@ final class CommandTestSupport {
         CommandContext<String> context = mock(CommandContext.class);
         when(context.sender()).thenReturn("console user");
         EchoCommands<String> commands =
-                new EchoCommands<>(
-                        echo, audience, "echo|echoserver", () -> queues, () -> onDemand, logger);
+                new EchoCommands<>(echo, audience, "echo|echoserver", () -> queues, () -> onDemand, logger);
         return new Fixture(
                 commands,
                 context,
@@ -83,28 +81,16 @@ final class CommandTestSupport {
         @SuppressWarnings("unchecked")
         CommandContext<String> context = mock(CommandContext.class);
         when(context.sender()).thenReturn("console user");
-        EchoCommands<String> commands =
-                new EchoCommands<>(
-                        echo,
-                        audience,
-                        "echo",
-                        () -> {
-                            throw new IllegalStateException("not loaded");
-                        },
-                        () -> onDemand,
-                        logger);
-        return new Fixture(
-                commands,
-                context,
-                audience,
+        EchoCommands<String> commands = new EchoCommands<>(
                 echo,
-                null,
-                null,
-                onDemand,
-                administration,
-                null,
-                null,
+                audience,
+                "echo",
+                () -> {
+                    throw new IllegalStateException("not loaded");
+                },
+                () -> onDemand,
                 logger);
+        return new Fixture(commands, context, audience, echo, null, null, onDemand, administration, null, null, logger);
     }
 
     static Fixture fixtureWithFailingOnDemandLoader() {
@@ -117,66 +103,43 @@ final class CommandTestSupport {
         @SuppressWarnings("unchecked")
         CommandContext<String> context = mock(CommandContext.class);
         when(context.sender()).thenReturn("console user");
-        EchoCommands<String> commands =
-                new EchoCommands<>(
-                        echo,
-                        audience,
-                        "echo",
-                        () -> queues,
-                        () -> {
-                            throw new IllegalStateException("not loaded");
-                        },
-                        logger);
-        return new Fixture(
-                commands,
-                context,
-                audience,
+        EchoCommands<String> commands = new EchoCommands<>(
                 echo,
-                queues,
-                administration,
-                null,
-                null,
-                null,
-                null,
+                audience,
+                "echo",
+                () -> queues,
+                () -> {
+                    throw new IllegalStateException("not loaded");
+                },
                 logger);
+        return new Fixture(commands, context, audience, echo, queues, administration, null, null, null, null, logger);
     }
 
     static void controlResponse(
-            Fixture fixture,
-            boolean accepted,
-            ResourceControlRequest.Status status,
-            String message) {
+            Fixture fixture, boolean accepted, ResourceControlRequest.Status status, String message) {
         when(fixture.messaging.request(
                         anyString(),
                         any(ResourceControlRequest.class),
                         eq(ResourceControlRequest.Response.class),
                         any(Duration.class)))
-                .thenAnswer(
-                        invocation -> {
-                            ResourceControlRequest request = invocation.getArgument(1);
-                            return EchoFuture.completed(
-                                    new ResourceControlRequest.Response(
-                                            request, accepted, status, message));
-                        });
+                .thenAnswer(invocation -> {
+                    ResourceControlRequest request = invocation.getArgument(1);
+                    return EchoFuture.completed(
+                            new ResourceControlRequest.Response(request, accepted, status, message));
+                });
     }
 
     static void disconnectResponse(
-            Fixture fixture,
-            boolean accepted,
-            UserDisconnectRequest.Status status,
-            String message) {
+            Fixture fixture, boolean accepted, UserDisconnectRequest.Status status, String message) {
         when(fixture.messaging.request(
                         anyString(),
                         any(UserDisconnectRequest.class),
                         eq(UserDisconnectRequest.Response.class),
                         any(Duration.class)))
-                .thenAnswer(
-                        invocation -> {
-                            UserDisconnectRequest request = invocation.getArgument(1);
-                            return EchoFuture.completed(
-                                    new UserDisconnectRequest.Response(
-                                            request, accepted, status, message));
-                        });
+                .thenAnswer(invocation -> {
+                    UserDisconnectRequest request = invocation.getArgument(1);
+                    return EchoFuture.completed(new UserDisconnectRequest.Response(request, accepted, status, message));
+                });
     }
 
     static <T> EchoFuture<T> echoFailed(Throwable error) {
@@ -191,11 +154,10 @@ final class CommandTestSupport {
 
     private static Logger logger() {
         Logger logger = mock(Logger.class);
-        doAnswer(
-                        invocation -> {
-                            invocation.<Supplier<String>>getArgument(0).get();
-                            return null;
-                        })
+        doAnswer(invocation -> {
+                    invocation.<Supplier<String>>getArgument(0).get();
+                    return null;
+                })
                 .when(logger)
                 .info(any(Supplier.class));
         return logger;

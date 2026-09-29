@@ -8,7 +8,9 @@ import org.jetbrains.annotations.NotNull;
 /** A timestamped server load that becomes ineligible after its validity deadline. */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public record ServerLoadSnapshot(
-        @NotNull ServerLoad load, @NotNull Instant sampledAt, @NotNull Instant validUntil) {
+        @NotNull ServerLoad load,
+        @NotNull Instant sampledAt,
+        @NotNull Instant validUntil) {
 
     public ServerLoadSnapshot {
         Objects.requireNonNull(load, "load");

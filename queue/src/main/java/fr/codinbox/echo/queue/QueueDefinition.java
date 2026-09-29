@@ -19,14 +19,11 @@ public record QueueDefinition(
         if (Objects.requireNonNull(serverType, "serverType").isBlank())
             throw new IllegalArgumentException("serverType must not be blank");
         final Map<PropertyKey<?>, Object> properties = new LinkedHashMap<>();
-        Objects.requireNonNull(serverProperties, "serverProperties")
-                .forEach(
-                        (key, value) -> {
-                            if (Objects.requireNonNull(key, "property key").key().isBlank())
-                                throw new IllegalArgumentException(
-                                        "property keys must not be blank");
-                            properties.put(key, Objects.requireNonNull(value, "property value"));
-                        });
+        Objects.requireNonNull(serverProperties, "serverProperties").forEach((key, value) -> {
+            if (Objects.requireNonNull(key, "property key").key().isBlank())
+                throw new IllegalArgumentException("property keys must not be blank");
+            properties.put(key, Objects.requireNonNull(value, "property value"));
+        });
         serverProperties = Map.copyOf(properties);
         Objects.requireNonNull(placementPolicy, "placementPolicy");
     }

@@ -6,9 +6,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A resource that can receive (be sent) messages directly.
  *
- * <p>Implemented by {@link fr.codinbox.echo.api.server.Server Server} and {@link
- * fr.codinbox.echo.api.proxy.Proxy Proxy} via {@link MessageRouter}. Sending a message to a
- * receiver publishes it to that resource's topic.
+ * <p>Implemented by {@link fr.codinbox.echo.api.server.Server Server} and {@link fr.codinbox.echo.api.proxy.Proxy
+ * Proxy} via {@link MessageRouter}. Sending a message to a receiver publishes it to that resource's topic.
  *
  * <pre>{@code
  * Server server = client.getServerById("lobby-1").await().orElseThrow();

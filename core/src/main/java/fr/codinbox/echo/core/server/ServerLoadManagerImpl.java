@@ -41,11 +41,9 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
     }
 
     @Override
-    public synchronized @NotNull ProviderRegistration setProvider(
-            final @NotNull ServerLoadProvider provider) {
+    public synchronized @NotNull ProviderRegistration setProvider(final @NotNull ServerLoadProvider provider) {
         if (this.override != null)
-            throw new IllegalStateException(
-                    "A server load provider override is already registered");
+            throw new IllegalStateException("A server load provider override is already registered");
         this.override = new Registration(provider);
         return this.override;
     }
@@ -56,8 +54,7 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
         synchronized (this) {
             provider = this.override != null ? this.override.provider : this.defaultProvider;
         }
-        if (provider == null)
-            return failedFuture(new IllegalStateException("No server load provider is registered"));
+        if (provider == null) return failedFuture(new IllegalStateException("No server load provider is registered"));
 
         final ServerLoadSnapshot snapshot;
         try {
@@ -67,9 +64,7 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
             return failedFuture(error);
         }
         return EchoFuture.of(
-                this.server
-                        .setProperty(Server.PROPERTY_LOAD, snapshot)
-                        .thenApply(ignored -> snapshot));
+                this.server.setProperty(Server.PROPERTY_LOAD, snapshot).thenApply(ignored -> snapshot));
     }
 
     @Override
@@ -92,8 +87,7 @@ public final class ServerLoadManagerImpl implements ServerLoadManager {
         @Override
         public void close() {
             synchronized (ServerLoadManagerImpl.this) {
-                if (ServerLoadManagerImpl.this.override == this)
-                    ServerLoadManagerImpl.this.override = null;
+                if (ServerLoadManagerImpl.this.override == this) ServerLoadManagerImpl.this.override = null;
             }
         }
     }

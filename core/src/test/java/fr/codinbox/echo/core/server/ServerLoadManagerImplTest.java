@@ -41,8 +41,7 @@ class ServerLoadManagerImplTest {
 
         ServerLoadSnapshot result = manager.refresh().join();
 
-        ArgumentCaptor<ServerLoadSnapshot> snapshot =
-                ArgumentCaptor.forClass(ServerLoadSnapshot.class);
+        ArgumentCaptor<ServerLoadSnapshot> snapshot = ArgumentCaptor.forClass(ServerLoadSnapshot.class);
         verify(server).setProperty(eq(Server.PROPERTY_LOAD), snapshot.capture());
         assertThat(snapshot.getValue()).isEqualTo(result);
         assertThat(result.load()).isEqualTo(new ServerLoad(3, true));
@@ -53,8 +52,7 @@ class ServerLoadManagerImplTest {
     @Test
     void providerRegistration_closeRestoresDefaultAndRejectsSecondOverride() {
         ServerLoadManagerImpl manager = manager(() -> new ServerLoad(1, true));
-        ServerLoadManager.ProviderRegistration registration =
-                manager.setProvider(() -> new ServerLoad(7, false));
+        ServerLoadManager.ProviderRegistration registration = manager.setProvider(() -> new ServerLoad(7, false));
 
         assertThat(manager.refresh().join().load()).isEqualTo(new ServerLoad(7, false));
         assertThatThrownBy(() -> manager.setProvider(() -> new ServerLoad(8, true)))
@@ -83,33 +81,21 @@ class ServerLoadManagerImplTest {
     void refresh_providerFailureDoesNotOverwriteLastSnapshot() {
         ServerLoadManagerImpl manager = manager(() -> new ServerLoad(2, true));
         manager.refresh().join();
-        manager.setProvider(
-                () -> {
-                    throw new IllegalStateException("provider failed");
-                });
+        manager.setProvider(() -> {
+            throw new IllegalStateException("provider failed");
+        });
 
         assertThatThrownBy(() -> manager.refresh().join()).hasRootCauseMessage("provider failed");
-        verify(server, times(1))
-                .setProperty(eq(Server.PROPERTY_LOAD), any(ServerLoadSnapshot.class));
+        verify(server, times(1)).setProperty(eq(Server.PROPERTY_LOAD), any(ServerLoadSnapshot.class));
     }
 
     @Test
     void constructor_rejectsNonPositiveStaleness() {
         assertThatThrownBy(
-                        () ->
-                                new ServerLoadManagerImpl(
-                                        server,
-                                        null,
-                                        Duration.ZERO,
-                                        Clock.fixed(NOW, ZoneOffset.UTC)))
+                        () -> new ServerLoadManagerImpl(server, null, Duration.ZERO, Clock.fixed(NOW, ZoneOffset.UTC)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(
-                        () ->
-                                new ServerLoadManagerImpl(
-                                        server,
-                                        null,
-                                        Duration.ofSeconds(-1),
-                                        Clock.fixed(NOW, ZoneOffset.UTC)))
+        assertThatThrownBy(() -> new ServerLoadManagerImpl(
+                        server, null, Duration.ofSeconds(-1), Clock.fixed(NOW, ZoneOffset.UTC)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -117,8 +103,7 @@ class ServerLoadManagerImplTest {
     void refresh_withoutProviderFails() {
         assertThatThrownBy(() -> manager(null).refresh().join())
                 .hasRootCauseMessage("No server load provider is registered");
-        verify(server, never())
-                .setProperty(eq(Server.PROPERTY_LOAD), any(ServerLoadSnapshot.class));
+        verify(server, never()).setProperty(eq(Server.PROPERTY_LOAD), any(ServerLoadSnapshot.class));
     }
 
     @Test
@@ -128,7 +113,8 @@ class ServerLoadManagerImplTest {
         when(server.setProperty(eq(Server.PROPERTY_LOAD), any(ServerLoadSnapshot.class)))
                 .thenReturn(failure);
 
-        assertThatThrownBy(() -> manager(() -> new ServerLoad(1, true)).refresh().join())
+        assertThatThrownBy(
+                        () -> manager(() -> new ServerLoad(1, true)).refresh().join())
                 .hasRootCauseMessage("write failed");
     }
 

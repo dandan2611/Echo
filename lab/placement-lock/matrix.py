@@ -51,16 +51,9 @@ for i, (version, mode, pause, timings) in enumerate(cases):
         timeout=120,
     )
     (evidence / f"{name}.log").write_text(result.stdout, encoding="utf-8")
-    expected_red = (
-        mode != "baseline"
-        and not pause
-        and not (mode == "unlock-lost" and timings == "default")
-    )
+    expected_red = mode != "baseline" and not pause and not (mode == "unlock-lost" and timings == "default")
     correct = (
-        (
-            result.returncode != 0
-            and "BUG: empty lobby remains rejected" in result.stdout
-        )
+        (result.returncode != 0 and "BUG: empty lobby remains rejected" in result.stdout)
         if expected_red
         else (result.returncode == 0 and "PASS no leaked lock" in result.stdout)
     )

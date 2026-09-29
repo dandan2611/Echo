@@ -22,12 +22,10 @@ public class UnknownResourceException extends RuntimeException {
     /**
      * Creates a new exception for an unknown resource.
      *
-     * @param resourceType the type of resource (e.g. {@code "user"}, {@code "server"}, {@code
-     *     "proxy"})
+     * @param resourceType the type of resource (e.g. {@code "user"}, {@code "server"}, {@code "proxy"})
      * @param name the identifier of the resource that was not found
      */
-    public UnknownResourceException(
-            final @NotNull String resourceType, final @NotNull String name) {
+    public UnknownResourceException(final @NotNull String resourceType, final @NotNull String name) {
         super("Resource '" + resourceType + "' with name '" + name + "' has not been found");
     }
 }

@@ -12,8 +12,7 @@ public class ServerStatusNotificationHandler implements MessageHandler<ServerSta
     private final @NotNull Logger logger;
     private final @NotNull ProxyServer proxy;
 
-    public ServerStatusNotificationHandler(
-            final @NotNull Logger logger, final @NotNull ProxyServer proxy) {
+    public ServerStatusNotificationHandler(final @NotNull Logger logger, final @NotNull ProxyServer proxy) {
         this.logger = logger;
         this.proxy = proxy;
     }
@@ -22,13 +21,8 @@ public class ServerStatusNotificationHandler implements MessageHandler<ServerSta
     public void onReceive(@NotNull ServerStatusNotification notification) {
         switch (notification.getStatus()) {
             case REGISTERED ->
-                    ProxyUtils.registerServer(
-                            this.proxy,
-                            this.logger,
-                            notification.getId(),
-                            notification.getAddress());
-            case UNREGISTERED ->
-                    ProxyUtils.unregisterServer(this.proxy, this.logger, notification.getId());
+                ProxyUtils.registerServer(this.proxy, this.logger, notification.getId(), notification.getAddress());
+            case UNREGISTERED -> ProxyUtils.unregisterServer(this.proxy, this.logger, notification.getId());
         }
     }
 }

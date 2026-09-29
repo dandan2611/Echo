@@ -25,8 +25,7 @@ public interface QueueService extends AutoCloseable {
     CompletableFuture<QueueRequestStatus> enqueue(@NotNull QueueRequest request);
 
     @NotNull
-    CompletableFuture<Optional<QueueRequestStatus>> get(
-            @NotNull QueueId queueId, @NotNull String requestId);
+    CompletableFuture<Optional<QueueRequestStatus>> get(@NotNull QueueId queueId, @NotNull String requestId);
 
     @NotNull
     CompletableFuture<Boolean> cancel(@NotNull QueueId queueId, @NotNull String requestId);

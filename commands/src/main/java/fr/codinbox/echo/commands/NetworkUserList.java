@@ -31,97 +31,72 @@ final class NetworkUserList {
         this.echo = echo;
     }
 
-    CompletableFuture<Component> render(
-            Set<UUID> members, Group grouping, boolean names, int page, String command) {
+    CompletableFuture<Component> render(Set<UUID> members, Group grouping, boolean names, int page, String command) {
         if (!names && grouping == Group.NONE)
-            return CompletableFuture.completedFuture(
-                    format(
-                            members.stream()
-                                    .map(id -> new Entry(id, id.toString(), "", false))
-                                    .toList(),
-                            grouping,
-                            false,
-                            page,
-                            command));
+            return CompletableFuture.completedFuture(format(
+                    members.stream()
+                            .map(id -> new Entry(id, id.toString(), "", false))
+                            .toList(),
+                    grouping,
+                    false,
+                    page,
+                    command));
         List<UUID> ids = List.copyOf(members);
         long deadline = System.nanoTime() + READ_TIMEOUT_NANOS;
-        CompletableFuture<List<Entry>> result =
-                CompletableFuture.completedFuture(new ArrayList<>(ids.size()));
+        CompletableFuture<List<Entry>> result = CompletableFuture.completedFuture(new ArrayList<>(ids.size()));
         // Batches bound Redis fan-out. A shared deadline also bounds a fully stalled network:
         // later batches fall back without issuing fresh requests after the deadline.
         for (int start = 0; start < ids.size(); start += READ_CONCURRENCY) {
             List<UUID> batch = ids.subList(start, Math.min(ids.size(), start + READ_CONCURRENCY));
-            result =
-                    result.thenComposeAsync(
-                            entries -> {
-                                List<CompletableFuture<Entry>> reads =
-                                        batch.stream()
-                                                .map(id -> readEntry(id, grouping, names, deadline))
-                                                .toList();
-                                return CompletableFuture.allOf(
-                                                reads.toArray(CompletableFuture[]::new))
-                                        .thenApply(
-                                                ignored -> {
-                                                    reads.forEach(read -> entries.add(read.join()));
-                                                    return entries;
-                                                });
-                            });
+            result = result.thenComposeAsync(entries -> {
+                List<CompletableFuture<Entry>> reads = batch.stream()
+                        .map(id -> readEntry(id, grouping, names, deadline))
+                        .toList();
+                return CompletableFuture.allOf(reads.toArray(CompletableFuture[]::new))
+                        .thenApply(ignored -> {
+                            reads.forEach(read -> entries.add(read.join()));
+                            return entries;
+                        });
+            });
         }
         return result.thenApplyAsync(entries -> format(entries, grouping, names, page, command));
     }
 
-    private CompletableFuture<Entry> readEntry(
-            UUID id, Group grouping, boolean names, long deadline) {
+    private CompletableFuture<Entry> readEntry(UUID id, Group grouping, boolean names, long deadline) {
         return read(() -> this.echo.getUserById(id), deadline)
-                .thenCompose(
-                        found -> {
-                            if (found.isEmpty())
-                                return CompletableFuture.completedFuture(unavailable(id, grouping));
-                            User user = found.get();
-                            CompletableFuture<Field> group =
-                                    switch (grouping) {
-                                        case SERVER -> field(user::getCurrentServerId, deadline);
-                                        case PROXY -> field(user::getCurrentProxyId, deadline);
-                                        case NONE ->
-                                                CompletableFuture.completedFuture(
-                                                        new Field(Optional.of(""), false));
-                                    };
-                            CompletableFuture<Field> name =
-                                    names
-                                            ? field(user::getUsername, deadline)
-                                            : CompletableFuture.completedFuture(
-                                                    new Field(Optional.empty(), false));
-                            return group.thenCombine(
-                                    name,
-                                    (location, username) ->
-                                            new Entry(
-                                                    id,
-                                                    username.value().orElse(id.toString()),
-                                                    location.unavailable()
-                                                            ? unknownGroup(grouping)
-                                                            : location.value()
-                                                                    .orElse(
-                                                                            grouping == Group.SERVER
-                                                                                    ? "(no server)"
-                                                                                    : "(no proxy)"),
-                                                    location.unavailable()
-                                                            || (names
-                                                                    && username.value()
-                                                                            .isEmpty())));
-                        })
+                .thenCompose(found -> {
+                    if (found.isEmpty()) return CompletableFuture.completedFuture(unavailable(id, grouping));
+                    User user = found.get();
+                    CompletableFuture<Field> group = switch (grouping) {
+                        case SERVER -> field(user::getCurrentServerId, deadline);
+                        case PROXY -> field(user::getCurrentProxyId, deadline);
+                        case NONE -> CompletableFuture.completedFuture(new Field(Optional.of(""), false));
+                    };
+                    CompletableFuture<Field> name = names
+                            ? field(user::getUsername, deadline)
+                            : CompletableFuture.completedFuture(new Field(Optional.empty(), false));
+                    return group.thenCombine(
+                            name,
+                            (location, username) -> new Entry(
+                                    id,
+                                    username.value().orElse(id.toString()),
+                                    location.unavailable()
+                                            ? unknownGroup(grouping)
+                                            : location.value()
+                                                    .orElse(grouping == Group.SERVER ? "(no server)" : "(no proxy)"),
+                                    location.unavailable()
+                                            || (names && username.value().isEmpty())));
+                })
                 .exceptionally(error -> unavailable(id, grouping));
     }
 
     private CompletableFuture<Field> field(
             Supplier<? extends CompletableFuture<Optional<String>>> lookup, long deadline) {
         return read(lookup, deadline)
-                .handle(
-                        (value, error) ->
-                                new Field(error == null ? value : Optional.empty(), error != null));
+                .handle((value, error) -> new Field(error == null ? value : Optional.empty(), error != null));
     }
 
-    private <T> CompletableFuture<T> read(
-            Supplier<? extends CompletableFuture<T>> lookup, long deadline) {
+    private <T> CompletableFuture<T> read(Supplier<? extends CompletableFuture<T>> lookup, long deadline) {
         long remaining = deadline - System.nanoTime();
         if (remaining <= 0) return CompletableFuture.failedFuture(new TimeoutException());
         try {
@@ -144,25 +119,18 @@ final class NetworkUserList {
         };
     }
 
-    private Component format(
-            List<Entry> entries, Group grouping, boolean names, int page, String command) {
-        List<Entry> sorted =
-                entries.stream()
-                        .sorted(
-                                Comparator.comparing(Entry::group)
-                                        .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER)
-                                        .thenComparing(Entry::id))
-                        .toList();
+    private Component format(List<Entry> entries, Group grouping, boolean names, int page, String command) {
+        List<Entry> sorted = entries.stream()
+                .sorted(Comparator.comparing(Entry::group)
+                        .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(Entry::id))
+                .toList();
         Map<String, List<Entry>> groups =
-                sorted.stream()
-                        .collect(
-                                Collectors.groupingBy(
-                                        Entry::group, TreeMap::new, Collectors.toList()));
+                sorted.stream().collect(Collectors.groupingBy(Entry::group, TreeMap::new, Collectors.toList()));
         int size = names ? sorted.size() : grouping == Group.NONE ? 0 : groups.size();
         int pages = Math.max(1, (int) Math.ceil(size / (double) PAGE_SIZE));
         if (page > pages)
-            throw new IllegalArgumentException(
-                    "Glist: page " + page + " is out of range (1-" + pages + ").");
+            throw new IllegalArgumentException("Glist: page " + page + " is out of range (1-" + pages + ").");
         long offset = (long) (page - 1) * PAGE_SIZE;
         List<String> lines = new ArrayList<>();
         if (names) {
@@ -170,55 +138,31 @@ final class NetworkUserList {
                     .skip(offset)
                     .limit(PAGE_SIZE)
                     .collect(Collectors.groupingBy(Entry::group, TreeMap::new, Collectors.toList()))
-                    .forEach(
-                            (group, users) ->
-                                    lines.add(
-                                            (grouping == Group.NONE
-                                                            ? ""
-                                                            : group
-                                                                    + " ("
-                                                                    + groups.get(group).size()
-                                                                    + "): ")
-                                                    + users.stream()
-                                                            .map(Entry::name)
-                                                            .collect(Collectors.joining(", "))));
+                    .forEach((group, users) -> lines.add((grouping == Group.NONE
+                                    ? ""
+                                    : group + " (" + groups.get(group).size() + "): ")
+                            + users.stream().map(Entry::name).collect(Collectors.joining(", "))));
         } else if (grouping != Group.NONE) {
             groups.entrySet().stream()
                     .skip(offset)
                     .limit(PAGE_SIZE)
-                    .forEach(
-                            entry ->
-                                    lines.add(
-                                            entry.getKey() + " (" + entry.getValue().size() + ")"));
+                    .forEach(entry ->
+                            lines.add(entry.getKey() + " (" + entry.getValue().size() + ")"));
         }
-        Component result =
-                Component.text(
-                        "Users — Total: " + entries.size() + " — Page " + page + "/" + pages,
-                        NamedTextColor.AQUA);
+        Component result = Component.text(
+                "Users — Total: " + entries.size() + " — Page " + page + "/" + pages, NamedTextColor.AQUA);
         for (String line : lines)
-            result =
-                    result.append(Component.newline())
-                            .append(Component.text(line, NamedTextColor.WHITE));
+            result = result.append(Component.newline()).append(Component.text(line, NamedTextColor.WHITE));
         if (entries.isEmpty())
-            result =
-                    result.append(Component.newline())
-                            .append(Component.text("No users matched the selection."));
+            result = result.append(Component.newline()).append(Component.text("No users matched the selection."));
         long unavailable = entries.stream().filter(Entry::partial).count();
         if (unavailable > 0)
-            result =
-                    result.append(Component.newline())
-                            .append(
-                                    Component.text(
-                                            "Partial results: details unavailable for "
-                                                    + unavailable
-                                                    + " user(s).",
-                                            NamedTextColor.YELLOW));
-        if (page > 1)
-            result =
-                    result.append(Component.newline())
-                            .append(pageLink("Previous", command, page - 1));
-        if (page < pages)
-            result = result.append(Component.newline()).append(pageLink("Next", command, page + 1));
+            result = result.append(Component.newline())
+                    .append(Component.text(
+                            "Partial results: details unavailable for " + unavailable + " user(s).",
+                            NamedTextColor.YELLOW));
+        if (page > 1) result = result.append(Component.newline()).append(pageLink("Previous", command, page - 1));
+        if (page < pages) result = result.append(Component.newline()).append(pageLink("Next", command, page + 1));
         return result;
     }
 

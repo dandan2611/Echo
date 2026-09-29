@@ -50,8 +50,7 @@ public class EchoClientImpl implements EchoClient {
     private final @NotNull EchoResourceType resourceType;
     private final @NotNull String resourceId;
     private final @NotNull String topic;
-    private final @NotNull Map<fr.codinbox.echo.api.property.PropertyKey<?>, Object>
-            initialProperties;
+    private final @NotNull Map<fr.codinbox.echo.api.property.PropertyKey<?>, Object> initialProperties;
     private final @Nullable ServerLoadManagerImpl serverLoadManager;
     private final @Nullable ServerPlacement serverPlacement;
     private final boolean publishInitialServerLoad;
@@ -72,13 +71,12 @@ public class EchoClientImpl implements EchoClient {
         this.resourceType = config.getResourceType();
         this.resourceId = config.getResourceId();
         this.initialProperties = config.getInitialProperties();
-        this.serverLoadManager =
-                this.resourceType == EchoResourceType.SERVER
-                        ? new ServerLoadManagerImpl(
-                                new ServerImpl(this.resourceId, null),
-                                config.getServerLoadProvider(),
-                                Duration.ofSeconds(config.getHeartbeatTtlSeconds()))
-                        : null;
+        this.serverLoadManager = this.resourceType == EchoResourceType.SERVER
+                ? new ServerLoadManagerImpl(
+                        new ServerImpl(this.resourceId, null),
+                        config.getServerLoadProvider(),
+                        Duration.ofSeconds(config.getHeartbeatTtlSeconds()))
+                : null;
         this.publishInitialServerLoad = config.getServerLoadProvider() != null;
         this.serverPlacement = config.getServerPlacement();
 
@@ -90,37 +88,31 @@ public class EchoClientImpl implements EchoClient {
         this.cacheProvider.init().join();
         this.messagingProvider.init().join();
 
-        this.scheduler =
-                Executors.newSingleThreadScheduledExecutor(
-                        r -> {
-                            final Thread t = new Thread(r, "echo-healthcheck");
-                            t.setDaemon(true);
-                            return t;
-                        });
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            final Thread t = new Thread(r, "echo-healthcheck");
+            t.setDaemon(true);
+            return t;
+        });
 
-        this.topic =
-                switch (resourceType) {
-                    case PROXY -> ProxyImpl.PROXY_TOPIC.formatted(resourceId);
-                    case SERVER -> ServerImpl.SERVER_TOPIC.formatted(resourceId);
-                };
+        this.topic = switch (resourceType) {
+            case PROXY -> ProxyImpl.PROXY_TOPIC.formatted(resourceId);
+            case SERVER -> ServerImpl.SERVER_TOPIC.formatted(resourceId);
+        };
 
         this.messagingProvider.subscribe(topic, this.messagingProvider::handleReply);
-        this.messagingProvider.subscribe(
-                MessageTarget.BROADCAST_TOPIC, this.messagingProvider::handleReply);
+        this.messagingProvider.subscribe(MessageTarget.BROADCAST_TOPIC, this.messagingProvider::handleReply);
 
         // Subscribe to the type-specific global topic
-        final String globalTopic =
-                switch (resourceType) {
-                    case PROXY -> MessageTarget.PROXIES_TOPIC;
-                    case SERVER -> MessageTarget.SERVERS_TOPIC;
-                };
+        final String globalTopic = switch (resourceType) {
+            case PROXY -> MessageTarget.PROXIES_TOPIC;
+            case SERVER -> MessageTarget.SERVERS_TOPIC;
+        };
         this.messagingProvider.subscribe(globalTopic, this.messagingProvider::handleReply);
     }
 
     @Override
     public @NotNull EchoFuture<@NotNull Map<UUID, Long>> getAllUsers() {
-        return EchoFuture.of(
-                this.getUserMap().readAllAsync().thenApplyAsync(MapUtils::mapStringToUuidKey));
+        return EchoFuture.of(this.getUserMap().readAllAsync().thenApplyAsync(MapUtils::mapStringToUuidKey));
     }
 
     private @NotNull CacheMap<String, Long> getUserMap() {
@@ -130,50 +122,38 @@ public class EchoClientImpl implements EchoClient {
     @Override
     public @NotNull EchoFuture<@NotNull Optional<User>> getUserById(final @NotNull UUID id) {
         final User user = new UserImpl(id);
-        return EchoFuture.of(
-                user.getUsername().thenApply(username -> username.map(ignored -> user)));
+        return EchoFuture.of(user.getUsername().thenApply(username -> username.map(ignored -> user)));
     }
 
     @Override
-    public @NotNull EchoFuture<@NotNull Optional<User>> getUserByUsername(
-            final @NotNull String username) {
+    public @NotNull EchoFuture<@NotNull Optional<User>> getUserByUsername(final @NotNull String username) {
         final CacheMap<String, String> usernameToIdMap = this.getPlayerUsernameToIdMap();
 
-        return EchoFuture.of(
-                usernameToIdMap
-                        .getAsync(username.toLowerCase(Locale.ROOT))
-                        .thenApply(
-                                idStr -> {
-                                    if (idStr == null) return null;
-                                    return UUID.fromString(idStr);
-                                })
-                        .thenCompose(this::getUserById));
+        return EchoFuture.of(usernameToIdMap
+                .getAsync(username.toLowerCase(Locale.ROOT))
+                .thenApply(idStr -> {
+                    if (idStr == null) return null;
+                    return UUID.fromString(idStr);
+                })
+                .thenCompose(this::getUserById));
     }
 
     @Override
-    public @NotNull EchoFuture<Void> registerUserUsername(
-            @NotNull UUID id, @NotNull String username) {
-        return EchoFuture.of(
-                this.getPlayerUsernameToIdMap()
-                        .putAsync(username.toLowerCase(Locale.ROOT), id.toString())
-                        .thenApply(aVoid -> null));
+    public @NotNull EchoFuture<Void> registerUserUsername(@NotNull UUID id, @NotNull String username) {
+        return EchoFuture.of(this.getPlayerUsernameToIdMap()
+                .putAsync(username.toLowerCase(Locale.ROOT), id.toString())
+                .thenApply(aVoid -> null));
     }
 
     @Override
     public @NotNull EchoFuture<Void> unregisterUserUsername(@NotNull User user) {
-        return EchoFuture.of(
-                CompletableFuture.allOf(
-                        user.getUsername()
-                                .thenComposeAsync(
-                                        usernameOpt -> {
-                                            if (usernameOpt.isEmpty())
-                                                return CompletableFuture.completedFuture(null);
+        return EchoFuture.of(CompletableFuture.allOf(user.getUsername().thenComposeAsync(usernameOpt -> {
+            if (usernameOpt.isEmpty()) return CompletableFuture.completedFuture(null);
 
-                                            final String username = usernameOpt.get();
+            final String username = usernameOpt.get();
 
-                                            return this.getPlayerUsernameToIdMap()
-                                                    .removeAsync(username.toLowerCase(Locale.ROOT));
-                                        })));
+            return this.getPlayerUsernameToIdMap().removeAsync(username.toLowerCase(Locale.ROOT));
+        })));
     }
 
     private @NotNull CacheMap<String, String> getPlayerUsernameToIdMap() {
@@ -199,8 +179,7 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull ServerPlacement getServerPlacement() {
-        if (this.serverPlacement == null)
-            throw new IllegalStateException("Server placement is not configured");
+        if (this.serverPlacement == null) throw new IllegalStateException("Server placement is not configured");
         return this.serverPlacement;
     }
 
@@ -217,8 +196,7 @@ public class EchoClientImpl implements EchoClient {
     public @NotNull EchoFuture<@NotNull Optional<Server>> getServerById(final @NotNull String id) {
         final ServerImpl server = new ServerImpl(id, null);
         return EchoFuture.of(
-                server.stillExists()
-                        .thenApplyAsync(exists -> exists ? Optional.of(server) : Optional.empty()));
+                server.stillExists().thenApplyAsync(exists -> exists ? Optional.of(server) : Optional.empty()));
     }
 
     @Override
@@ -233,9 +211,7 @@ public class EchoClientImpl implements EchoClient {
     @Override
     public @NotNull EchoFuture<@NotNull Optional<Proxy>> getProxyById(@NotNull String id) {
         final ProxyImpl proxy = new ProxyImpl(id, null);
-        return EchoFuture.of(
-                proxy.stillExists()
-                        .thenApply(exists -> exists ? Optional.of(proxy) : Optional.empty()));
+        return EchoFuture.of(proxy.stillExists().thenApply(exists -> exists ? Optional.of(proxy) : Optional.empty()));
     }
 
     @Override
@@ -249,18 +225,13 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull EchoFuture<Void> setLocalServerAvailability(
-            final @NotNull ServerAvailability availability) {
+    public @NotNull EchoFuture<Void> setLocalServerAvailability(final @NotNull ServerAvailability availability) {
         if (this.resourceType != EchoResourceType.SERVER)
             throw new IllegalStateException("Only a server can change server availability");
 
         final ServerImpl server = new ServerImpl(this.resourceId, null);
-        return EchoFuture.of(
-                server.setProperty(Server.PROPERTY_AVAILABILITY, availability.name())
-                        .thenCompose(
-                                ignored ->
-                                        this.publishServerAvailability(
-                                                this.resourceId, availability)));
+        return EchoFuture.of(server.setProperty(Server.PROPERTY_AVAILABILITY, availability.name())
+                .thenCompose(ignored -> this.publishServerAvailability(this.resourceId, availability)));
     }
 
     public void createLocalResource(final @NotNull Address address) {
@@ -293,7 +264,8 @@ public class EchoClientImpl implements EchoClient {
                         .await();
                 server.setProperty(Server.PROPERTY_AVAILABILITY, initialAvailability.name())
                         .await();
-                if (this.publishInitialServerLoad) this.serverLoadManager.refresh().await();
+                if (this.publishInitialServerLoad)
+                    this.serverLoadManager.refresh().await();
 
                 this.logger.info("Created server %s".formatted(server.getId()));
             }
@@ -301,10 +273,7 @@ public class EchoClientImpl implements EchoClient {
 
         // Emit first heartbeat
         this.cacheProvider
-                .setObject(
-                        heartbeatKey,
-                        Instant.now().toEpochMilli(),
-                        Duration.ofSeconds(this.heartbeatTtlSeconds))
+                .setObject(heartbeatKey, Instant.now().toEpochMilli(), Duration.ofSeconds(this.heartbeatTtlSeconds))
                 .join();
     }
 
@@ -320,19 +289,19 @@ public class EchoClientImpl implements EchoClient {
                 final ServerAvailability availability =
                         new ServerImpl(this.resourceId, null).getAvailability().await();
                 if (availability == ServerAvailability.ACTIVE)
-                    this.publishServerStatus(
-                                    this.resourceId, ServerStatusNotification.Status.REGISTERED)
+                    this.publishServerStatus(this.resourceId, ServerStatusNotification.Status.REGISTERED)
                             .join();
-                else this.publishServerAvailability(this.resourceId, availability).join();
+                else
+                    this.publishServerAvailability(this.resourceId, availability)
+                            .join();
 
-                this.logger.info(
-                        "Advertised server %s".formatted(this.getCurrentResourceId().orElse(null)));
+                this.logger.info("Advertised server %s"
+                        .formatted(this.getCurrentResourceId().orElse(null)));
             }
         }
     }
 
-    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config)
-            throws Exception {
+    public static @NotNull EchoClientImpl autoInit(final @NotNull EchoConfig config) throws Exception {
         return autoInit(config, ServerAvailability.ACTIVE);
     }
 
@@ -345,15 +314,13 @@ public class EchoClientImpl implements EchoClient {
      * @throws Exception when initialization fails
      */
     public static @NotNull EchoClientImpl autoInit(
-            final @NotNull EchoConfig config, final @NotNull ServerAvailability initialAvailability)
-            throws Exception {
+            final @NotNull EchoConfig config, final @NotNull ServerAvailability initialAvailability) throws Exception {
         Address resourceAddress;
 
         try {
             resourceAddress = Objects.requireNonNull(EnvUtils.getAddress());
         } catch (final @NotNull Exception exception) {
-            throw new IllegalStateException(
-                    "Failed to load resource address from environment variables", exception);
+            throw new IllegalStateException("Failed to load resource address from environment variables", exception);
         }
 
         final EchoClientImpl impl = new EchoClientImpl(config);
@@ -380,13 +347,10 @@ public class EchoClientImpl implements EchoClient {
     }
 
     public @NotNull CompletableFuture<@NotNull Instant> registerServer(final @NotNull String id) {
-        if (this.serverPlacement
-                instanceof fr.codinbox.echo.core.server.placement.RedisServerPlacement placement)
+        if (this.serverPlacement instanceof fr.codinbox.echo.core.server.placement.RedisServerPlacement placement)
             return CompletableFuture.supplyAsync(() -> placement.startAdmissionPublisher(id));
         final Instant creationTime = Instant.now();
-        return this.getServerMap()
-                .putAsync(id, creationTime.toEpochMilli())
-                .thenApply(aVoid -> creationTime);
+        return this.getServerMap().putAsync(id, creationTime.toEpochMilli()).thenApply(aVoid -> creationTime);
     }
 
     public @NotNull CompletableFuture<Void> unregisterServer(final @NotNull String id) {
@@ -402,9 +366,7 @@ public class EchoClientImpl implements EchoClient {
                 this.setLocalServerAvailability(ServerAvailability.DRAINING).join();
             } catch (RuntimeException error) {
                 this.logger.log(
-                        Level.WARNING,
-                        "Failed to drain server %s during shutdown".formatted(this.resourceId),
-                        error);
+                        Level.WARNING, "Failed to drain server %s during shutdown".formatted(this.resourceId), error);
             }
         }
 
@@ -427,8 +389,7 @@ public class EchoClientImpl implements EchoClient {
                 } catch (RuntimeException error) {
                     this.logger.log(
                             Level.WARNING,
-                            "Failed to send shutdown notification for server %s"
-                                    .formatted(serverId),
+                            "Failed to send shutdown notification for server %s".formatted(serverId),
                             error);
                 }
                 this.unregisterServer(serverId).join();
@@ -449,9 +410,7 @@ public class EchoClientImpl implements EchoClient {
 
     @Override
     public @NotNull EchoFuture<@NotNull User> createUser(
-            final @NotNull UUID uuid,
-            final @NotNull String username,
-            final @NotNull String proxyId) {
+            final @NotNull UUID uuid, final @NotNull String username, final @NotNull String proxyId) {
         return this.createUser(uuid, username, proxyId, UUID.randomUUID().toString());
     }
 
@@ -463,34 +422,25 @@ public class EchoClientImpl implements EchoClient {
             final @NotNull String sessionId) {
         Objects.requireNonNull(sessionId, "sessionId");
         final User user = new UserImpl(uuid);
-        final CompletableFuture<Boolean> created =
-                this.cacheProvider.withLock(
-                        USER_LIFECYCLE_LOCK_FORMAT.formatted(uuid),
-                        30,
-                        0,
-                        TimeUnit.SECONDS,
-                        () ->
-                                CompletableFuture.allOf(
-                                        user.setProperty(User.PROPERTY_USERNAME, username),
-                                        user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
-                                        user.setProperty(User.PROPERTY_SESSION_ID, sessionId),
-                                        user.setProperty(
-                                                AbstractPropertyHolder.CREATION_TIME_KEY,
-                                                Instant.now().toEpochMilli()),
-                                        this.registerUserUsername(uuid, username),
-                                        this.getUserMap()
-                                                .fastPutAsync(
-                                                        uuid.toString(),
-                                                        Instant.now().toEpochMilli()),
-                                        new ProxyImpl(proxyId, null).registerUser(user)));
-        return EchoFuture.of(
-                created.thenCompose(
-                        acquired ->
-                                acquired
-                                        ? CompletableFuture.completedFuture(user)
-                                        : CompletableFuture.failedFuture(
-                                                new IllegalStateException(
-                                                        "User lifecycle lock unavailable"))));
+        final CompletableFuture<Boolean> created = this.cacheProvider.withLock(
+                USER_LIFECYCLE_LOCK_FORMAT.formatted(uuid),
+                30,
+                0,
+                TimeUnit.SECONDS,
+                () -> CompletableFuture.allOf(
+                        user.setProperty(User.PROPERTY_USERNAME, username),
+                        user.setProperty(User.PROPERTY_CURRENT_PROXY_ID, proxyId),
+                        user.setProperty(User.PROPERTY_SESSION_ID, sessionId),
+                        user.setProperty(
+                                AbstractPropertyHolder.CREATION_TIME_KEY,
+                                Instant.now().toEpochMilli()),
+                        this.registerUserUsername(uuid, username),
+                        this.getUserMap()
+                                .fastPutAsync(uuid.toString(), Instant.now().toEpochMilli()),
+                        new ProxyImpl(proxyId, null).registerUser(user)));
+        return EchoFuture.of(created.thenCompose(acquired -> acquired
+                ? CompletableFuture.completedFuture(user)
+                : CompletableFuture.failedFuture(new IllegalStateException("User lifecycle lock unavailable"))));
     }
 
     @Override
@@ -499,40 +449,24 @@ public class EchoClientImpl implements EchoClient {
     }
 
     @Override
-    public @NotNull EchoFuture<Void> destroyUser(
-            final @NotNull User user, final @NotNull String expectedSessionId) {
+    public @NotNull EchoFuture<Void> destroyUser(final @NotNull User user, final @NotNull String expectedSessionId) {
         Objects.requireNonNull(expectedSessionId, "expectedSessionId");
         return this.destroyUserLocked(
                 user,
-                () ->
-                        user.getSessionId()
-                                .thenCompose(
-                                        sessionId ->
-                                                sessionId
-                                                                .filter(expectedSessionId::equals)
-                                                                .isPresent()
-                                                        ? this.destroyUserState(user)
-                                                        : CompletableFuture.completedFuture(null)));
+                () -> user.getSessionId()
+                        .thenCompose(sessionId ->
+                                sessionId.filter(expectedSessionId::equals).isPresent()
+                                        ? this.destroyUserState(user)
+                                        : CompletableFuture.completedFuture(null)));
     }
 
     private @NotNull EchoFuture<Void> destroyUserLocked(
-            final @NotNull User user,
-            final @NotNull java.util.function.Supplier<CompletableFuture<Void>> action) {
-        CompletableFuture<Boolean> destroyed =
-                this.cacheProvider.withLock(
-                        USER_LIFECYCLE_LOCK_FORMAT.formatted(user.getId()),
-                        30,
-                        0,
-                        TimeUnit.SECONDS,
-                        action);
-        return EchoFuture.of(
-                destroyed.thenCompose(
-                        acquired ->
-                                acquired
-                                        ? CompletableFuture.completedFuture(null)
-                                        : CompletableFuture.failedFuture(
-                                                new IllegalStateException(
-                                                        "User lifecycle lock unavailable"))));
+            final @NotNull User user, final @NotNull java.util.function.Supplier<CompletableFuture<Void>> action) {
+        CompletableFuture<Boolean> destroyed = this.cacheProvider.withLock(
+                USER_LIFECYCLE_LOCK_FORMAT.formatted(user.getId()), 30, 0, TimeUnit.SECONDS, action);
+        return EchoFuture.of(destroyed.thenCompose(acquired -> acquired
+                ? CompletableFuture.completedFuture(null)
+                : CompletableFuture.failedFuture(new IllegalStateException("User lifecycle lock unavailable"))));
     }
 
     private @NotNull CompletableFuture<Void> destroyUserState(final @NotNull User user) {
@@ -546,101 +480,72 @@ public class EchoClientImpl implements EchoClient {
 
     private @NotNull CompletableFuture<Void> unregisterUserFromServer(final @NotNull User user) {
         return user.getCurrentServerId()
-                .thenCompose(
-                        serverId ->
-                                serverId.<CompletableFuture<Boolean>>map(
-                                                id -> new ServerImpl(id, null).unregisterUser(user))
-                                        .orElseGet(() -> CompletableFuture.completedFuture(false)))
+                .thenCompose(serverId -> serverId.<CompletableFuture<Boolean>>map(
+                                id -> new ServerImpl(id, null).unregisterUser(user))
+                        .orElseGet(() -> CompletableFuture.completedFuture(false)))
                 .thenApply(ignored -> null);
     }
 
     private @NotNull CompletableFuture<Void> unregisterUserFromProxy(final @NotNull User user) {
         return user.getCurrentProxyId()
-                .thenCompose(
-                        proxyId ->
-                                proxyId.<CompletableFuture<Boolean>>map(
-                                                id -> new ProxyImpl(id, null).unregisterUser(user))
-                                        .orElseGet(() -> CompletableFuture.completedFuture(false)))
+                .thenCompose(proxyId -> proxyId.<CompletableFuture<Boolean>>map(
+                                id -> new ProxyImpl(id, null).unregisterUser(user))
+                        .orElseGet(() -> CompletableFuture.completedFuture(false)))
                 .thenApply(ignored -> null);
     }
 
     @Override
-    public @NotNull EchoFuture<Void> registerUserInServer(
-            @NotNull User user, @Nullable Server server) {
-        CompletableFuture<Void> unregisterFuture =
-                user.getCurrentServer()
-                        .thenComposeAsync(
-                                sOpt ->
-                                        sOpt.<java.util.concurrent.CompletionStage<Boolean>>map(
-                                                        value -> value.unregisterUser(user))
-                                                .orElseGet(
-                                                        () ->
-                                                                CompletableFuture.completedFuture(
-                                                                        null)))
-                        .thenRun(() -> {});
+    public @NotNull EchoFuture<Void> registerUserInServer(@NotNull User user, @Nullable Server server) {
+        CompletableFuture<Void> unregisterFuture = user.getCurrentServer()
+                .thenComposeAsync(sOpt -> sOpt.<java.util.concurrent.CompletionStage<Boolean>>map(
+                                value -> value.unregisterUser(user))
+                        .orElseGet(() -> CompletableFuture.completedFuture(null)))
+                .thenRun(() -> {});
 
         if (server == null) return EchoFuture.of(unregisterFuture);
 
-        return EchoFuture.of(
-                unregisterFuture.thenCompose(
-                        v ->
-                                CompletableFuture.allOf(
-                                        server.registerUser(user),
-                                        user.setProperty(
-                                                User.PROPERTY_CURRENT_SERVER_ID, server.getId()))));
+        return EchoFuture.of(unregisterFuture.thenCompose(v -> CompletableFuture.allOf(
+                server.registerUser(user), user.setProperty(User.PROPERTY_CURRENT_SERVER_ID, server.getId()))));
     }
 
     // --- Healthcheck ---
 
-    private static @NotNull String getHeartbeatKey(
-            final @NotNull EchoResourceType type, final @NotNull String id) {
+    private static @NotNull String getHeartbeatKey(final @NotNull EchoResourceType type, final @NotNull String id) {
         return HEARTBEAT_KEY_FORMAT.formatted(type.name().toLowerCase(Locale.ROOT), id);
     }
 
-    private static @NotNull String getSuspectKey(
-            final @NotNull EchoResourceType type, final @NotNull String id) {
+    private static @NotNull String getSuspectKey(final @NotNull EchoResourceType type, final @NotNull String id) {
         return SUSPECT_KEY_FORMAT.formatted(type.name().toLowerCase(Locale.ROOT), id);
     }
 
-    private static @NotNull String getCleanupLockKey(
-            final @NotNull EchoResourceType type, final @NotNull String id) {
+    private static @NotNull String getCleanupLockKey(final @NotNull EchoResourceType type, final @NotNull String id) {
         return CLEANUP_LOCK_FORMAT.formatted(type.name().toLowerCase(Locale.ROOT), id);
     }
 
     public void startHealthcheck() {
         // Heartbeat task
         this.scheduler.scheduleAtFixedRate(
-                this::emitHeartbeat,
-                this.heartbeatIntervalSeconds,
-                this.heartbeatIntervalSeconds,
-                TimeUnit.SECONDS);
+                this::emitHeartbeat, this.heartbeatIntervalSeconds, this.heartbeatIntervalSeconds, TimeUnit.SECONDS);
 
         // Scanner task (only if cleanup is enabled)
         if (this.cleanupEnabled) {
             this.scheduler.scheduleAtFixedRate(
-                    this::scanForDeadResources,
-                    this.scanIntervalSeconds,
-                    this.scanIntervalSeconds,
-                    TimeUnit.SECONDS);
+                    this::scanForDeadResources, this.scanIntervalSeconds, this.scanIntervalSeconds, TimeUnit.SECONDS);
         }
 
-        this.logger.info(
-                "Healthcheck started (heartbeat=%ds, ttl=%ds, scan=%ds, cleanup=%s)"
-                        .formatted(
-                                this.heartbeatIntervalSeconds,
-                                this.heartbeatTtlSeconds,
-                                this.scanIntervalSeconds,
-                                this.cleanupEnabled));
+        this.logger.info("Healthcheck started (heartbeat=%ds, ttl=%ds, scan=%ds, cleanup=%s)"
+                .formatted(
+                        this.heartbeatIntervalSeconds,
+                        this.heartbeatTtlSeconds,
+                        this.scanIntervalSeconds,
+                        this.cleanupEnabled));
     }
 
     private void emitHeartbeat() {
         try {
             final String key = getHeartbeatKey(this.resourceType, this.resourceId);
             this.cacheProvider
-                    .setObject(
-                            key,
-                            Instant.now().toEpochMilli(),
-                            Duration.ofSeconds(this.heartbeatTtlSeconds))
+                    .setObject(key, Instant.now().toEpochMilli(), Duration.ofSeconds(this.heartbeatTtlSeconds))
                     .join();
         } catch (final Exception e) {
             this.logger.log(Level.SEVERE, "Failed to emit heartbeat", e);
@@ -652,16 +557,14 @@ public class EchoClientImpl implements EchoClient {
             // Scan servers
             final Map<String, Long> servers = this.getServerMap().readAllAsync().join();
             for (final String serverId : servers.keySet()) {
-                if (serverId.equals(this.resourceId)
-                        && this.resourceType == EchoResourceType.SERVER) continue;
+                if (serverId.equals(this.resourceId) && this.resourceType == EchoResourceType.SERVER) continue;
                 checkResource(EchoResourceType.SERVER, serverId);
             }
 
             // Scan proxies
             final Map<String, Long> proxies = this.getProxyMap().readAllAsync().join();
             for (final String proxyId : proxies.keySet()) {
-                if (proxyId.equals(this.resourceId) && this.resourceType == EchoResourceType.PROXY)
-                    continue;
+                if (proxyId.equals(this.resourceId) && this.resourceType == EchoResourceType.PROXY) continue;
                 checkResource(EchoResourceType.PROXY, proxyId);
             }
         } catch (final Exception e) {
@@ -673,7 +576,8 @@ public class EchoClientImpl implements EchoClient {
         final String heartbeatKey = getHeartbeatKey(type, id);
         final String suspectKey = getSuspectKey(type, id);
 
-        final boolean heartbeatExists = this.cacheProvider.hasObject(heartbeatKey).join();
+        final boolean heartbeatExists =
+                this.cacheProvider.hasObject(heartbeatKey).join();
         if (heartbeatExists) return;
 
         // No heartbeat — check if already suspected
@@ -682,72 +586,53 @@ public class EchoClientImpl implements EchoClient {
             // First detection: mark as suspect
             this.cacheProvider
                     .setObject(suspectKey, Instant.now().toEpochMilli())
-                    .thenCompose(
-                            v ->
-                                    this.cacheProvider.expireObject(
-                                            suspectKey,
-                                            Duration.ofSeconds(this.scanIntervalSeconds * 2)))
+                    .thenCompose(v -> this.cacheProvider.expireObject(
+                            suspectKey, Duration.ofSeconds(this.scanIntervalSeconds * 2)))
                     .join();
-            this.logger.warning(
-                    "Resource %s:%s has no heartbeat, marked as suspect"
-                            .formatted(type.name(), id));
+            this.logger.warning("Resource %s:%s has no heartbeat, marked as suspect".formatted(type.name(), id));
             return;
         }
 
         // Second detection: confirmed dead, cleanup
-        this.logger.warning(
-                "Resource %s:%s confirmed dead, initiating cleanup".formatted(type.name(), id));
+        this.logger.warning("Resource %s:%s confirmed dead, initiating cleanup".formatted(type.name(), id));
         this.cleanupDeadResource(type, id);
     }
 
-    private void cleanupDeadResource(
-            final @NotNull EchoResourceType type, final @NotNull String id) {
+    private void cleanupDeadResource(final @NotNull EchoResourceType type, final @NotNull String id) {
         final String lockKey = getCleanupLockKey(type, id);
 
         this.cacheProvider
-                .withLock(
-                        lockKey,
-                        0,
-                        30,
-                        TimeUnit.SECONDS,
-                        () -> {
-                            // Re-check heartbeat under lock (may have come back)
-                            final String heartbeatKey = getHeartbeatKey(type, id);
-                            if (this.cacheProvider.hasObject(heartbeatKey).join()) {
-                                this.logger.info(
-                                        "Resource %s:%s heartbeat restored, skipping cleanup"
-                                                .formatted(type.name(), id));
-                                return CompletableFuture.completedFuture(null);
-                            }
+                .withLock(lockKey, 0, 30, TimeUnit.SECONDS, () -> {
+                    // Re-check heartbeat under lock (may have come back)
+                    final String heartbeatKey = getHeartbeatKey(type, id);
+                    if (this.cacheProvider.hasObject(heartbeatKey).join()) {
+                        this.logger.info(
+                                "Resource %s:%s heartbeat restored, skipping cleanup".formatted(type.name(), id));
+                        return CompletableFuture.completedFuture(null);
+                    }
 
-                            switch (type) {
-                                case SERVER -> cleanupDeadServer(id);
-                                case PROXY -> cleanupDeadProxy(id);
-                            }
+                    switch (type) {
+                        case SERVER -> cleanupDeadServer(id);
+                        case PROXY -> cleanupDeadProxy(id);
+                    }
 
-                            // Remove suspect key
-                            this.cacheProvider.deleteObject(getSuspectKey(type, id)).join();
+                    // Remove suspect key
+                    this.cacheProvider.deleteObject(getSuspectKey(type, id)).join();
 
-                            this.logger.info(
-                                    "Cleanup completed for %s:%s".formatted(type.name(), id));
-                            return CompletableFuture.completedFuture(null);
-                        })
-                .handle(
-                        (acquired, ex) -> {
-                            if (ex != null) {
-                                this.logger.log(
-                                        Level.SEVERE,
-                                        "Failed to cleanup dead resource %s:%s"
-                                                .formatted(type.name(), id),
-                                        ex);
-                            } else if (Boolean.FALSE.equals(acquired)) {
-                                this.logger.log(
-                                        Level.FINE,
-                                        "Cleanup lock for %s:%s already held by another node"
-                                                .formatted(type.name(), id));
-                            }
-                            return null;
-                        })
+                    this.logger.info("Cleanup completed for %s:%s".formatted(type.name(), id));
+                    return CompletableFuture.completedFuture(null);
+                })
+                .handle((acquired, ex) -> {
+                    if (ex != null) {
+                        this.logger.log(
+                                Level.SEVERE, "Failed to cleanup dead resource %s:%s".formatted(type.name(), id), ex);
+                    } else if (Boolean.FALSE.equals(acquired)) {
+                        this.logger.log(
+                                Level.FINE,
+                                "Cleanup lock for %s:%s already held by another node".formatted(type.name(), id));
+                    }
+                    return null;
+                })
                 .join();
     }
 
@@ -786,27 +671,23 @@ public class EchoClientImpl implements EchoClient {
         proxy.clearUsers().await();
     }
 
-    private void cleanupOrphanedServerUsers(
-            final @NotNull ServerImpl server, final @NotNull String serverId) {
+    private void cleanupOrphanedServerUsers(final @NotNull ServerImpl server, final @NotNull String serverId) {
         try {
             final Map<UUID, Long> connectedUsers = server.getConnectedUsers().await();
             for (final UUID userId : connectedUsers.keySet()) {
                 final User user = new UserImpl(userId);
-                final Optional<String> currentServerId = user.getCurrentServerId().await();
+                final Optional<String> currentServerId =
+                        user.getCurrentServerId().await();
                 if (currentServerId.isPresent() && currentServerId.get().equals(serverId)) {
                     this.destroyUser(user).await();
                 }
             }
         } catch (final Exception e) {
-            this.logger.log(
-                    Level.WARNING,
-                    "Failed to cleanup orphaned users for server %s".formatted(serverId),
-                    e);
+            this.logger.log(Level.WARNING, "Failed to cleanup orphaned users for server %s".formatted(serverId), e);
         }
     }
 
-    private void cleanupOrphanedProxyUsers(
-            final @NotNull ProxyImpl proxy, final @NotNull String proxyId) {
+    private void cleanupOrphanedProxyUsers(final @NotNull ProxyImpl proxy, final @NotNull String proxyId) {
         try {
             final Map<UUID, Long> connectedUsers = proxy.getConnectedUsers().await();
             for (final UUID userId : connectedUsers.keySet()) {
@@ -817,25 +698,17 @@ public class EchoClientImpl implements EchoClient {
                 }
             }
         } catch (final Exception e) {
-            this.logger.log(
-                    Level.WARNING,
-                    "Failed to cleanup orphaned users for proxy %s".formatted(proxyId),
-                    e);
+            this.logger.log(Level.WARNING, "Failed to cleanup orphaned users for proxy %s".formatted(proxyId), e);
         }
     }
 
     private void sendServerStatusNotification(
             final @NotNull String serverId, final @NotNull ServerStatusNotification.Status status) {
-        this.publishServerStatus(serverId, status)
-                .exceptionally(
-                        error -> {
-                            this.logger.log(
-                                    Level.WARNING,
-                                    "Failed to send status notification for server %s"
-                                            .formatted(serverId),
-                                    error);
-                            return null;
-                        });
+        this.publishServerStatus(serverId, status).exceptionally(error -> {
+            this.logger.log(
+                    Level.WARNING, "Failed to send status notification for server %s".formatted(serverId), error);
+            return null;
+        });
     }
 
     private CompletableFuture<Void> publishServerStatus(
@@ -849,7 +722,6 @@ public class EchoClientImpl implements EchoClient {
             final @NotNull String serverId, final @NotNull ServerAvailability availability) {
         final ServerImpl server = new ServerImpl(serverId, null);
         return this.messagingProvider.publish(
-                MessageTarget.PROXIES_TOPIC,
-                new ServerAvailabilityNotification(server, availability));
+                MessageTarget.PROXIES_TOPIC, new ServerAvailabilityNotification(server, availability));
     }
 }

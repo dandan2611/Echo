@@ -41,11 +41,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 class PaperRuntimeIntegrationTest {
     @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
+    private static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    @TempDir Path directory;
+
+    @TempDir
+    Path directory;
 
     @Test
     void paper26PublishesSdkTelemetryAndTracksAnActualPendingConnection() throws Exception {
@@ -56,25 +57,18 @@ class PaperRuntimeIntegrationTest {
                     .as("Paper startup log: %s", Files.readString(directory.resolve("server.log")))
                     .isNotNull();
             assertThat(telemetry.toString())
-                    .isEqualTo(
-                            JSON.createObjectNode()
-                                    .put("version", 1)
-                                    .put("sampledAt", telemetry.path("sampledAt").asLong())
-                                    .put("connectedPlayers", 0)
-                                    .put("publicPlayers", 0)
-                                    .put("publicCapacity", serverCapacity)
-                                    .toString());
+                    .isEqualTo(JSON.createObjectNode()
+                            .put("version", 1)
+                            .put("sampledAt", telemetry.path("sampledAt").asLong())
+                            .put("connectedPlayers", 0)
+                            .put("publicPlayers", 0)
+                            .put("publicCapacity", serverCapacity)
+                            .toString());
             try (final Socket player = runtime.login()) {
-                assertThat(
-                                runtime.awaitPending(true)
-                                        .path("joiningMembers")
-                                        .has(Runtime.PLAYER.toString()))
+                assertThat(runtime.awaitPending(true).path("joiningMembers").has(Runtime.PLAYER.toString()))
                         .isTrue();
             }
-            assertThat(
-                            runtime.awaitPending(false)
-                                    .path("joiningMembers")
-                                    .has(Runtime.PLAYER.toString()))
+            assertThat(runtime.awaitPending(false).path("joiningMembers").has(Runtime.PLAYER.toString()))
                     .isFalse();
         }
     }
@@ -96,9 +90,7 @@ class PaperRuntimeIntegrationTest {
             download(
                     "https://github.com/dandan2611/Connector/releases/download/v8.1.0/connector-paper-8.1.0-all.jar",
                     directory.resolve("plugins/Connector.jar"));
-            Files.copy(
-                    Path.of(System.getProperty("echo.paper.jar")),
-                    directory.resolve("plugins/Echo.jar"));
+            Files.copy(Path.of(System.getProperty("echo.paper.jar")), directory.resolve("plugins/Echo.jar"));
             Files.writeString(directory.resolve("eula.txt"), "eula=true\n");
             try (final ServerSocket available = new ServerSocket(0)) {
                 port = available.getLocalPort();
@@ -112,8 +104,7 @@ class PaperRuntimeIntegrationTest {
                             + "max-players="
                             + serverCapacity
                             + "\n");
-            final String redisAddress =
-                    "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379);
+            final String redisAddress = "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379);
             Files.writeString(
                     directory.resolve("redis.yml"),
                     "codec: !<fr.codinbox.connector.commons.codec.JsonJacksonConnectorCodec> {}\n"
@@ -124,43 +115,43 @@ class PaperRuntimeIntegrationTest {
             config.useSingleServer().setAddress(redisAddress);
             redis = Redisson.create(config);
             sdk = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            sdk.createContext(
-                    "/",
-                    exchange -> {
-                        String response = "{}";
-                        if (exchange.getRequestURI().getPath().equals("/gameserver"))
-                            response =
-                                    "{\"object_meta\":{\"annotations\":{}},\"status\":{\"state\":\"Allocated\"}}";
-                        if (exchange.getRequestURI().getPath().equals("/metadata/annotation")) {
-                            final JsonNode body = JSON.readTree(exchange.getRequestBody());
-                            if (body.path("key").asText().equals("echo-telemetry"))
-                                telemetry.add(JSON.readTree(body.path("value").asText()));
-                        }
-                        final byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                        exchange.sendResponseHeaders(200, bytes.length);
-                        exchange.getResponseBody().write(bytes);
-                        exchange.close();
-                    });
+            sdk.createContext("/", exchange -> {
+                String response = "{}";
+                if (exchange.getRequestURI().getPath().equals("/gameserver"))
+                    response = "{\"object_meta\":{\"annotations\":{}},\"status\":{\"state\":\"Allocated\"}}";
+                if (exchange.getRequestURI().getPath().equals("/metadata/annotation")) {
+                    final JsonNode body = JSON.readTree(exchange.getRequestBody());
+                    if (body.path("key").asText().equals("echo-telemetry"))
+                        telemetry.add(JSON.readTree(body.path("value").asText()));
+                }
+                final byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+                exchange.close();
+            });
             sdk.start();
-            final ProcessBuilder builder =
-                    new ProcessBuilder(
-                                    Path.of(System.getProperty("java.home"), "bin", "java")
-                                            .toString(),
-                                    "-Xms256M",
-                                    "-Xmx1G",
-                                    "-jar",
-                                    "server.jar",
-                                    "--nogui")
-                            .directory(directory.toFile())
-                            .redirectErrorStream(true)
-                            .redirectOutput(directory.resolve("server.log").toFile());
+            final ProcessBuilder builder = new ProcessBuilder(
+                            Path.of(System.getProperty("java.home"), "bin", "java")
+                                    .toString(),
+                            "-Xms256M",
+                            "-Xmx1G",
+                            "-jar",
+                            "server.jar",
+                            "--nogui")
+                    .directory(directory.toFile())
+                    .redirectErrorStream(true)
+                    .redirectOutput(directory.resolve("server.log").toFile());
             builder.environment()
-                    .put("CONNECTOR_REDIS_ECHO_CONFIG", directory.resolve("redis.yml").toString());
+                    .put(
+                            "CONNECTOR_REDIS_ECHO_CONFIG",
+                            directory.resolve("redis.yml").toString());
             builder.environment().put("ECHO_RESOURCE_ID", "runtime-smoke");
             builder.environment().put("ECHO_RESOURCE_ADDRESS", "127.0.0.1:" + port);
             builder.environment().put("ECHO_AGONES_ENABLED", "true");
             builder.environment()
-                    .put("AGONES_SDK_HTTP_PORT", Integer.toString(sdk.getAddress().getPort()));
+                    .put(
+                            "AGONES_SDK_HTTP_PORT",
+                            Integer.toString(sdk.getAddress().getPort()));
             process = builder.start();
         }
 
@@ -170,17 +161,12 @@ class PaperRuntimeIntegrationTest {
                 status.setSoTimeout(30000);
                 packet(status, handshake(-1, 1));
                 packet(status, new byte[] {0});
-                final DataInputStream response =
-                        new DataInputStream(new ByteArrayInputStream(readPacket(status)));
+                final DataInputStream response = new DataInputStream(new ByteArrayInputStream(readPacket(status)));
                 varInt(response);
-                protocol =
-                        JSON.readTree(
-                                        new String(
-                                                response.readNBytes(varInt(response)),
-                                                StandardCharsets.UTF_8))
-                                .path("version")
-                                .path("protocol")
-                                .asInt();
+                protocol = JSON.readTree(new String(response.readNBytes(varInt(response)), StandardCharsets.UTF_8))
+                        .path("version")
+                        .path("protocol")
+                        .asInt();
             }
             final Socket socket = new Socket("127.0.0.1", port);
             socket.setSoTimeout(30000);
@@ -196,8 +182,7 @@ class PaperRuntimeIntegrationTest {
             final byte[] response = readPacket(socket);
             if (response[0] != 2) {
                 socket.close();
-                throw new IllegalStateException(
-                        "Expected login success, got packet " + response[0]);
+                throw new IllegalStateException("Expected login success, got packet " + response[0]);
             }
             // Leave the connection in configuration rather than spawning a gameplay bot.
             packet(socket, new byte[] {3});
@@ -219,11 +204,10 @@ class PaperRuntimeIntegrationTest {
         private JsonNode awaitPending(final boolean present) throws Exception {
             final Instant deadline = Instant.now().plusSeconds(10);
             while (Instant.now().isBefore(deadline)) {
-                final String value =
-                        redis.<String>getBucket("server:runtime-smoke:property:admission").get();
+                final String value = redis.<String>getBucket("server:runtime-smoke:property:admission")
+                        .get();
                 final JsonNode snapshot = JSON.readTree(value);
-                if (snapshot.path("joiningMembers").has(PLAYER.toString()) == present)
-                    return snapshot;
+                if (snapshot.path("joiningMembers").has(PLAYER.toString()) == present) return snapshot;
                 Thread.sleep(100);
             }
             throw new IllegalStateException("Pending connection did not become " + present);
@@ -235,7 +219,8 @@ class PaperRuntimeIntegrationTest {
                 if (process.isAlive()) {
                     process.getOutputStream().write("stop\n".getBytes(StandardCharsets.UTF_8));
                     process.getOutputStream().flush();
-                    if (!process.waitFor(30, TimeUnit.SECONDS)) process.destroyForcibly().waitFor();
+                    if (!process.waitFor(30, TimeUnit.SECONDS))
+                        process.destroyForcibly().waitFor();
                 }
             } finally {
                 sdk.stop(0);
@@ -244,18 +229,16 @@ class PaperRuntimeIntegrationTest {
         }
 
         private static void download(final String url, final Path target) throws Exception {
-            final HttpResponse<Path> response =
-                    HttpClient.newBuilder()
-                            .followRedirects(HttpClient.Redirect.NORMAL)
-                            .build()
-                            .send(
-                                    HttpRequest.newBuilder(URI.create(url))
-                                            .timeout(Duration.ofMinutes(2))
-                                            .build(),
-                                    HttpResponse.BodyHandlers.ofFile(target));
+            final HttpResponse<Path> response = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build()
+                    .send(
+                            HttpRequest.newBuilder(URI.create(url))
+                                    .timeout(Duration.ofMinutes(2))
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofFile(target));
             if (response.statusCode() != 200)
-                throw new IllegalStateException(
-                        "Download failed: " + url + ": " + response.statusCode());
+                throw new IllegalStateException("Download failed: " + url + ": " + response.statusCode());
         }
 
         private static void packet(final Socket socket, final byte[] bytes) throws Exception {

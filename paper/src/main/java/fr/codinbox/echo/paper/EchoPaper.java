@@ -63,62 +63,44 @@ public class EchoPaper extends JavaPlugin {
     public void onEnable() {
         try {
             final RedisConnectorService redisConnectorService =
-                    Objects.requireNonNull(
-                            this.getServer()
-                                    .getServicesManager()
-                                    .load(RedisConnectorService.class));
+                    Objects.requireNonNull(this.getServer().getServicesManager().load(RedisConnectorService.class));
             final Optional<RedisConnection> echoConnection =
                     redisConnectorService.getConnection(ECHO_CONNECTOR_CONNECTION_NAME);
 
             if (echoConnection.isEmpty())
-                throw new IllegalStateException(
-                        "Failed to get Redis connection for Echo, is the "
-                                + ECHO_CONNECTOR_CONNECTION_NAME
-                                + " connection property configured?");
+                throw new IllegalStateException("Failed to get Redis connection for Echo, is the "
+                        + ECHO_CONNECTOR_CONNECTION_NAME
+                        + " connection property configured?");
 
             final RedisConnection connection = echoConnection.get();
             final RedisServerPlacement placement = new RedisServerPlacement(connection);
-            final Map<PropertyKey<?>, Object> properties =
-                    initialProperties(
-                            EnvUtils.getInitialProperties(), this.getServer().getMaxPlayers());
-            this.getServer()
-                    .setMaxPlayers(
-                            (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
-            final EchoConfig config =
-                    EchoConfig.builder()
-                            .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
-                            .messagingProviderFactory(
-                                    RedisProviderFactory.messagingFactory(connection))
-                            .serverPlacement(placement)
-                            .resourceType(EchoResourceType.SERVER)
-                            .resourceId(Objects.requireNonNull(EnvUtils.getResourceId()))
-                            .initialProperties(properties)
-                            .serverLoadProvider(
-                                    () ->
-                                            new ServerLoad(
-                                                    this.getServer().getOnlinePlayers().size(),
-                                                    true))
-                            .build();
-            final boolean agonesEnabled =
-                    Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
-            this.echoClient =
-                    EchoClientImpl.autoInit(
-                            config,
-                            agonesEnabled
-                                    ? ServerAvailability.DRAINING
-                                    : ServerAvailability.ACTIVE);
+            final Map<PropertyKey<?>, Object> properties = initialProperties(
+                    EnvUtils.getInitialProperties(), this.getServer().getMaxPlayers());
+            this.getServer().setMaxPlayers((Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
+            final EchoConfig config = EchoConfig.builder()
+                    .cacheProviderFactory(RedisProviderFactory.cacheFactory(connection))
+                    .messagingProviderFactory(RedisProviderFactory.messagingFactory(connection))
+                    .serverPlacement(placement)
+                    .resourceType(EchoResourceType.SERVER)
+                    .resourceId(Objects.requireNonNull(EnvUtils.getResourceId()))
+                    .initialProperties(properties)
+                    .serverLoadProvider(() ->
+                            new ServerLoad(this.getServer().getOnlinePlayers().size(), true))
+                    .build();
+            final boolean agonesEnabled = Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
+            this.echoClient = EchoClientImpl.autoInit(
+                    config, agonesEnabled ? ServerAvailability.DRAINING : ServerAvailability.ACTIVE);
 
             final ServerLoadManager serverLoadManager = this.echoClient.getServerLoadManager();
 
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();
-            this.admission =
-                    new AdmissionListener(
-                            this,
-                            placement,
-                            config.getResourceId(),
-                            (Integer) properties.get(ServerPlacement.PROPERTY_CAPACITY),
-                            (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
+            this.admission = new AdmissionListener(
+                    this,
+                    placement,
+                    config.getResourceId(),
+                    (Integer) properties.get(ServerPlacement.PROPERTY_CAPACITY),
+                    (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
             pluginManager.registerEvents(admission, this);
             admission.refresh();
             this.getServer().getScheduler().runTaskTimer(this, admission::refresh, 20L, 20L);
@@ -132,20 +114,16 @@ public class EchoPaper extends JavaPlugin {
                                     this,
                                     this.echoClient,
                                     this.stopping::get,
-                                    () ->
-                                            this.getServer()
-                                                    .getServicesManager()
-                                                    .load(QueuePlacementPreparer.class)));
+                                    () -> this.getServer().getServicesManager().load(QueuePlacementPreparer.class)));
             this.echoClient
                     .getMessagingProvider()
                     .subscribe(
                             this.echoClient.getLocalTopic(),
                             ResourceControlRequest.class,
                             new ResourceControlRequestHandler(this, this.echoClient));
-            final PaperCommandManager<CommandSourceStack> commandManager =
-                    PaperCommandManager.builder()
-                            .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
-                            .buildOnEnable(this);
+            final PaperCommandManager<CommandSourceStack> commandManager = PaperCommandManager.builder()
+                    .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
+                    .buildOnEnable(this);
             // Resource IDs may contain ':'; Cloud retains token parsing and flag validation.
             commandManager
                     .brigadierManager()
@@ -155,76 +133,46 @@ public class EchoPaper extends JavaPlugin {
                     .brigadierManager()
                     .registerMapping(
                             new io.leangen.geantyref.TypeToken<
-                                    org.incendo.cloud.parser.standard.StringParser<
-                                            CommandSourceStack>>() {},
-                            mapping ->
-                                    mapping.toConstant(
-                                                    com.mojang.brigadier.arguments
-                                                            .StringArgumentType.greedyString())
-                                            .cloudSuggestions());
+                                    org.incendo.cloud.parser.standard.StringParser<CommandSourceStack>>() {},
+                            mapping -> mapping.toConstant(
+                                            com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                                    .cloudSuggestions());
             final AnnotationParser<CommandSourceStack> commandParser =
                     new AnnotationParser<>(commandManager, CommandSourceStack.class);
-            new EchoCommands<>(this.echoClient, commandAudience(), COMMAND_ROOT)
-                    .register(commandParser);
+            new EchoCommands<>(this.echoClient, commandAudience(), COMMAND_ROOT).register(commandParser);
             final long refreshTicks = Math.max(1L, config.getHeartbeatIntervalSeconds() * 20L);
             this.getServer()
                     .getScheduler()
                     .runTaskTimer(
                             this,
-                            () ->
-                                    serverLoadManager
-                                            .refresh()
-                                            .whenComplete(
-                                                    (ignored, error) -> {
-                                                        if (error != null)
-                                                            this.getLogger()
-                                                                    .log(
-                                                                            Level.WARNING,
-                                                                            "Failed to refresh Echo server load",
-                                                                            error);
-                                                    }),
+                            () -> serverLoadManager.refresh().whenComplete((ignored, error) -> {
+                                if (error != null)
+                                    this.getLogger().log(Level.WARNING, "Failed to refresh Echo server load", error);
+                            }),
                             refreshTicks,
                             refreshTicks);
 
             if (agonesEnabled) {
-                final boolean longLived =
-                        Boolean.parseBoolean(System.getenv("ECHO_AGONES_LONG_LIVED"));
-                final String drainAnnotation =
-                        Optional.ofNullable(System.getenv("ECHO_AGONES_DRAIN_ANNOTATION"))
-                                .orElse(AgonesGameServerLifecycle.DEFAULT_DRAIN_ANNOTATION);
-                this.agonesLifecycle =
-                        AgonesGameServerLifecycle.inPod(
-                                longLived,
-                                drainAnnotation,
-                                () ->
-                                        this.beginDrain()
-                                                .whenComplete(
-                                                        (ignored, error) -> {
-                                                            if (error != null)
-                                                                getLogger()
-                                                                        .log(
-                                                                                Level.SEVERE,
-                                                                                "Failed to drain Echo server",
-                                                                                error);
-                                                        }));
+                final boolean longLived = Boolean.parseBoolean(System.getenv("ECHO_AGONES_LONG_LIVED"));
+                final String drainAnnotation = Optional.ofNullable(System.getenv("ECHO_AGONES_DRAIN_ANNOTATION"))
+                        .orElse(AgonesGameServerLifecycle.DEFAULT_DRAIN_ANNOTATION);
+                this.agonesLifecycle = AgonesGameServerLifecycle.inPod(
+                        longLived,
+                        drainAnnotation,
+                        () -> this.beginDrain().whenComplete((ignored, error) -> {
+                            if (error != null) getLogger().log(Level.SEVERE, "Failed to drain Echo server", error);
+                        }));
                 this.agonesLifecycle
                         .start()
                         .thenCompose(ignored -> this.agonesLifecycle.watchForDrainRequests())
-                        .thenCompose(
-                                drainRequested ->
-                                        this.stopping.get() || drainRequested
-                                                ? CompletableFuture.completedFuture(null)
-                                                : this.activate().thenApply(ignored -> null))
-                        .exceptionally(
-                                error -> {
-                                    getLogger()
-                                            .log(
-                                                    Level.SEVERE,
-                                                    "Failed to initialize Agones lifecycle",
-                                                    error);
-                                    getServer().shutdown();
-                                    return null;
-                                });
+                        .thenCompose(drainRequested -> this.stopping.get() || drainRequested
+                                ? CompletableFuture.completedFuture(null)
+                                : this.activate().thenApply(ignored -> null))
+                        .exceptionally(error -> {
+                            getLogger().log(Level.SEVERE, "Failed to initialize Agones lifecycle", error);
+                            getServer().shutdown();
+                            return null;
+                        });
             }
         } catch (Exception e) {
             super.getLogger().log(Level.SEVERE, "Failed to initialize Echo client", e);
@@ -233,22 +181,15 @@ public class EchoPaper extends JavaPlugin {
         }
     }
 
-    static Map<PropertyKey<?>, Object> initialProperties(
-            Map<? extends PropertyKey<?>, ?> configured, int capacity) {
-        if (capacity <= 0)
-            throw new IllegalArgumentException("placement capacity must be positive");
+    static Map<PropertyKey<?>, Object> initialProperties(Map<? extends PropertyKey<?>, ?> configured, int capacity) {
+        if (capacity <= 0) throw new IllegalArgumentException("placement capacity must be positive");
         final Map<PropertyKey<?>, Object> properties = new HashMap<>();
         configured.forEach(properties::put);
-        final int hard =
-                Integer.parseInt(
-                        properties
-                                .getOrDefault(ServerPlacement.PROPERTY_HARD_CAPACITY, capacity)
-                                .toString());
-        final int publicLimit =
-                Integer.parseInt(
-                        properties
-                                .getOrDefault(ServerPlacement.PROPERTY_CAPACITY, hard)
-                                .toString());
+        final int hard = Integer.parseInt(properties
+                .getOrDefault(ServerPlacement.PROPERTY_HARD_CAPACITY, capacity)
+                .toString());
+        final int publicLimit = Integer.parseInt(
+                properties.getOrDefault(ServerPlacement.PROPERTY_CAPACITY, hard).toString());
         if (publicLimit <= 0 || hard < publicLimit)
             throw new IllegalArgumentException("Require 0 < public capacity <= hard capacity");
         properties.put(ServerPlacement.PROPERTY_CAPACITY, publicLimit);
@@ -259,8 +200,7 @@ public class EchoPaper extends JavaPlugin {
     static CommandAudience<CommandSourceStack> commandAudience() {
         return new CommandAudience<>() {
             @Override
-            public void send(
-                    CommandSourceStack source, net.kyori.adventure.text.Component message) {
+            public void send(CommandSourceStack source, net.kyori.adventure.text.Component message) {
                 source.getSender().sendMessage(message);
             }
 
@@ -288,66 +228,45 @@ public class EchoPaper extends JavaPlugin {
 
     public CompletableFuture<Void> beginDrain(final @NotNull Instant deadline) {
         Objects.requireNonNull(deadline, "deadline");
-        if (this.stopping.get())
-            return CompletableFuture.failedFuture(new IllegalStateException("Server is stopping"));
-        if (!this.draining.compareAndSet(false, true))
-            return CompletableFuture.completedFuture(null);
+        if (this.stopping.get()) return CompletableFuture.failedFuture(new IllegalStateException("Server is stopping"));
+        if (!this.draining.compareAndSet(false, true)) return CompletableFuture.completedFuture(null);
         return this.echoClient
                 .setLocalServerAvailability(ServerAvailability.DRAINING)
-                .thenCompose(
-                        ignored -> {
-                            final CompletableFuture<Void> started = new CompletableFuture<>();
+                .thenCompose(ignored -> {
+                    final CompletableFuture<Void> started = new CompletableFuture<>();
+                    try {
+                        this.getServer().getScheduler().runTask(this, () -> {
                             try {
-                                this.getServer()
-                                        .getScheduler()
-                                        .runTask(
-                                                this,
-                                                () -> {
-                                                    try {
-                                                        this.getServer()
-                                                                .getPluginManager()
-                                                                .callEvent(
-                                                                        new ServerDrainEvent(
-                                                                                deadline));
-                                                        this.scheduleDrainShutdown(deadline);
-                                                        started.complete(null);
-                                                    } catch (RuntimeException error) {
-                                                        started.completeExceptionally(error);
-                                                    }
-                                                });
+                                this.getServer().getPluginManager().callEvent(new ServerDrainEvent(deadline));
+                                this.scheduleDrainShutdown(deadline);
+                                started.complete(null);
                             } catch (RuntimeException error) {
                                 started.completeExceptionally(error);
                             }
-                            return started;
-                        })
-                .whenComplete(
-                        (ignored, error) -> {
-                            if (error != null) this.draining.set(false);
                         });
+                    } catch (RuntimeException error) {
+                        started.completeExceptionally(error);
+                    }
+                    return started;
+                })
+                .whenComplete((ignored, error) -> {
+                    if (error != null) this.draining.set(false);
+                });
     }
 
     public CompletableFuture<ServerLoadSnapshot> refreshLoad() {
         CompletableFuture<ServerLoadSnapshot> refreshed = new CompletableFuture<>();
         try {
-            this.getServer()
-                    .getScheduler()
-                    .runTask(
-                            this,
-                            () -> {
-                                try {
-                                    this.echoClient
-                                            .getServerLoadManager()
-                                            .refresh()
-                                            .whenComplete(
-                                                    (snapshot, error) -> {
-                                                        if (error != null)
-                                                            refreshed.completeExceptionally(error);
-                                                        else refreshed.complete(snapshot);
-                                                    });
-                                } catch (RuntimeException error) {
-                                    refreshed.completeExceptionally(error);
-                                }
-                            });
+            this.getServer().getScheduler().runTask(this, () -> {
+                try {
+                    this.echoClient.getServerLoadManager().refresh().whenComplete((snapshot, error) -> {
+                        if (error != null) refreshed.completeExceptionally(error);
+                        else refreshed.complete(snapshot);
+                    });
+                } catch (RuntimeException error) {
+                    refreshed.completeExceptionally(error);
+                }
+            });
         } catch (RuntimeException error) {
             refreshed.completeExceptionally(error);
         }
@@ -362,30 +281,21 @@ public class EchoPaper extends JavaPlugin {
                             snapshot.totalCount(),
                             snapshot.nonStaffCount(),
                             snapshot.publicCapacity())
-                    .exceptionally(
-                            error -> {
-                                this.getLogger()
-                                        .log(
-                                                Level.WARNING,
-                                                "Failed to publish Agones telemetry",
-                                                error);
-                                return null;
-                            });
+                    .exceptionally(error -> {
+                        this.getLogger().log(Level.WARNING, "Failed to publish Agones telemetry", error);
+                        return null;
+                    });
     }
 
     public CompletableFuture<Boolean> activate() {
-        if (this.stopping.get() || this.draining.get())
-            return CompletableFuture.completedFuture(false);
+        if (this.stopping.get() || this.draining.get()) return CompletableFuture.completedFuture(false);
         return this.echoClient
                 .setLocalServerAvailability(ServerAvailability.ACTIVE)
-                .thenCompose(
-                        ignored ->
-                                this.stopping.get() || this.draining.get()
-                                        ? this.echoClient
-                                                .setLocalServerAvailability(
-                                                        ServerAvailability.DRAINING)
-                                                .thenApply(reset -> false)
-                                        : CompletableFuture.completedFuture(true));
+                .thenCompose(ignored -> this.stopping.get() || this.draining.get()
+                        ? this.echoClient
+                                .setLocalServerAvailability(ServerAvailability.DRAINING)
+                                .thenApply(reset -> false)
+                        : CompletableFuture.completedFuture(true));
     }
 
     public boolean requestShutdown() {
@@ -400,16 +310,13 @@ public class EchoPaper extends JavaPlugin {
     }
 
     private void scheduleDrainShutdown(final Instant deadline) {
-        final Runnable shutdown =
-                () -> {
-                    if (this.stopping.compareAndSet(false, true)) this.getServer().shutdown();
-                };
+        final Runnable shutdown = () -> {
+            if (this.stopping.compareAndSet(false, true)) this.getServer().shutdown();
+        };
         final long remainingMillis =
                 Math.max(0L, Duration.between(this.clock.instant(), deadline).toMillis());
         final BukkitTask deadlineTask =
-                this.getServer()
-                        .getScheduler()
-                        .runTaskLater(this, shutdown, Math.ceilDiv(remainingMillis, 50L));
+                this.getServer().getScheduler().runTaskLater(this, shutdown, Math.ceilDiv(remainingMillis, 50L));
         try {
             this.getServer()
                     .getScheduler()
@@ -434,10 +341,11 @@ public class EchoPaper extends JavaPlugin {
         if (this.admission != null) this.admission.close();
         if (this.echoClient != null && this.agonesLifecycle != null) {
             try {
-                this.echoClient.setLocalServerAvailability(ServerAvailability.DRAINING).join();
+                this.echoClient
+                        .setLocalServerAvailability(ServerAvailability.DRAINING)
+                        .join();
             } catch (RuntimeException error) {
-                getLogger()
-                        .log(Level.WARNING, "Failed to drain Echo server during shutdown", error);
+                getLogger().log(Level.WARNING, "Failed to drain Echo server during shutdown", error);
             }
         }
         try {

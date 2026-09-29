@@ -68,11 +68,10 @@ class GlistCommandsTest {
         network.run("glist " + selection);
 
         assertThat(network.fixture.output()).contains("Total: " + total);
-        assertThat(
-                        java.util.regex.Pattern.compile("Alice|Bob|Carol")
-                                .matcher(network.fixture.output())
-                                .results()
-                                .map(java.util.regex.MatchResult::group))
+        assertThat(java.util.regex.Pattern.compile("Alice|Bob|Carol")
+                        .matcher(network.fixture.output())
+                        .results()
+                        .map(java.util.regex.MatchResult::group))
                 .containsExactly(names.split("\\|"));
     }
 
@@ -109,8 +108,7 @@ class GlistCommandsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {"glist", "echo user list", "echoproxy user list", "echoserver user list"})
+    @ValueSource(strings = {"glist", "echo user list", "echoproxy user list", "echoserver user list"})
     void detailPagesRetainTotalsAndLinkBackWithTheSameSelection(String command) {
         Network network = largeNetwork(false);
 
@@ -119,12 +117,8 @@ class GlistCommandsTest {
         assertThat(network.fixture.output())
                 .contains("Total: 21", "Page 2/2", "quake (21): Player21")
                 .doesNotContain("Player01", "Player20");
-        assertThat(
-                        network.fixture.audience().messages().stream()
-                                .flatMap(GlistCommandsTest::clicks))
-                .containsExactly(
-                        ClickEvent.runCommand(
-                                "/" + command + " all --proxy proxy-1 --group server --page 1"));
+        assertThat(network.fixture.audience().messages().stream().flatMap(GlistCommandsTest::clicks))
+                .containsExactly(ClickEvent.runCommand("/" + command + " all --proxy proxy-1 --group server --page 1"));
     }
 
     @Test
@@ -136,9 +130,7 @@ class GlistCommandsTest {
         assertThat(network.fixture.output())
                 .contains("Total: 21", "Page 2/2", "server-21 (1)")
                 .doesNotContain("server-01", "server-20", "Player21");
-        assertThat(
-                        network.fixture.audience().messages().stream()
-                                .flatMap(GlistCommandsTest::clicks))
+        assertThat(network.fixture.audience().messages().stream().flatMap(GlistCommandsTest::clicks))
                 .containsExactly(ClickEvent.runCommand("/glist all --count --page 1"));
     }
 
@@ -151,14 +143,11 @@ class GlistCommandsTest {
         assertThat(network.fixture.output())
                 .contains("Total: 21", "Page 1/2", "Player01", "Player20")
                 .doesNotContain("Player21");
-        assertThat(
-                        java.util.regex.Pattern.compile("Player\\d+")
-                                .matcher(network.fixture.output())
-                                .results())
+        assertThat(java.util.regex.Pattern.compile("Player\\d+")
+                        .matcher(network.fixture.output())
+                        .results())
                 .hasSize(20);
-        assertThat(
-                        network.fixture.audience().messages().stream()
-                                .flatMap(GlistCommandsTest::clicks))
+        assertThat(network.fixture.audience().messages().stream().flatMap(GlistCommandsTest::clicks))
                 .containsExactly(ClickEvent.runCommand("/glist all --group none --page 2"));
     }
 
@@ -180,8 +169,7 @@ class GlistCommandsTest {
     @Test
     void missingInitialUsernameRetainsUuidAndTotalWithPartialWarning() {
         Network network = network();
-        when(network.users.get(BOB).getUsername())
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(network.users.get(BOB).getUsername()).thenReturn(EchoFuture.completed(Optional.empty()));
 
         network.run("glist all");
 
@@ -244,14 +232,11 @@ class GlistCommandsTest {
     @Test
     void countWithoutGroupingNeedsOnlyMembership() {
         Network network = network();
-        when(network.fixture.echo().getUserById(any()))
-                .thenReturn(echoFailed(new IllegalStateException("Redis down")));
+        when(network.fixture.echo().getUserById(any())).thenReturn(echoFailed(new IllegalStateException("Redis down")));
 
         network.run("glist --group none --count");
 
-        assertThat(network.fixture.output())
-                .contains("Total: 3")
-                .doesNotContain("Partial results", "ERROR:");
+        assertThat(network.fixture.output()).contains("Total: 3").doesNotContain("Partial results", "ERROR:");
     }
 
     @Test
@@ -260,17 +245,13 @@ class GlistCommandsTest {
         GatedUsers gate = gateDetails(network);
 
         CompletableFuture<?> command =
-                network.manager
-                        .commandExecutor()
-                        .executeCommand("echo.command.user.list", "glist all");
+                network.manager.commandExecutor().executeCommand("echo.command.user.list", "glist all");
         gate.firstBatch.orTimeout(2, TimeUnit.SECONDS).join();
         gate.release.complete(null);
         command.orTimeout(3, TimeUnit.SECONDS).join();
 
         assertThat(gate.maximum.get()).isBetween(2, 32);
-        assertThat(network.fixture.output())
-                .contains("Total: 100")
-                .doesNotContain("Partial results");
+        assertThat(network.fixture.output()).contains("Total: 100").doesNotContain("Partial results");
     }
 
     @Test
@@ -285,38 +266,30 @@ class GlistCommandsTest {
                 .join();
 
         assertThat(network.fixture.output())
-                .contains(
-                        "Total: 40",
-                        "(unknown server) (40)",
-                        "Partial results: details unavailable for 40 user(s).");
+                .contains("Total: 40", "(unknown server) (40)", "Partial results: details unavailable for 40 user(s).");
     }
 
     @Test
     void completesSelectorsAndNetworkResourcesAndGroupingFlags() {
         Network network = network();
 
-        var selectors =
-                network.manager
-                        .suggestionFactory()
-                        .suggest("velocity.command.glist", "glist ")
-                        .join();
-        var proxies =
-                network.manager
-                        .suggestionFactory()
-                        .suggest("velocity.command.glist", "glist --proxy ")
-                        .join();
-        var groups =
-                network.manager
-                        .suggestionFactory()
-                        .suggest("echo.command.user.list", "echo user list all --group ")
-                        .join();
+        var selectors = network.manager
+                .suggestionFactory()
+                .suggest("velocity.command.glist", "glist ")
+                .join();
+        var proxies = network.manager
+                .suggestionFactory()
+                .suggest("velocity.command.glist", "glist --proxy ")
+                .join();
+        var groups = network.manager
+                .suggestionFactory()
+                .suggest("echo.command.user.list", "echo user list all --group ")
+                .join();
 
         assertThat(selectors.list())
                 .extracting(Suggestion::suggestion)
                 .contains("all", "current", "server:quake", "quake", "lobby");
-        assertThat(proxies.list())
-                .extracting(Suggestion::suggestion)
-                .contains("all", "local", "proxy-1", "proxy-2");
+        assertThat(proxies.list()).extracting(Suggestion::suggestion).contains("all", "local", "proxy-1", "proxy-2");
         assertThat(groups.list())
                 .extracting(Suggestion::suggestion)
                 .containsExactlyInAnyOrder("server", "proxy", "none");
@@ -330,17 +303,16 @@ class GlistCommandsTest {
     })
     void completionIncludesResourcesBeyondTheFirstHundred(String input, String expected) {
         Network network = network();
-        var resources =
-                java.util.stream.IntStream.range(0, 200)
-                        .boxed()
-                        .collect(
-                                java.util.stream.Collectors.toMap(
-                                        id -> "resource-" + id, id -> 1L));
+        var resources = java.util.stream.IntStream.range(0, 200)
+                .boxed()
+                .collect(java.util.stream.Collectors.toMap(id -> "resource-" + id, id -> 1L));
         when(network.fixture.echo().getServers()).thenReturn(EchoFuture.completed(resources));
         when(network.fixture.echo().getProxies()).thenReturn(EchoFuture.completed(resources));
 
-        var suggestions =
-                network.manager.suggestionFactory().suggest("echo.command.user.list", input).join();
+        var suggestions = network.manager
+                .suggestionFactory()
+                .suggest("echo.command.user.list", input)
+                .join();
 
         assertThat(suggestions.list())
                 .extracting(Suggestion::suggestion)
@@ -367,22 +339,14 @@ class GlistCommandsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "glist all",
-                "echo user list",
-                "echoproxy user list",
-                "echoserver user list"
-            })
+    @ValueSource(strings = {"glist all", "echo user list", "echoproxy user list", "echoserver user list"})
     void missingPermissionPreventsListing(String command) {
         Network network = network();
 
-        assertThatThrownBy(
-                        () ->
-                                network.manager
-                                        .commandExecutor()
-                                        .executeCommand("none", command)
-                                        .join())
+        assertThatThrownBy(() -> network.manager
+                        .commandExecutor()
+                        .executeCommand("none", command)
+                        .join())
                 .hasRootCauseInstanceOf(org.incendo.cloud.exception.NoPermissionException.class);
         assertThat(network.fixture.output()).isEmpty();
     }
@@ -394,8 +358,7 @@ class GlistCommandsTest {
         "all --proxy missing,Proxy not found: missing",
         "--group zone,'Glist: --group must be server, proxy or none.'"
     })
-    void invalidResourcesAndGroupingAreErrorsInsteadOfEmptySelections(
-            String arguments, String error) {
+    void invalidResourcesAndGroupingAreErrorsInsteadOfEmptySelections(String arguments, String error) {
         Network network = network();
 
         network.run("glist " + arguments);
@@ -425,18 +388,14 @@ class GlistCommandsTest {
 
         assertThat(network.fixture.output())
                 .contains(
-                        "Total: 2",
-                        "Alice",
-                        "Carol",
-                        "Glist: current requires a player; use server:<id> from console.")
+                        "Total: 2", "Alice", "Carol", "Glist: current requires a player; use server:<id> from console.")
                 .doesNotContain("Bob");
     }
 
     @Test
     void currentRequiresAConnectedBackend() {
         Network network = network();
-        when(network.users.get(ALICE).getCurrentServerId())
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(network.users.get(ALICE).getCurrentServerId()).thenReturn(EchoFuture.completed(Optional.empty()));
 
         network.run("glist current");
 
@@ -451,11 +410,10 @@ class GlistCommandsTest {
         when(network.fixture.echo().getCurrentResourceType()).thenReturn(EchoResourceType.SERVER);
 
         network.run("echoserver user list all --proxy local");
-        var suggestions =
-                network.manager
-                        .suggestionFactory()
-                        .suggest("echo.command.user.list", "echoserver user list --proxy ")
-                        .join();
+        var suggestions = network.manager
+                .suggestionFactory()
+                .suggest("echo.command.user.list", "echoserver user list --proxy ")
+                .join();
 
         assertThat(network.fixture.output())
                 .contains("Glist: --proxy local requires a proxy")
@@ -486,8 +444,7 @@ class GlistCommandsTest {
 
         network.run("glist all --group proxy");
 
-        assertThat(network.fixture.output())
-                .contains("Total: 3", "proxy-1 (2): Alice, Carol", "proxy-2 (1): Bob");
+        assertThat(network.fixture.output()).contains("Total: 3", "proxy-1 (2): Alice, Carol", "proxy-2 (1): Bob");
     }
 
     private static GatedUsers gateDetails(Network network) {
@@ -495,28 +452,23 @@ class GlistCommandsTest {
         CompletableFuture<Integer> firstBatch = new CompletableFuture<>();
         AtomicInteger pending = new AtomicInteger();
         AtomicInteger maximum = new AtomicInteger();
-        when(network.fixture.echo().getUserById(any()))
-                .thenAnswer(
-                        call -> {
-                            UUID id = call.getArgument(0);
-                            EchoFuture<Optional<User>> result = new EchoFuture<>();
-                            int active = pending.incrementAndGet();
-                            maximum.accumulateAndGet(active, Math::max);
-                            if (active == 32) firstBatch.complete(active);
-                            release.thenRun(
-                                    () -> {
-                                        pending.decrementAndGet();
-                                        result.complete(Optional.of(network.users.get(id)));
-                                    });
-                            return result;
-                        });
+        when(network.fixture.echo().getUserById(any())).thenAnswer(call -> {
+            UUID id = call.getArgument(0);
+            EchoFuture<Optional<User>> result = new EchoFuture<>();
+            int active = pending.incrementAndGet();
+            maximum.accumulateAndGet(active, Math::max);
+            if (active == 32) firstBatch.complete(active);
+            release.thenRun(() -> {
+                pending.decrementAndGet();
+                result.complete(Optional.of(network.users.get(id)));
+            });
+            return result;
+        });
         return new GatedUsers(release, firstBatch, maximum);
     }
 
     private record GatedUsers(
-            CompletableFuture<Void> release,
-            CompletableFuture<Integer> firstBatch,
-            AtomicInteger maximum) {}
+            CompletableFuture<Void> release, CompletableFuture<Integer> firstBatch, AtomicInteger maximum) {}
 
     private static Stream<ClickEvent> clicks(Component component) {
         return Stream.concat(
@@ -542,12 +494,8 @@ class GlistCommandsTest {
                             "proxy-1"));
         }
         when(network.proxies.get("proxy-1").getConnectedUsers())
-                .thenReturn(
-                        EchoFuture.completed(
-                                network.users.keySet().stream()
-                                        .collect(
-                                                java.util.stream.Collectors.toMap(
-                                                        id -> id, id -> 1L))));
+                .thenReturn(EchoFuture.completed(network.users.keySet().stream()
+                        .collect(java.util.stream.Collectors.toMap(id -> id, id -> 1L))));
         return network;
     }
 
@@ -557,54 +505,33 @@ class GlistCommandsTest {
         users.put(ALICE, user(ALICE, "Alice", "quake", "proxy-1"));
         users.put(BOB, user(BOB, "Bob", "quake", "proxy-2"));
         users.put(CAROL, user(CAROL, "Carol", "lobby", "proxy-1"));
-        Map<String, Server> servers =
-                Map.of(
-                        "lobby",
-                        server(Map.of(CAROL, 1L)),
-                        "quake",
-                        server(Map.of(ALICE, 1L, BOB, 1L)),
-                        "empty",
-                        server(Map.of()));
+        Map<String, Server> servers = Map.of(
+                "lobby",
+                server(Map.of(CAROL, 1L)),
+                "quake",
+                server(Map.of(ALICE, 1L, BOB, 1L)),
+                "empty",
+                server(Map.of()));
         Map<String, Proxy> proxies =
-                Map.of(
-                        "proxy-1",
-                        proxy(Map.of(ALICE, 1L, CAROL, 1L)),
-                        "proxy-2",
-                        proxy(Map.of(BOB, 1L)));
+                Map.of("proxy-1", proxy(Map.of(ALICE, 1L, CAROL, 1L)), "proxy-2", proxy(Map.of(BOB, 1L)));
         when(fixture.echo().getAllUsers())
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        users.keySet().stream()
-                                                .collect(
-                                                        java.util.stream.Collectors.toMap(
-                                                                id -> id, id -> 1L))));
-        when(fixture.echo().getUserById(any()))
-                .thenAnswer(
-                        call -> {
-                            User user = users.get(call.getArgument(0));
-                            // EchoClientImpl resolves the record only when its initial username
-                            // read succeeds.
-                            return user == null
-                                    ? EchoFuture.completed(Optional.empty())
-                                    : EchoFuture.of(
-                                            user.getUsername()
-                                                    .thenApply(name -> name.map(ignored -> user)));
-                        });
+                .thenAnswer(call -> EchoFuture.completed(
+                        users.keySet().stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> 1L))));
+        when(fixture.echo().getUserById(any())).thenAnswer(call -> {
+            User user = users.get(call.getArgument(0));
+            // EchoClientImpl resolves the record only when its initial username
+            // read succeeds.
+            return user == null
+                    ? EchoFuture.completed(Optional.empty())
+                    : EchoFuture.of(user.getUsername().thenApply(name -> name.map(ignored -> user)));
+        });
         when(fixture.echo().getServerById(anyString()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(servers.get(call.getArgument(0)))));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(servers.get(call.getArgument(0)))));
         when(fixture.echo().getProxyById(anyString()))
-                .thenAnswer(
-                        call ->
-                                EchoFuture.completed(
-                                        Optional.ofNullable(proxies.get(call.getArgument(0)))));
+                .thenAnswer(call -> EchoFuture.completed(Optional.ofNullable(proxies.get(call.getArgument(0)))));
         when(fixture.echo().getServers())
                 .thenReturn(EchoFuture.completed(Map.of("lobby", 1L, "quake", 1L, "empty", 1L)));
-        when(fixture.echo().getProxies())
-                .thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L, "proxy-2", 1L)));
+        when(fixture.echo().getProxies()).thenReturn(EchoFuture.completed(Map.of("proxy-1", 1L, "proxy-2", 1L)));
         when(fixture.echo().getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(fixture.echo().getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
         fixture.audience().playerId = ALICE;
@@ -621,8 +548,7 @@ class GlistCommandsTest {
         User user = mock(User.class);
         when(user.getId()).thenReturn(id);
         when(user.getUsername()).thenReturn(EchoFuture.completed(Optional.ofNullable(name)));
-        when(user.getCurrentServerId())
-                .thenReturn(EchoFuture.completed(Optional.ofNullable(server)));
+        when(user.getCurrentServerId()).thenReturn(EchoFuture.completed(Optional.ofNullable(server)));
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.ofNullable(proxy)));
         return user;
     }
@@ -659,7 +585,10 @@ class GlistCommandsTest {
             Map<String, Server> servers,
             Map<String, Proxy> proxies) {
         void run(String command) {
-            this.manager.commandExecutor().executeCommand("echo.command.user.list", command).join();
+            this.manager
+                    .commandExecutor()
+                    .executeCommand("echo.command.user.list", command)
+                    .join();
         }
     }
 }

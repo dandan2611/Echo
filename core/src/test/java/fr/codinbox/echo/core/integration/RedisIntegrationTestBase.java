@@ -21,8 +21,7 @@ import org.testcontainers.containers.GenericContainer;
 
 public abstract class RedisIntegrationTestBase {
 
-    protected static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
+    protected static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
 
     protected static RedissonClient redissonClient;
     protected static RedisConnection mockConnection;
@@ -32,28 +31,21 @@ public abstract class RedisIntegrationTestBase {
     static void setupRedisson() {
         final String local = System.getProperty("echo.test.redis");
         if (local != null && !local.matches("redis://127\\.0\\.0\\.1:1[0-9]{4}"))
-            throw new IllegalArgumentException(
-                    "External test Redis must be disposable loopback on a lab port");
+            throw new IllegalArgumentException("External test Redis must be disposable loopback on a lab port");
         if (local == null) REDIS.start();
         Config config = new Config();
         namespace = "echo-test:" + java.util.UUID.randomUUID() + ":";
         config.useSingleServer()
-                .setAddress(
-                        local == null
-                                ? "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379)
-                                : local)
-                .setNameMapper(
-                        new org.redisson.api.NameMapper() {
-                            public String map(String name) {
-                                return namespace + name;
-                            }
+                .setAddress(local == null ? "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379) : local)
+                .setNameMapper(new org.redisson.api.NameMapper() {
+                    public String map(String name) {
+                        return namespace + name;
+                    }
 
-                            public String unmap(String name) {
-                                return name.startsWith(namespace)
-                                        ? name.substring(namespace.length())
-                                        : name;
-                            }
-                        });
+                    public String unmap(String name) {
+                        return name.startsWith(namespace) ? name.substring(namespace.length()) : name;
+                    }
+                });
         redissonClient = Redisson.create(config);
         mockConnection = mock(RedisConnection.class);
         when(mockConnection.getClient()).thenReturn(redissonClient);
@@ -62,9 +54,7 @@ public abstract class RedisIntegrationTestBase {
     @BeforeEach
     void resetEcho() {
         EchoTestUtils.resetEchoClient();
-        redissonClient
-                .getKeys()
-                .deleteByPattern("*"); // NameMapper confines cleanup to this test namespace.
+        redissonClient.getKeys().deleteByPattern("*"); // NameMapper confines cleanup to this test namespace.
     }
 
     @AfterAll
@@ -77,14 +67,12 @@ public abstract class RedisIntegrationTestBase {
     }
 
     protected EchoClientImpl createClient(EchoResourceType type, String id) {
-        EchoConfig config =
-                EchoConfig.builder()
-                        .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
-                        .messagingProviderFactory(
-                                RedisProviderFactory.messagingFactory(mockConnection))
-                        .resourceType(type)
-                        .resourceId(id)
-                        .build();
+        EchoConfig config = EchoConfig.builder()
+                .cacheProviderFactory(RedisProviderFactory.cacheFactory(mockConnection))
+                .messagingProviderFactory(RedisProviderFactory.messagingFactory(mockConnection))
+                .resourceType(type)
+                .resourceId(id)
+                .build();
         return new EchoClientImpl(config);
     }
 

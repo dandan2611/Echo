@@ -30,8 +30,7 @@ class RedisCacheProviderTest {
     void setObjectWithTtl_rejectsNonPositiveDuration(long milliseconds) {
         RedisCacheProvider provider = new RedisCacheProvider(mock(RedisConnection.class));
 
-        assertThatThrownBy(
-                        () -> provider.setObject("heartbeat", 1L, Duration.ofMillis(milliseconds)))
+        assertThatThrownBy(() -> provider.setObject("heartbeat", 1L, Duration.ofMillis(milliseconds)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Cache TTL must be positive");
     }
@@ -60,28 +59,20 @@ class RedisCacheProviderTest {
         AtomicLong ownerThread = new AtomicLong();
         when(connection.getClient()).thenReturn(client);
         when(client.getLock("allocation")).thenReturn(lock);
-        when(lock.tryLock(1, 1, TimeUnit.SECONDS))
-                .thenAnswer(
-                        invocation -> {
-                            ownerThread.set(Thread.currentThread().threadId());
-                            return true;
-                        });
+        when(lock.tryLock(1, 1, TimeUnit.SECONDS)).thenAnswer(invocation -> {
+            ownerThread.set(Thread.currentThread().threadId());
+            return true;
+        });
         when(lock.isHeldByCurrentThread())
                 .thenAnswer(invocation -> Thread.currentThread().threadId() == ownerThread.get());
 
         CompletableFuture<Void> action = new CompletableFuture<>();
         CountDownLatch actionStarted = new CountDownLatch(1);
-        CompletableFuture<Boolean> result =
-                new RedisCacheProvider(connection)
-                        .withLock(
-                                "allocation",
-                                1,
-                                1,
-                                TimeUnit.SECONDS,
-                                () -> {
-                                    actionStarted.countDown();
-                                    return action;
-                                });
+        CompletableFuture<Boolean> result = new RedisCacheProvider(connection)
+                .withLock("allocation", 1, 1, TimeUnit.SECONDS, () -> {
+                    actionStarted.countDown();
+                    return action;
+                });
         assertThat(actionStarted.await(1, TimeUnit.SECONDS)).isTrue();
         action.complete(null);
 
@@ -99,15 +90,9 @@ class RedisCacheProviderTest {
         when(lock.tryLock(1, TimeUnit.SECONDS)).thenReturn(true);
         when(lock.isHeldByCurrentThread()).thenReturn(true);
 
-        assertThat(
-                        new RedisCacheProvider(connection)
-                                .withLock(
-                                        "allocation",
-                                        1,
-                                        0,
-                                        TimeUnit.SECONDS,
-                                        () -> CompletableFuture.completedFuture(null))
-                                .join())
+        assertThat(new RedisCacheProvider(connection)
+                        .withLock("allocation", 1, 0, TimeUnit.SECONDS, () -> CompletableFuture.completedFuture(null))
+                        .join())
                 .isTrue();
 
         verify(lock).tryLock(1, TimeUnit.SECONDS);

@@ -18,11 +18,9 @@ class CommandFormatterTest {
 
     @Test
     void formatsRowsAndEmptyAndNonemptyLists() {
-        assertThat(text(this.formatter.rows("Title", Map.of("answer", 42))))
-                .isEqualTo("Title\nanswer: 42");
+        assertThat(text(this.formatter.rows("Title", Map.of("answer", 42)))).isEqualTo("Title\nanswer: 42");
         assertThat(text(this.formatter.list("Empty", List.of()))).isEqualTo("Empty\nNone");
-        assertThat(text(this.formatter.list("Values", List.of("one", "two"))))
-                .isEqualTo("Values\n- one\n- two");
+        assertThat(text(this.formatter.list("Values", List.of("one", "two")))).isEqualTo("Values\n- one\n- two");
     }
 
     @Test

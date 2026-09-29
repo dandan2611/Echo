@@ -15,7 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class EchoTest {
 
-    @Mock private EchoClient mockClient;
+    @Mock
+    private EchoClient mockClient;
 
     @BeforeEach
     void setUp() throws Exception {

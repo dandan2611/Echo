@@ -13,18 +13,17 @@ import org.junit.jupiter.api.Test;
 @Tag("unit")
 class OnDemandServersTest {
 
-    private final OnDemandServers servers =
-            new OnDemandServers() {
-                @Override
-                public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
-                    return CompletableFuture.completedFuture(new ServerHandle("unused"));
-                }
+    private final OnDemandServers servers = new OnDemandServers() {
+        @Override
+        public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
+            return CompletableFuture.completedFuture(new ServerHandle("unused"));
+        }
 
-                @Override
-                public CompletableFuture<Void> terminate(ServerHandle server) {
-                    return CompletableFuture.completedFuture(null);
-                }
-            };
+        @Override
+        public CompletableFuture<Void> terminate(ServerHandle server) {
+            return CompletableFuture.completedFuture(null);
+        }
+    };
 
     @AfterEach
     void unload() {
@@ -43,18 +42,17 @@ class OnDemandServersTest {
 
     @Test
     void registryRejectsReplacementAndUnregistersByIdentity() {
-        final OnDemandServers other =
-                new OnDemandServers() {
-                    @Override
-                    public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
-                        return CompletableFuture.completedFuture(new ServerHandle("unused"));
-                    }
+        final OnDemandServers other = new OnDemandServers() {
+            @Override
+            public CompletableFuture<ServerHandle> acquire(ServerRequest request) {
+                return CompletableFuture.completedFuture(new ServerHandle("unused"));
+            }
 
-                    @Override
-                    public CompletableFuture<Void> terminate(ServerHandle server) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                };
+            @Override
+            public CompletableFuture<Void> terminate(ServerHandle server) {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
 
         OnDemandServersRegistry.register(this.servers);
         assertThat(OnDemandServers.load()).isSameAs(this.servers);
@@ -86,8 +84,7 @@ class OnDemandServersTest {
 
     @Test
     void reconciliationValidatesState() {
-        OnDemandAdministration.Allocation allocation =
-                new OnDemandAdministration.Allocation("queue-1", "server-1");
+        OnDemandAdministration.Allocation allocation = new OnDemandAdministration.Allocation("queue-1", "server-1");
 
         assertThatThrownBy(() -> new OnDemandAdministration.Reconciliation(null, false, null))
                 .isInstanceOf(NullPointerException.class)
@@ -96,9 +93,7 @@ class OnDemandServersTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a live server can have availability");
         assertThatThrownBy(
-                        () ->
-                                new OnDemandAdministration.Reconciliation(
-                                        allocation, false, ServerAvailability.DRAINING))
+                        () -> new OnDemandAdministration.Reconciliation(allocation, false, ServerAvailability.DRAINING))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a live server can have availability");
     }

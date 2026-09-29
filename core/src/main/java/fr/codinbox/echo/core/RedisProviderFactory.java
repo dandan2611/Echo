@@ -21,8 +21,7 @@ public final class RedisProviderFactory {
      * @param connection the Redis connection
      * @return a cache provider factory
      */
-    public static @NotNull Supplier<? extends CacheProvider> cacheFactory(
-            final @NotNull RedisConnection connection) {
+    public static @NotNull Supplier<? extends CacheProvider> cacheFactory(final @NotNull RedisConnection connection) {
         return () -> new RedisCacheProvider(connection);
     }
 
@@ -38,8 +37,7 @@ public final class RedisProviderFactory {
     }
 
     /** Creates atomic leased server placement backed by the given Redis connection. */
-    public static @NotNull ServerPlacement serverPlacement(
-            final @NotNull RedisConnection connection) {
+    public static @NotNull ServerPlacement serverPlacement(final @NotNull RedisConnection connection) {
         return new RedisServerPlacement(connection);
     }
 }

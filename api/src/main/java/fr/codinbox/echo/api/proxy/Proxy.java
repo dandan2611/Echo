@@ -13,11 +13,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Represents a proxy (e.g. a Velocity instance) in the Echo network.
  *
- * <p>A proxy is identified by a unique string ID (e.g. {@code "proxy-eu"}, {@code "proxy-us"}) and
- * provides access to its connected users, custom properties, network address, and messaging.
+ * <p>A proxy is identified by a unique string ID (e.g. {@code "proxy-eu"}, {@code "proxy-us"}) and provides access to
+ * its connected users, custom properties, network address, and messaging.
  *
- * <p>Proxies handle player connections and routing between backend servers. They always perform
- * healthcheck cleanup to detect and remove dead servers.
+ * <p>Proxies handle player connections and routing between backend servers. They always perform healthcheck cleanup to
+ * detect and remove dead servers.
  *
  * <pre>{@code
  * // Get a proxy and inspect it
@@ -34,15 +34,10 @@ import org.jetbrains.annotations.NotNull;
  * @see fr.codinbox.echo.api.EchoClient#getProxyById(String)
  * @see fr.codinbox.echo.api.EchoClient#getProxies()
  */
-public interface Proxy
-        extends Identifiable<String>,
-                UserHolder,
-                PropertyHolder,
-                MessageRouter,
-                Joinable,
-                Cleanable {
+public interface Proxy extends Identifiable<String>, UserHolder, PropertyHolder, MessageRouter, Joinable, Cleanable {
 
-    @NotNull PropertyKey<ProxyLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
+    @NotNull
+    PropertyKey<ProxyLoadSnapshot> PROPERTY_LOAD = new PropertyKey<>("load");
 
     /** Real online counts for autoscaling, not a backend capacity limit. */
     default @NotNull EchoFuture<java.util.Optional<ProxyLoadSnapshot>> getLoad() {
@@ -52,8 +47,7 @@ public interface Proxy
     /**
      * Checks whether this proxy still exists in the network.
      *
-     * <p>A proxy may no longer exist if it has been shut down or cleaned up since this object was
-     * retrieved.
+     * <p>A proxy may no longer exist if it has been shut down or cleaned up since this object was retrieved.
      *
      * <pre>{@code
      * boolean exists = proxy.stillExists().await();

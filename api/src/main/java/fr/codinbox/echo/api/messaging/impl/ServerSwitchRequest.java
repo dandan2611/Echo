@@ -13,12 +13,11 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A message requesting one or more players to be transferred to a different server.
  *
- * <p>This message is sent from a server (or any node) to the proxy that the target players are
- * connected to. The proxy handles the actual server switch and sends back a {@link Response}
- * containing the result for each player.
+ * <p>This message is sent from a server (or any node) to the proxy that the target players are connected to. The proxy
+ * handles the actual server switch and sends back a {@link Response} containing the result for each player.
  *
- * <p>For most use cases, use {@link fr.codinbox.echo.api.user.User#tryConnectToServer(String)}
- * instead of constructing this message directly:
+ * <p>For most use cases, use {@link fr.codinbox.echo.api.user.User#tryConnectToServer(String)} instead of constructing
+ * this message directly:
  *
  * <pre>{@code
  * // Preferred: use the User API
@@ -124,8 +123,8 @@ public class ServerSwitchRequest extends EchoMessage {
         private @NotNull ServerSwitchRequestStatus status;
 
         /**
-         * An optional serialized disconnect/kick reason from the target server. Only set when the
-         * status is {@link ServerSwitchRequestStatus#SERVER_DISCONNECTED}.
+         * An optional serialized disconnect/kick reason from the target server. Only set when the status is
+         * {@link ServerSwitchRequestStatus#SERVER_DISCONNECTED}.
          */
         private @Nullable String serializedReason;
     }
@@ -141,8 +140,8 @@ public class ServerSwitchRequest extends EchoMessage {
         /** A plugin on the proxy cancelled the connection attempt. */
         CONNECTION_CANCELLED,
         /**
-         * The target server disconnected the player during the connection. A reason may be
-         * available via {@code PlayerResponse.getSerializedReason()}.
+         * The target server disconnected the player during the connection. A reason may be available via
+         * {@code PlayerResponse.getSerializedReason()}.
          */
         SERVER_DISCONNECTED,
         /** The target is absent from Echo. */

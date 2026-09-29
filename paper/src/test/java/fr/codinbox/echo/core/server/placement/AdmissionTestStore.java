@@ -33,37 +33,35 @@ public final class AdmissionTestStore implements PlacementStore {
         final Map<String, Object> pending = new HashMap<>(values);
         final Map<String, String> reservations = new HashMap<>(leases);
         final Instant now = Instant.now();
-        final T result =
-                decision.apply(
-                        new Transaction() {
-                            public Instant now() {
-                                return now;
-                            }
+        final T result = decision.apply(new Transaction() {
+            public Instant now() {
+                return now;
+            }
 
-                            public Object value(String key) {
-                                return pending.get(key);
-                            }
+            public Object value(String key) {
+                return pending.get(key);
+            }
 
-                            public boolean alive(String key) {
-                                return true;
-                            }
+            public boolean alive(String key) {
+                return true;
+            }
 
-                            public void set(String key, Object value) {
-                                pending.put(key, value);
-                            }
+            public void set(String key, Object value) {
+                pending.put(key, value);
+            }
 
-                            public Set<String> serverIds() {
-                                return Set.of("server");
-                            }
+            public Set<String> serverIds() {
+                return Set.of("server");
+            }
 
-                            public void registerServer(String id, Instant at) {}
+            public void registerServer(String id, Instant at) {}
 
-                            public Map<String, String> reservations() {
-                                return reservations;
-                            }
+            public Map<String, String> reservations() {
+                return reservations;
+            }
 
-                            public void validUntil(Instant deadline) {}
-                        });
+            public void validUntil(Instant deadline) {}
+        });
         values.clear();
         values.putAll(pending);
         leases.clear();

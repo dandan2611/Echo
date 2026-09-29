@@ -5,11 +5,10 @@ import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A {@link CompletableFuture} extension that provides a convenient blocking {@link #await()}
- * method.
+ * A {@link CompletableFuture} extension that provides a convenient blocking {@link #await()} method.
  *
- * <p>All Echo API methods return {@code EchoFuture}, giving callers the choice between asynchronous
- * and blocking execution models:
+ * <p>All Echo API methods return {@code EchoFuture}, giving callers the choice between asynchronous and blocking
+ * execution models:
  *
  * <pre>{@code
  * // Asynchronous - non-blocking, runs callback on completion
@@ -42,9 +41,8 @@ public class EchoFuture<T> extends CompletableFuture<T> {
     /**
      * Blocks the current thread until the future completes and returns the result.
      *
-     * <p>This is a convenience wrapper around {@link CompletableFuture#join()}. If the future
-     * completed exceptionally, the exception is rethrown wrapped in a {@link
-     * java.util.concurrent.CompletionException}.
+     * <p>This is a convenience wrapper around {@link CompletableFuture#join()}. If the future completed exceptionally,
+     * the exception is rethrown wrapped in a {@link java.util.concurrent.CompletionException}.
      *
      * <pre>{@code
      * Optional<User> user = client.getUserById(uuid).await();
@@ -61,8 +59,8 @@ public class EchoFuture<T> extends CompletableFuture<T> {
     /**
      * Wraps an existing {@link CompletableFuture} into an {@link EchoFuture}.
      *
-     * <p>If the given future is already an {@code EchoFuture}, it is returned as-is. Otherwise, a
-     * new {@code EchoFuture} is created that completes when the given future completes.
+     * <p>If the given future is already an {@code EchoFuture}, it is returned as-is. Otherwise, a new
+     * {@code EchoFuture} is created that completes when the given future completes.
      *
      * <pre>{@code
      * CompletableFuture<String> regularFuture = someAsyncOperation();
@@ -77,11 +75,10 @@ public class EchoFuture<T> extends CompletableFuture<T> {
     public static <T> @NotNull EchoFuture<T> of(final @NotNull CompletableFuture<T> future) {
         if (future instanceof EchoFuture<T> echoFuture) return echoFuture;
         final EchoFuture<T> echoFuture = new EchoFuture<>();
-        future.whenComplete(
-                (result, error) -> {
-                    if (error != null) echoFuture.completeExceptionally(error);
-                    else echoFuture.complete(result);
-                });
+        future.whenComplete((result, error) -> {
+            if (error != null) echoFuture.completeExceptionally(error);
+            else echoFuture.complete(result);
+        });
         return echoFuture;
     }
 

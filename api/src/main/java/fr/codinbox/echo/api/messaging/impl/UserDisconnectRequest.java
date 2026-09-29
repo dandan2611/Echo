@@ -31,15 +31,13 @@ public final class UserDisconnectRequest extends EchoMessage {
         this.expectedSessionId = requireText(expectedSessionId, "expectedSessionId");
         this.userId = Objects.requireNonNull(userId, "userId");
         this.reason = requireText(reason, "reason");
-        if (deadlineEpochMillis < 1)
-            throw new IllegalArgumentException("deadline must be positive");
+        if (deadlineEpochMillis < 1) throw new IllegalArgumentException("deadline must be positive");
         this.deadlineEpochMillis = deadlineEpochMillis;
     }
 
     /** Returns null when fields received from Jackson form a valid request. */
     public @Nullable String validationError() {
-        if (this.expectedProxyId == null || this.expectedProxyId.isBlank())
-            return "expected proxy id is required";
+        if (this.expectedProxyId == null || this.expectedProxyId.isBlank()) return "expected proxy id is required";
         if (this.expectedSessionId == null || this.expectedSessionId.isBlank())
             return "expected session id is required";
         if (this.userId == null) return "user id is required";
@@ -49,8 +47,7 @@ public final class UserDisconnectRequest extends EchoMessage {
     }
 
     private static String requireText(String value, String name) {
-        if (Objects.requireNonNull(value, name).isBlank())
-            throw new IllegalArgumentException(name + " is required");
+        if (Objects.requireNonNull(value, name).isBlank()) throw new IllegalArgumentException(name + " is required");
         return value;
     }
 

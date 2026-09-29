@@ -16,14 +16,8 @@ public final class CommandFormatter {
     public Component rows(String title, Map<String, ?> rows) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.text(title, NamedTextColor.AQUA));
-        rows.forEach(
-                (key, value) ->
-                        lines.add(
-                                Component.text(key + ": ", NamedTextColor.GRAY)
-                                        .append(
-                                                Component.text(
-                                                        String.valueOf(value),
-                                                        NamedTextColor.WHITE))));
+        rows.forEach((key, value) -> lines.add(Component.text(key + ": ", NamedTextColor.GRAY)
+                .append(Component.text(String.valueOf(value), NamedTextColor.WHITE))));
         return Component.join(JoinConfiguration.newlines(), lines);
     }
 

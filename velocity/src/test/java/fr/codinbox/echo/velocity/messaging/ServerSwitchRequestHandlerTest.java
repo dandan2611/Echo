@@ -39,10 +39,8 @@ import org.mockito.MockedStatic;
 class ServerSwitchRequestHandlerTest {
 
     private static final String SERVER_ID = "lobby-1";
-    private static final UUID FIRST_PLAYER =
-            UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private static final UUID SECOND_PLAYER =
-            UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final UUID FIRST_PLAYER = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID SECOND_PLAYER = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     private EchoClient client;
     private ProxyServer proxy;
@@ -77,10 +75,7 @@ class ServerSwitchRequestHandlerTest {
         receive(request);
 
         assertAllResponses(
-                request,
-                ServerSwitchRequest.ServerSwitchRequestStatus.TIMED_OUT,
-                FIRST_PLAYER,
-                SECOND_PLAYER);
+                request, ServerSwitchRequest.ServerSwitchRequestStatus.TIMED_OUT, FIRST_PLAYER, SECOND_PLAYER);
         verify(client, never()).getServerById(any());
         verify(proxy, never()).getPlayer(any(UUID.class));
     }
@@ -154,17 +149,14 @@ class ServerSwitchRequestHandlerTest {
         ServerSwitchRequest request = request(FIRST_PLAYER);
         RegisteredServer registeredServer = activeRegisteredTarget();
         ConnectionRequestBuilder.Result result =
-                result(
-                        ConnectionRequestBuilder.Status.SERVER_DISCONNECTED,
-                        Optional.of(Component.text("Maintenance")));
+                result(ConnectionRequestBuilder.Status.SERVER_DISCONNECTED, Optional.of(Component.text("Maintenance")));
         connect(FIRST_PLAYER, registeredServer, CompletableFuture.completedFuture(result));
 
         receive(request);
 
         ServerSwitchRequest.PlayerResponse response = captureResponses(request).get(FIRST_PLAYER);
         assertThat(response.isSuccessful()).isFalse();
-        assertThat(response.getStatus())
-                .isEqualTo(ServerSwitchRequest.ServerSwitchRequestStatus.SERVER_DISCONNECTED);
+        assertThat(response.getStatus()).isEqualTo(ServerSwitchRequest.ServerSwitchRequestStatus.SERVER_DISCONNECTED);
         assertThat(response.getSerializedReason()).isEqualTo("\"Maintenance\"");
     }
 
@@ -172,14 +164,12 @@ class ServerSwitchRequestHandlerTest {
     void exceptionalConnectionIsIsolatedFromOtherPlayers() {
         ServerSwitchRequest request = request(FIRST_PLAYER, SECOND_PLAYER);
         RegisteredServer registeredServer = activeRegisteredTarget();
-        CompletableFuture<ConnectionRequestBuilder.Result> failedConnection =
-                new CompletableFuture<>();
+        CompletableFuture<ConnectionRequestBuilder.Result> failedConnection = new CompletableFuture<>();
         connect(FIRST_PLAYER, registeredServer, failedConnection);
         connect(
                 SECOND_PLAYER,
                 registeredServer,
-                CompletableFuture.completedFuture(
-                        result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
+                CompletableFuture.completedFuture(result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
 
         receive(request);
         verify(request, never()).reply(any(ServerSwitchRequest.Response.class));
@@ -187,15 +177,8 @@ class ServerSwitchRequestHandlerTest {
 
         Map<UUID, ServerSwitchRequest.PlayerResponse> responses = captureResponses(request);
         assertResponse(
-                responses.get(FIRST_PLAYER),
-                false,
-                ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR,
-                null);
-        assertResponse(
-                responses.get(SECOND_PLAYER),
-                true,
-                ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS,
-                null);
+                responses.get(FIRST_PLAYER), false, ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR, null);
+        assertResponse(responses.get(SECOND_PLAYER), true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
     }
 
     @Test
@@ -203,14 +186,12 @@ class ServerSwitchRequestHandlerTest {
         ServerSwitchRequest request = request(FIRST_PLAYER, SECOND_PLAYER);
         when(request.getTransferDeadlineEpochMillis()).thenReturn(System.currentTimeMillis() + 200);
         RegisteredServer registeredServer = activeRegisteredTarget();
-        CompletableFuture<ConnectionRequestBuilder.Result> pendingConnection =
-                new CompletableFuture<>();
+        CompletableFuture<ConnectionRequestBuilder.Result> pendingConnection = new CompletableFuture<>();
         connect(FIRST_PLAYER, registeredServer, pendingConnection);
         connect(
                 SECOND_PLAYER,
                 registeredServer,
-                CompletableFuture.completedFuture(
-                        result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
+                CompletableFuture.completedFuture(result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
 
         receive(request);
 
@@ -221,15 +202,8 @@ class ServerSwitchRequestHandlerTest {
                 response.getValue().getResponses();
         assertThat(responses).containsOnlyKeys(FIRST_PLAYER, SECOND_PLAYER);
         assertResponse(
-                responses.get(FIRST_PLAYER),
-                false,
-                ServerSwitchRequest.ServerSwitchRequestStatus.TIMED_OUT,
-                null);
-        assertResponse(
-                responses.get(SECOND_PLAYER),
-                true,
-                ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS,
-                null);
+                responses.get(FIRST_PLAYER), false, ServerSwitchRequest.ServerSwitchRequestStatus.TIMED_OUT, null);
+        assertResponse(responses.get(SECOND_PLAYER), true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
         assertThat(pendingConnection).isNotDone();
     }
 
@@ -244,22 +218,14 @@ class ServerSwitchRequestHandlerTest {
         connect(
                 SECOND_PLAYER,
                 registeredServer,
-                CompletableFuture.completedFuture(
-                        result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
+                CompletableFuture.completedFuture(result(ConnectionRequestBuilder.Status.SUCCESS, Optional.empty())));
 
         receive(request);
 
         Map<UUID, ServerSwitchRequest.PlayerResponse> responses = captureResponses(request);
         assertResponse(
-                responses.get(FIRST_PLAYER),
-                false,
-                ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR,
-                null);
-        assertResponse(
-                responses.get(SECOND_PLAYER),
-                true,
-                ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS,
-                null);
+                responses.get(FIRST_PLAYER), false, ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR, null);
+        assertResponse(responses.get(SECOND_PLAYER), true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
     }
 
     @Test
@@ -272,10 +238,7 @@ class ServerSwitchRequestHandlerTest {
         receive(request);
 
         assertAllResponses(
-                request,
-                ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR,
-                FIRST_PLAYER,
-                SECOND_PLAYER);
+                request, ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR, FIRST_PLAYER, SECOND_PLAYER);
     }
 
     @Test
@@ -290,10 +253,7 @@ class ServerSwitchRequestHandlerTest {
         receive(request);
 
         assertAllResponses(
-                request,
-                ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR,
-                FIRST_PLAYER,
-                SECOND_PLAYER);
+                request, ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR, FIRST_PLAYER, SECOND_PLAYER);
     }
 
     private static Stream<Arguments> connectionStatuses() {
@@ -368,8 +328,7 @@ class ServerSwitchRequestHandlerTest {
         }
     }
 
-    private static Map<UUID, ServerSwitchRequest.PlayerResponse> captureResponses(
-            ServerSwitchRequest request) {
+    private static Map<UUID, ServerSwitchRequest.PlayerResponse> captureResponses(ServerSwitchRequest request) {
         ArgumentCaptor<ServerSwitchRequest.Response> response =
                 ArgumentCaptor.forClass(ServerSwitchRequest.Response.class);
         verify(request).reply(response.capture());
@@ -377,13 +336,10 @@ class ServerSwitchRequestHandlerTest {
     }
 
     private static void assertAllResponses(
-            ServerSwitchRequest request,
-            ServerSwitchRequest.ServerSwitchRequestStatus status,
-            UUID... players) {
+            ServerSwitchRequest request, ServerSwitchRequest.ServerSwitchRequestStatus status, UUID... players) {
         Map<UUID, ServerSwitchRequest.PlayerResponse> responses = captureResponses(request);
         assertThat(responses).containsOnlyKeys(players);
-        assertThat(responses.values())
-                .allSatisfy(response -> assertResponse(response, false, status, null));
+        assertThat(responses.values()).allSatisfy(response -> assertResponse(response, false, status, null));
     }
 
     private static void assertResponse(

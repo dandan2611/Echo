@@ -21,8 +21,7 @@ public record ServerAdmissionSnapshot(
         @NotNull Instant validUntil) {
 
     public static final @NotNull String STAFF_PERMISSION = "echo.staff";
-    public static final @NotNull PropertyKey<ServerAdmissionSnapshot> PROPERTY =
-            new PropertyKey<>("admission");
+    public static final @NotNull PropertyKey<ServerAdmissionSnapshot> PROPERTY = new PropertyKey<>("admission");
 
     public ServerAdmissionSnapshot {
         onlineMembers = Map.copyOf(onlineMembers);
@@ -32,12 +31,14 @@ public record ServerAdmissionSnapshot(
         if (publicCapacity <= 0 || hardCapacity < publicCapacity)
             throw new IllegalArgumentException("Require 0 < publicCapacity <= hardCapacity");
         if (totalCount != onlineMembers.size()
-                || nonStaffCount != onlineMembers.values().stream().filter(staff -> !staff).count())
+                || nonStaffCount
+                        != onlineMembers.values().stream()
+                                .filter(staff -> !staff)
+                                .count())
             throw new IllegalArgumentException("Counts must match destination online members");
         if (joiningMembers.keySet().stream().anyMatch(onlineMembers::containsKey))
             throw new IllegalArgumentException("Online and joining members must not overlap");
-        if (!validUntil.isAfter(sampledAt))
-            throw new IllegalArgumentException("validUntil must follow sampledAt");
+        if (!validUntil.isAfter(sampledAt)) throw new IllegalArgumentException("validUntil must follow sampledAt");
     }
 
     public ServerAdmissionSnapshot(
@@ -63,8 +64,7 @@ public record ServerAdmissionSnapshot(
     }
 
     /** Staff may exceed the public limit, never the physical limit. */
-    public boolean fits(
-            final long total, final long nonStaff, final boolean includesNonStaffIngress) {
+    public boolean fits(final long total, final long nonStaff, final boolean includesNonStaffIngress) {
         return total <= hardCapacity && (!includesNonStaffIngress || nonStaff <= publicCapacity);
     }
 }

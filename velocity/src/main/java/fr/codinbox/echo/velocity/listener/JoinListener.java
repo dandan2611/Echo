@@ -32,9 +32,7 @@ public class JoinListener {
         this(acceptingLogins, new ConcurrentHashMap<>());
     }
 
-    public JoinListener(
-            @NotNull BooleanSupplier acceptingLogins,
-            @NotNull ConcurrentMap<UUID, String> userSessions) {
+    public JoinListener(@NotNull BooleanSupplier acceptingLogins, @NotNull ConcurrentMap<UUID, String> userSessions) {
         this(acceptingLogins, userSessions, () -> UUID.randomUUID().toString());
     }
 
@@ -50,10 +48,8 @@ public class JoinListener {
     @Subscribe(order = PostOrder.FIRST)
     private void onLogin(final @NotNull LoginEvent event) {
         if (!this.acceptingLogins.getAsBoolean()) {
-            event.setResult(
-                    LoginEvent.ComponentResult.denied(
-                            Component.text(
-                                    "This proxy is starting or draining. Please reconnect.")));
+            event.setResult(LoginEvent.ComponentResult.denied(
+                    Component.text("This proxy is starting or draining. Please reconnect.")));
             return;
         }
         final Player player = event.getPlayer();
@@ -64,8 +60,7 @@ public class JoinListener {
 
         final String sessionId = this.sessionIds.get();
         final CompletableFuture<User> created =
-                client.createUser(
-                        player.getUniqueId(), player.getUsername(), currentResourceId, sessionId);
+                client.createUser(player.getUniqueId(), player.getUsername(), currentResourceId, sessionId);
         this.eventSessions.put(player, new UserSession(sessionId, created));
         this.userSessions.put(player.getUniqueId(), sessionId);
     }

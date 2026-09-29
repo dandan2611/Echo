@@ -25,8 +25,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProxyUtilsTest {
 
-    @Mock private ProxyServer mockProxy;
-    @Mock private Logger mockLogger;
+    @Mock
+    private ProxyServer mockProxy;
+
+    @Mock
+    private Logger mockLogger;
 
     @Test
     void registerServer_callsProxyRegisterServer() {

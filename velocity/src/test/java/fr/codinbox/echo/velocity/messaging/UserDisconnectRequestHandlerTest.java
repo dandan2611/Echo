@@ -45,13 +45,10 @@ class UserDisconnectRequestHandlerTest {
         this.plugin = mock(EchoPlugin.class);
         this.echo = mock(EchoClient.class);
         this.user = mock(User.class);
-        this.handler =
-                new UserDisconnectRequestHandler(
-                        this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
+        this.handler = new UserDisconnectRequestHandler(this.plugin, this.echo, Clock.fixed(NOW, ZoneOffset.UTC));
         when(this.echo.getCurrentResourceType()).thenReturn(EchoResourceType.PROXY);
         when(this.echo.getCurrentResourceId()).thenReturn(Optional.of("proxy-1"));
-        when(this.echo.getUserById(USER_ID))
-                .thenReturn(EchoFuture.completed(Optional.of(this.user)));
+        when(this.echo.getUserById(USER_ID)).thenReturn(EchoFuture.completed(Optional.of(this.user)));
         when(this.user.getSessionId()).thenReturn(EchoFuture.completed(Optional.of("session-1")));
     }
 
@@ -103,8 +100,7 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(request);
 
         assertResponse(request, false, UserDisconnectRequest.Status.EXPIRED);
-        verify(this.plugin, never())
-                .disconnectPlayer(USER_ID, "maintenance", "session-1", NOW.toEpochMilli());
+        verify(this.plugin, never()).disconnectPlayer(USER_ID, "maintenance", "session-1", NOW.toEpochMilli());
     }
 
     @Test
@@ -159,8 +155,7 @@ class UserDisconnectRequestHandlerTest {
         assertResponse(missingUser, false, UserDisconnectRequest.Status.PLAYER_NOT_FOUND);
 
         UserDisconnectRequest missingSession = request("proxy-1", NOW.plusSeconds(5));
-        when(this.echo.getUserById(USER_ID))
-                .thenReturn(EchoFuture.completed(Optional.of(this.user)));
+        when(this.echo.getUserById(USER_ID)).thenReturn(EchoFuture.completed(Optional.of(this.user)));
         when(this.user.getSessionId()).thenReturn(EchoFuture.completed(Optional.empty()));
 
         this.handler.onReceive(missingSession);
@@ -179,11 +174,9 @@ class UserDisconnectRequestHandlerTest {
 
         this.handler.onReceive(request);
         verify(request, never()).reply(any(UserDisconnectRequest.Response.class));
-        disconnect.completeExceptionally(
-                new CompletionException(new IllegalStateException("disconnect failed")));
+        disconnect.completeExceptionally(new CompletionException(new IllegalStateException("disconnect failed")));
 
-        UserDisconnectRequest.Response response =
-                assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response response = assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
         assertThat(response.getMessageId()).isEqualTo(request.getMessageId());
         assertThat(response.getMessage()).isEqualTo("disconnect failed");
     }
@@ -199,31 +192,27 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(request);
         disconnect.completeExceptionally(new CompletionException((Throwable) null));
 
-        UserDisconnectRequest.Response response =
-                assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
+        UserDisconnectRequest.Response response = assertResponse(request, false, UserDisconnectRequest.Status.FAILED);
         assertThat(response.getMessage()).isEqualTo("CompletionException");
     }
 
     @Test
     void neverCompletingDisconnectTimesOutWithoutWaiting() {
         UserDisconnectRequest request = request("proxy-1", NOW.plusSeconds(5));
-        CompletableFuture<Boolean> disconnect =
-                new CompletableFuture<>() {
+        CompletableFuture<Boolean> disconnect = new CompletableFuture<>() {
+            @Override
+            public CompletableFuture<Boolean> copy() {
+                return new CompletableFuture<>() {
                     @Override
-                    public CompletableFuture<Boolean> copy() {
-                        return new CompletableFuture<>() {
-                            @Override
-                            public CompletableFuture<Boolean> orTimeout(
-                                    long timeout, TimeUnit unit) {
-                                assertThat(timeout).isEqualTo(5_000L);
-                                assertThat(unit).isEqualTo(TimeUnit.MILLISECONDS);
-                                this.completeExceptionally(
-                                        new TimeoutException("disconnect deadline elapsed"));
-                                return this;
-                            }
-                        };
+                    public CompletableFuture<Boolean> orTimeout(long timeout, TimeUnit unit) {
+                        assertThat(timeout).isEqualTo(5_000L);
+                        assertThat(unit).isEqualTo(TimeUnit.MILLISECONDS);
+                        this.completeExceptionally(new TimeoutException("disconnect deadline elapsed"));
+                        return this;
                     }
                 };
+            }
+        };
         when(this.plugin.disconnectPlayer(
                         USER_ID, "maintenance", "session-1", NOW.plusSeconds(5).toEpochMilli()))
                 .thenReturn(disconnect);
@@ -271,13 +260,11 @@ class UserDisconnectRequestHandlerTest {
         this.handler.onReceive(withMessage);
         this.handler.onReceive(withoutMessage);
 
-        assertThat(
-                        assertResponse(withMessage, false, UserDisconnectRequest.Status.FAILED)
-                                .getMessage())
+        assertThat(assertResponse(withMessage, false, UserDisconnectRequest.Status.FAILED)
+                        .getMessage())
                 .isEqualTo("lookup unavailable");
-        assertThat(
-                        assertResponse(withoutMessage, false, UserDisconnectRequest.Status.FAILED)
-                                .getMessage())
+        assertThat(assertResponse(withoutMessage, false, UserDisconnectRequest.Status.FAILED)
+                        .getMessage())
                 .isEqualTo("IllegalStateException");
     }
 

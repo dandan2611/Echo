@@ -50,13 +50,26 @@ class JoinListenerTest {
 
     private JoinListener listener;
 
-    @Mock private EchoClient client;
-    @Mock private Player player;
-    @Mock private EchoPaper plugin;
-    @Mock private org.bukkit.Server bukkitServer;
-    @Mock private BukkitScheduler scheduler;
-    @Mock private ServerLoadManager loadManager;
-    @Mock private Logger logger;
+    @Mock
+    private EchoClient client;
+
+    @Mock
+    private Player player;
+
+    @Mock
+    private EchoPaper plugin;
+
+    @Mock
+    private org.bukkit.Server bukkitServer;
+
+    @Mock
+    private BukkitScheduler scheduler;
+
+    @Mock
+    private ServerLoadManager loadManager;
+
+    @Mock
+    private Logger logger;
 
     @BeforeEach
     void setUp() {

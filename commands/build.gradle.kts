@@ -24,8 +24,7 @@ val adventure5Runtime =
     configurations.create("adventure5Runtime") {
         extendsFrom(configurations.testRuntimeClasspath.get())
         resolutionStrategy.eachDependency {
-            if (requested.group == "net.kyori" && requested.name.startsWith("adventure-"))
-                useVersion("5.2.0")
+            if (requested.group == "net.kyori" && requested.name.startsWith("adventure-")) useVersion("5.2.0")
         }
     }
 

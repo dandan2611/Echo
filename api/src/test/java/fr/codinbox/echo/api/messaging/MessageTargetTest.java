@@ -16,20 +16,18 @@ class MessageTargetTest {
 
         Set<String> returned = target.getTargets();
 
-        assertThatThrownBy(() -> returned.add("topic2"))
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> returned.add("topic2")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     void builder_preservesTopicSemantics() {
-        MessageTarget target =
-                MessageTarget.builder()
-                        .withServers("server-1", "server-2")
-                        .withProxy("proxy-1")
-                        .withAllServers()
-                        .withAllProxies()
-                        .withBroadcast()
-                        .build();
+        MessageTarget target = MessageTarget.builder()
+                .withServers("server-1", "server-2")
+                .withProxy("proxy-1")
+                .withAllServers()
+                .withAllProxies()
+                .withBroadcast()
+                .build();
 
         assertThat(target.getTargets())
                 .containsExactlyInAnyOrder(

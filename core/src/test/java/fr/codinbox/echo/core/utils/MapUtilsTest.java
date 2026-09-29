@@ -29,7 +29,6 @@ class MapUtilsTest {
     void mapStringToUuidKey_shouldThrowForInvalidUuid() {
         Map<String, Integer> input = Map.of("not-a-uuid", 1);
 
-        assertThatThrownBy(() -> MapUtils.mapStringToUuidKey(input))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MapUtils.mapStringToUuidKey(input)).isInstanceOf(IllegalArgumentException.class);
     }
 }

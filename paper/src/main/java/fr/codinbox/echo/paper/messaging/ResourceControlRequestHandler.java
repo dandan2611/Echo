@@ -35,8 +35,7 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
     public void onReceive(@NotNull ResourceControlRequest request) {
         String validationError = request.validationError();
         if (validationError != null) {
-            this.reply(
-                    request, false, ResourceControlRequest.Status.INVALID_REQUEST, validationError);
+            this.reply(request, false, ResourceControlRequest.Status.INVALID_REQUEST, validationError);
             return;
         }
         if (request.getExpectedResourceType() != EchoResourceType.SERVER
@@ -45,65 +44,51 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
                         .getCurrentResourceId()
                         .filter(request.getExpectedResourceId()::equals)
                         .isEmpty()) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.WRONG_TARGET,
-                    "Request targets another resource");
+            this.reply(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
             return;
         }
 
         final long now = this.clock.millis();
         final long executionDeadline = request.getExecutionDeadlineEpochMillis();
         if (now >= executionDeadline) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.EXPIRED,
-                    "Request deadline elapsed");
+            this.reply(request, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
             return;
         }
         final long drainDeadline;
         try {
             drainDeadline = request.resolveDrainDeadlineEpochMillis(now);
         } catch (ArithmeticException error) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.INVALID_REQUEST,
-                    "deadline is too large");
+            this.reply(request, false, ResourceControlRequest.Status.INVALID_REQUEST, "deadline is too large");
             return;
         }
 
         try {
             switch (request.getAction()) {
-                case PING ->
-                        this.reply(request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
+                case PING -> this.reply(request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
                 case REFRESH_LOAD ->
-                        this.complete(
-                                request,
-                                this.plugin.refreshLoad().thenApply(ignored -> true),
-                                executionDeadline,
-                                "Server load refreshed",
-                                "Server load refresh rejected");
+                    this.complete(
+                            request,
+                            this.plugin.refreshLoad().thenApply(ignored -> true),
+                            executionDeadline,
+                            "Server load refreshed",
+                            "Server load refresh rejected");
                 case DRAIN ->
-                        this.complete(
-                                request,
-                                (drainDeadline > 0
-                                                ? this.plugin.beginDrain(
-                                                        Instant.ofEpochMilli(drainDeadline))
-                                                : this.plugin.beginDrain())
-                                        .thenApply(ignored -> true),
-                                executionDeadline,
-                                "Server drain started",
-                                "Server drain rejected");
+                    this.complete(
+                            request,
+                            (drainDeadline > 0
+                                            ? this.plugin.beginDrain(Instant.ofEpochMilli(drainDeadline))
+                                            : this.plugin.beginDrain())
+                                    .thenApply(ignored -> true),
+                            executionDeadline,
+                            "Server drain started",
+                            "Server drain rejected");
                 case ACTIVATE ->
-                        this.complete(
-                                request,
-                                this.plugin.activate(),
-                                executionDeadline,
-                                "Server activated",
-                                "Server is stopping or draining");
+                    this.complete(
+                            request,
+                            this.plugin.activate(),
+                            executionDeadline,
+                            "Server activated",
+                            "Server is stopping or draining");
                 case SHUTDOWN -> {
                     boolean accepted = this.plugin.requestShutdown();
                     this.reply(
@@ -120,9 +105,7 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
                     request,
                     false,
                     ResourceControlRequest.Status.FAILED,
-                    error.getMessage() == null
-                            ? error.getClass().getSimpleName()
-                            : error.getMessage());
+                    error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
         }
     }
 
@@ -135,41 +118,31 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
         operation
                 .copy()
                 .orTimeout(Math.max(1L, deadline - this.clock.millis()), TimeUnit.MILLISECONDS)
-                .whenComplete(
-                        (accepted, error) -> {
-                            if (error == null) {
-                                this.reply(
-                                        request,
-                                        Boolean.TRUE.equals(accepted),
-                                        Boolean.TRUE.equals(accepted)
-                                                ? ResourceControlRequest.Status.ACCEPTED
-                                                : ResourceControlRequest.Status.NOT_ALLOWED,
-                                        Boolean.TRUE.equals(accepted)
-                                                ? acceptedMessage
-                                                : rejectedMessage);
-                                return;
-                            }
-                            Throwable cause =
-                                    error instanceof CompletionException && error.getCause() != null
-                                            ? error.getCause()
-                                            : error;
-                            this.reply(
-                                    request,
-                                    false,
-                                    cause instanceof TimeoutException
-                                            ? ResourceControlRequest.Status.TIMED_OUT
-                                            : ResourceControlRequest.Status.FAILED,
-                                    cause.getMessage() == null
-                                            ? cause.getClass().getSimpleName()
-                                            : cause.getMessage());
-                        });
+                .whenComplete((accepted, error) -> {
+                    if (error == null) {
+                        this.reply(
+                                request,
+                                Boolean.TRUE.equals(accepted),
+                                Boolean.TRUE.equals(accepted)
+                                        ? ResourceControlRequest.Status.ACCEPTED
+                                        : ResourceControlRequest.Status.NOT_ALLOWED,
+                                Boolean.TRUE.equals(accepted) ? acceptedMessage : rejectedMessage);
+                        return;
+                    }
+                    Throwable cause =
+                            error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
+                    this.reply(
+                            request,
+                            false,
+                            cause instanceof TimeoutException
+                                    ? ResourceControlRequest.Status.TIMED_OUT
+                                    : ResourceControlRequest.Status.FAILED,
+                            cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage());
+                });
     }
 
     private void reply(
-            ResourceControlRequest request,
-            boolean accepted,
-            ResourceControlRequest.Status status,
-            String message) {
+            ResourceControlRequest request, boolean accepted, ResourceControlRequest.Status status, String message) {
         request.reply(new ResourceControlRequest.Response(request, accepted, status, message));
     }
 }

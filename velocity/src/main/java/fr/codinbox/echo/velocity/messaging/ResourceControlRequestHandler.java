@@ -31,8 +31,7 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
     public void onReceive(@NotNull ResourceControlRequest request) {
         String validationError = request.validationError();
         if (validationError != null) {
-            this.reply(
-                    request, false, ResourceControlRequest.Status.INVALID_REQUEST, validationError);
+            this.reply(request, false, ResourceControlRequest.Status.INVALID_REQUEST, validationError);
             return;
         }
         if (request.getExpectedResourceType() != EchoResourceType.PROXY
@@ -41,50 +40,36 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
                         .getCurrentResourceId()
                         .filter(request.getExpectedResourceId()::equals)
                         .isEmpty()) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.WRONG_TARGET,
-                    "Request targets another resource");
+            this.reply(request, false, ResourceControlRequest.Status.WRONG_TARGET, "Request targets another resource");
             return;
         }
 
         final long now = this.clock.millis();
         if (now >= request.getExecutionDeadlineEpochMillis()) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.EXPIRED,
-                    "Request deadline elapsed");
+            this.reply(request, false, ResourceControlRequest.Status.EXPIRED, "Request deadline elapsed");
             return;
         }
         final long drainDeadline;
         try {
             drainDeadline = request.resolveDrainDeadlineEpochMillis(now);
         } catch (ArithmeticException error) {
-            this.reply(
-                    request,
-                    false,
-                    ResourceControlRequest.Status.INVALID_REQUEST,
-                    "deadline is too large");
+            this.reply(request, false, ResourceControlRequest.Status.INVALID_REQUEST, "deadline is too large");
             return;
         }
 
         try {
             switch (request.getAction()) {
-                case PING ->
-                        this.reply(request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
+                case PING -> this.reply(request, true, ResourceControlRequest.Status.ACCEPTED, "pong");
                 case REFRESH_LOAD ->
-                        this.reply(
-                                request,
-                                false,
-                                ResourceControlRequest.Status.UNSUPPORTED_ACTION,
-                                "Proxy resources do not publish server load");
+                    this.reply(
+                            request,
+                            false,
+                            ResourceControlRequest.Status.UNSUPPORTED_ACTION,
+                            "Proxy resources do not publish server load");
                 case DRAIN -> {
-                    boolean accepted =
-                            drainDeadline > 0
-                                    ? this.plugin.beginDrain(Instant.ofEpochMilli(drainDeadline))
-                                    : this.plugin.beginDrain();
+                    boolean accepted = drainDeadline > 0
+                            ? this.plugin.beginDrain(Instant.ofEpochMilli(drainDeadline))
+                            : this.plugin.beginDrain();
                     this.reply(
                             request,
                             accepted,
@@ -119,17 +104,12 @@ public final class ResourceControlRequestHandler implements MessageHandler<Resou
                     request,
                     false,
                     ResourceControlRequest.Status.FAILED,
-                    error.getMessage() == null
-                            ? error.getClass().getSimpleName()
-                            : error.getMessage());
+                    error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
         }
     }
 
     private void reply(
-            ResourceControlRequest request,
-            boolean accepted,
-            ResourceControlRequest.Status status,
-            String message) {
+            ResourceControlRequest request, boolean accepted, ResourceControlRequest.Status status, String message) {
         request.reply(new ResourceControlRequest.Response(request, accepted, status, message));
     }
 }

@@ -40,12 +40,10 @@ class MessagingIntegrationTest extends RedisIntegrationTestBase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<EchoMessage> received = new AtomicReference<>();
 
-        messagingProvider.subscribe(
-                "test:topic",
-                message -> {
-                    received.set(message);
-                    latch.countDown();
-                });
+        messagingProvider.subscribe("test:topic", message -> {
+            received.set(message);
+            latch.countDown();
+        });
 
         // Allow subscription to register before publishing
         Thread.sleep(200);

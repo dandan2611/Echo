@@ -9,9 +9,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A resource that can hold (track) connected users.
  *
- * <p>Both {@link fr.codinbox.echo.api.server.Server Server} and {@link
- * fr.codinbox.echo.api.proxy.Proxy Proxy} implement this interface to track which players are
- * connected to them.
+ * <p>Both {@link fr.codinbox.echo.api.server.Server Server} and {@link fr.codinbox.echo.api.proxy.Proxy Proxy}
+ * implement this interface to track which players are connected to them.
  *
  * <pre>{@code
  * // Get all players on a server
@@ -27,8 +26,7 @@ public interface UserHolder {
     /**
      * Gets all users currently connected to this resource.
      *
-     * <p>Returns a map where keys are player UUIDs and values are their join timestamps
-     * (milliseconds since epoch).
+     * <p>Returns a map where keys are player UUIDs and values are their join timestamps (milliseconds since epoch).
      *
      * <pre>{@code
      * Map<UUID, Long> users = server.getConnectedUsers().await();
@@ -58,10 +56,9 @@ public interface UserHolder {
     /**
      * Registers a user as connected to this resource.
      *
-     * <p><b>Internal use only.</b> This method does <b>not</b> unregister the user from other
-     * resources of the same type. Use {@link
-     * fr.codinbox.echo.api.EchoClient#registerUserInServer(User,
-     * fr.codinbox.echo.api.server.Server)} for safe server registration.
+     * <p><b>Internal use only.</b> This method does <b>not</b> unregister the user from other resources of the same
+     * type. Use {@link fr.codinbox.echo.api.EchoClient#registerUserInServer(User, fr.codinbox.echo.api.server.Server)}
+     * for safe server registration.
      *
      * @param user the user to register
      * @return a future that completes with {@code true} if the user was successfully registered
@@ -73,8 +70,7 @@ public interface UserHolder {
     /**
      * Unregisters a user from this resource.
      *
-     * <p><b>Internal use only.</b> Called automatically when a player disconnects or switches to
-     * another resource.
+     * <p><b>Internal use only.</b> Called automatically when a player disconnects or switches to another resource.
      *
      * @param user the user to unregister
      * @return a future that completes with {@code true} if the user was successfully unregistered

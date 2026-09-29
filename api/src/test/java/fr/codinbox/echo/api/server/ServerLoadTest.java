@@ -12,16 +12,14 @@ class ServerLoadTest {
 
     @Test
     void load_rejectsNegativeParticipantCount() {
-        assertThatThrownBy(() -> new ServerLoad(-1, true))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ServerLoad(-1, true)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void snapshot_becomesStaleAtItsDeadline() {
         Instant sampledAt = Instant.parse("2026-09-03T12:00:00Z");
         ServerLoadSnapshot snapshot =
-                new ServerLoadSnapshot(
-                        new ServerLoad(4, true), sampledAt, sampledAt.plusSeconds(30));
+                new ServerLoadSnapshot(new ServerLoad(4, true), sampledAt, sampledAt.plusSeconds(30));
 
         assertThat(snapshot.isStale(sampledAt.plusSeconds(29))).isFalse();
         assertThat(snapshot.isStale(sampledAt.plusSeconds(30))).isTrue();

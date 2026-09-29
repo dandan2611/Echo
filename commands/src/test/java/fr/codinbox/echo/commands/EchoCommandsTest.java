@@ -58,26 +58,19 @@ class EchoCommandsTest {
 
     @Test
     void everyCommandHasAPermissionAndUsesTheRootPlaceholder() {
-        List<Method> commands =
-                Arrays.stream(EchoCommands.class.getDeclaredMethods())
-                        .filter(method -> method.isAnnotationPresent(Command.class))
-                        .toList();
+        List<Method> commands = Arrays.stream(EchoCommands.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(Command.class))
+                .toList();
 
-        assertThat(commands)
-                .allSatisfy(
-                        method -> {
-                            Permission permission = method.getAnnotation(Permission.class);
-                            assertThat(permission).isNotNull();
-                            assertThat(permission.value()[0])
-                                    .isNotBlank()
-                                    .startsWith("echo.command.");
-                            assertThat(method.getAnnotation(Command.class).value())
-                                    .startsWith("${root}");
-                            assertThat(method.getReturnType()).isEqualTo(CompletableFuture.class);
-                        });
-        assertThat(
-                        commands.stream()
-                                .map(method -> method.getAnnotation(Permission.class).value()[0]))
+        assertThat(commands).allSatisfy(method -> {
+            Permission permission = method.getAnnotation(Permission.class);
+            assertThat(permission).isNotNull();
+            assertThat(permission.value()[0]).isNotBlank().startsWith("echo.command.");
+            assertThat(method.getAnnotation(Command.class).value()).startsWith("${root}");
+            assertThat(method.getReturnType()).isEqualTo(CompletableFuture.class);
+        });
+        assertThat(commands.stream()
+                        .map(method -> method.getAnnotation(Permission.class).value()[0]))
                 .doesNotHaveDuplicates();
     }
 
@@ -87,18 +80,14 @@ class EchoCommandsTest {
         @SuppressWarnings("unchecked")
         AnnotationParser<String> parser = mock(AnnotationParser.class);
         when(parser.manager())
-                .thenReturn(
-                        mock(
-                                org.incendo.cloud.CommandManager.class,
-                                org.mockito.Mockito.RETURNS_DEEP_STUBS));
+                .thenReturn(mock(org.incendo.cloud.CommandManager.class, org.mockito.Mockito.RETURNS_DEEP_STUBS));
         when(parser.stringProcessor()).thenReturn(input -> "before " + input);
         when(parser.parse(any(Object[].class))).thenReturn(List.of());
 
         assertThat(fixture.commands().register(parser)).isEmpty();
         ArgumentCaptor<StringProcessor> processor = ArgumentCaptor.forClass(StringProcessor.class);
         verify(parser).stringProcessor(processor.capture());
-        assertThat(processor.getValue().processString("${root} status"))
-                .isEqualTo("before echo|echoserver status");
+        assertThat(processor.getValue().processString("${root} status")).isEqualTo("before echo|echoserver status");
 
         EchoClient echo = mock(EchoClient.class);
         CommandAudience<String> audience = mock(CommandAudience.class);
@@ -115,13 +104,10 @@ class EchoCommandsTest {
     void rootHelpVersionAndStatusRenderBothLocalIdStates() {
         CommandTestSupport.Fixture fixture = fixture();
         when(fixture.echo().getServers()).thenReturn(EchoFuture.completed(Map.of("server-1", 1L)));
-        when(fixture.echo().getProxies())
-                .thenReturn(EchoFuture.completed(Map.of("proxy-2", 2L, "proxy-1", 1L)));
-        when(fixture.echo().getAllUsers())
-                .thenReturn(EchoFuture.completed(Map.of(UUID.randomUUID(), 1L)));
+        when(fixture.echo().getProxies()).thenReturn(EchoFuture.completed(Map.of("proxy-2", 2L, "proxy-1", 1L)));
+        when(fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(Map.of(UUID.randomUUID(), 1L)));
         when(fixture.echo().getCurrentResourceType()).thenReturn(EchoResourceType.SERVER);
-        when(fixture.echo().getCurrentResourceId())
-                .thenReturn(Optional.of("server-1"), Optional.empty());
+        when(fixture.echo().getCurrentResourceId()).thenReturn(Optional.of("server-1"), Optional.empty());
 
         fixture.commands().root(fixture.context()).join();
         fixture.commands().help(fixture.context()).join();
@@ -150,25 +136,17 @@ class EchoCommandsTest {
         Server dead = mock(Server.class);
         Proxy proxy = mock(Proxy.class);
         when(fixture.echo().getServers())
-                .thenReturn(
-                        EchoFuture.completed(
-                                Map.of("z-dead", 2L, "a-alive", 1L, "server-missing", 5L)));
+                .thenReturn(EchoFuture.completed(Map.of("z-dead", 2L, "a-alive", 1L, "server-missing", 5L)));
         when(fixture.echo().getProxies())
                 .thenReturn(EchoFuture.completed(Map.of("proxy-missing", 3L, "proxy-dead", 4L)));
-        when(fixture.echo().getAllUsers())
-                .thenReturn(EchoFuture.completed(Map.of(UUID.randomUUID(), 1L)));
-        when(fixture.echo().getServerById("a-alive"))
-                .thenReturn(EchoFuture.completed(Optional.of(alive)));
-        when(fixture.echo().getServerById("z-dead"))
-                .thenReturn(EchoFuture.completed(Optional.of(dead)));
-        when(fixture.echo().getServerById("server-missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(Map.of(UUID.randomUUID(), 1L)));
+        when(fixture.echo().getServerById("a-alive")).thenReturn(EchoFuture.completed(Optional.of(alive)));
+        when(fixture.echo().getServerById("z-dead")).thenReturn(EchoFuture.completed(Optional.of(dead)));
+        when(fixture.echo().getServerById("server-missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(alive.stillExists()).thenReturn(EchoFuture.completed(true));
         when(dead.stillExists()).thenReturn(EchoFuture.completed(false));
-        when(fixture.echo().getProxyById("proxy-dead"))
-                .thenReturn(EchoFuture.completed(Optional.of(proxy)));
-        when(fixture.echo().getProxyById("proxy-missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(fixture.echo().getProxyById("proxy-dead")).thenReturn(EchoFuture.completed(Optional.of(proxy)));
+        when(fixture.echo().getProxyById("proxy-missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(proxy.stillExists()).thenReturn(EchoFuture.completed(false));
 
         fixture.commands().monitorResources(fixture.context()).join();
@@ -194,36 +172,25 @@ class EchoCommandsTest {
         UUID userId = UUID.randomUUID();
         when(fixture.echo().getServers())
                 .thenReturn(
-                        EchoFuture.completed(Map.of()),
-                        EchoFuture.completed(Map.of("server-2", 2L, "server-1", 1L)));
+                        EchoFuture.completed(Map.of()), EchoFuture.completed(Map.of("server-2", 2L, "server-1", 1L)));
         when(fixture.echo().getProxies())
-                .thenReturn(
-                        EchoFuture.completed(Map.of()),
-                        EchoFuture.completed(Map.of("proxy-1", 3L)));
-        when(fixture.echo().getServerById("server-1"))
-                .thenReturn(EchoFuture.completed(Optional.of(server)));
-        when(fixture.echo().getServerById("missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+                .thenReturn(EchoFuture.completed(Map.of()), EchoFuture.completed(Map.of("proxy-1", 3L)));
+        when(fixture.echo().getServerById("server-1")).thenReturn(EchoFuture.completed(Optional.of(server)));
+        when(fixture.echo().getServerById("missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(server.getId()).thenReturn("server-1");
-        when(server.getAddress())
-                .thenAnswer(
-                        ignored -> {
-                            assertThat(Thread.currentThread().isVirtual()).isTrue();
-                            return new Address("127.0.0.1", 25565);
-                        });
+        when(server.getAddress()).thenAnswer(ignored -> {
+            assertThat(Thread.currentThread().isVirtual()).isTrue();
+            return new Address("127.0.0.1", 25565);
+        });
         when(server.getConnectedUsers()).thenReturn(EchoFuture.completed(Map.of(userId, 1L)));
         when(server.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
-        when(fixture.echo().getProxyById("proxy-1"))
-                .thenReturn(EchoFuture.completed(Optional.of(proxy)));
-        when(fixture.echo().getProxyById("missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(fixture.echo().getProxyById("proxy-1")).thenReturn(EchoFuture.completed(Optional.of(proxy)));
+        when(fixture.echo().getProxyById("missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(proxy.getId()).thenReturn("proxy-1");
-        when(proxy.getAddress())
-                .thenAnswer(
-                        ignored -> {
-                            assertThat(Thread.currentThread().isVirtual()).isTrue();
-                            return new Address("localhost", 25577);
-                        });
+        when(proxy.getAddress()).thenAnswer(ignored -> {
+            assertThat(Thread.currentThread().isVirtual()).isTrue();
+            return new Address("localhost", 25577);
+        });
         when(proxy.getConnectedUsers()).thenReturn(EchoFuture.completed(Map.of()));
 
         fixture.commands().serverList(fixture.context()).join();
@@ -254,26 +221,18 @@ class EchoCommandsTest {
         CommandTestSupport.Fixture fixture = fixture();
         Server server = mock(Server.class);
         Proxy proxy = mock(Proxy.class);
-        when(fixture.echo().getServerById("server"))
-                .thenReturn(EchoFuture.completed(Optional.of(server)));
-        when(fixture.echo().getProxyById("proxy"))
-                .thenReturn(EchoFuture.completed(Optional.of(proxy)));
+        when(fixture.echo().getServerById("server")).thenReturn(EchoFuture.completed(Optional.of(server)));
+        when(fixture.echo().getProxyById("proxy")).thenReturn(EchoFuture.completed(Optional.of(proxy)));
         when(server.getPropertiesKeys())
-                .thenReturn(
-                        EchoFuture.completed(Set.of()),
-                        EchoFuture.completed(Set.of("mode", "orphan")));
-        when(server.<Object>getProperty("mode"))
-                .thenReturn(EchoFuture.completed(Optional.of("ranked")));
-        when(server.<Object>getProperty("orphan"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+                .thenReturn(EchoFuture.completed(Set.of()), EchoFuture.completed(Set.of("mode", "orphan")));
+        when(server.<Object>getProperty("mode")).thenReturn(EchoFuture.completed(Optional.of("ranked")));
+        when(server.<Object>getProperty("orphan")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(server.getPropertyTimeToLive("mode")).thenReturn(EchoFuture.completed(15_000L));
         when(server.getPropertyTimeToLive("orphan")).thenReturn(EchoFuture.completed(-2L));
         when(proxy.getPropertiesKeys()).thenReturn(EchoFuture.completed(Set.of("permanent")));
-        when(proxy.<Object>getProperty("permanent"))
-                .thenReturn(EchoFuture.completed(Optional.of(7)));
+        when(proxy.<Object>getProperty("permanent")).thenReturn(EchoFuture.completed(Optional.of(7)));
         when(proxy.getPropertyTimeToLive("permanent")).thenReturn(EchoFuture.completed(-1L));
-        when(proxy.<Object>getProperty("missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(proxy.<Object>getProperty("missing")).thenReturn(EchoFuture.completed(Optional.empty()));
         when(proxy.getPropertyTimeToLive("missing")).thenReturn(EchoFuture.completed(-2L));
 
         fixture.commands().serverProperties(fixture.context(), "server").join();
@@ -302,10 +261,8 @@ class EchoCommandsTest {
         Instant future = Instant.parse("2999-01-01T00:00:00Z");
         Instant past = Instant.parse("2000-01-01T00:00:00Z");
         ServerLoadSnapshot fresh = new ServerLoadSnapshot(new ServerLoad(4, true), past, future);
-        ServerLoadSnapshot stale =
-                new ServerLoadSnapshot(new ServerLoad(5, false), past, past.plusSeconds(1));
-        when(fixture.echo().getServerById("server"))
-                .thenReturn(EchoFuture.completed(Optional.of(server)));
+        ServerLoadSnapshot stale = new ServerLoadSnapshot(new ServerLoad(5, false), past, past.plusSeconds(1));
+        when(fixture.echo().getServerById("server")).thenReturn(EchoFuture.completed(Optional.of(server)));
         when(server.getLoad())
                 .thenReturn(
                         EchoFuture.completed(Optional.empty()),
@@ -344,18 +301,13 @@ class EchoCommandsTest {
 
         controlResponse(fixture, false, ResourceControlRequest.Status.NOT_ALLOWED, "denied");
         fixture.commands().proxyPing(fixture.context(), "proxy").join();
-        controlResponse(
-                fixture, false, ResourceControlRequest.Status.FAILED, "redis password=secret");
+        controlResponse(fixture, false, ResourceControlRequest.Status.FAILED, "redis password=secret");
         fixture.commands().proxyPing(fixture.context(), "proxy").join();
 
-        ArgumentCaptor<ResourceControlRequest> requests =
-                ArgumentCaptor.forClass(ResourceControlRequest.class);
+        ArgumentCaptor<ResourceControlRequest> requests = ArgumentCaptor.forClass(ResourceControlRequest.class);
         verify(fixture.messaging(), times(10))
                 .request(
-                        argThat(
-                                        topic ->
-                                                topic.equals("server:server")
-                                                        || topic.equals("proxy:proxy")),
+                        argThat(topic -> topic.equals("server:server") || topic.equals("proxy:proxy")),
                                 requests.capture(),
                         eq(ResourceControlRequest.Response.class), eq(Duration.ofSeconds(10)));
         assertThat(requests.getAllValues())
@@ -392,10 +344,7 @@ class EchoCommandsTest {
                                 any(ResourceControlRequest.class),
                                 eq(ResourceControlRequest.Response.class),
                                 any(Duration.class)))
-                .thenReturn(
-                        echoFailed(
-                                new CompletionException(
-                                        new IllegalStateException("control unavailable"))));
+                .thenReturn(echoFailed(new CompletionException(new IllegalStateException("control unavailable"))));
         fixture.commands().serverLoadRefresh(fixture.context(), "server").join();
 
         fixture.commands().serverPing(fixture.context(), "server").join();
@@ -413,18 +362,16 @@ class EchoCommandsTest {
         UUID id = UUID.randomUUID();
         User complete = user(id, Optional.of("Alice"), Optional.of("proxy"), Optional.of("server"));
         User sparse = user(UUID.randomUUID(), Optional.empty(), Optional.empty(), Optional.empty());
-        when(fixture.echo().getUserById(id))
-                .thenReturn(EchoFuture.completed(Optional.of(complete)));
-        when(fixture.echo().getUserByUsername("Sparse"))
-                .thenReturn(EchoFuture.completed(Optional.of(sparse)));
-        when(fixture.echo().getUserById(new UUID(0, 0)))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
-        when(fixture.echo().getUserByUsername("Missing"))
-                .thenReturn(EchoFuture.completed(Optional.empty()));
+        when(fixture.echo().getUserById(id)).thenReturn(EchoFuture.completed(Optional.of(complete)));
+        when(fixture.echo().getUserByUsername("Sparse")).thenReturn(EchoFuture.completed(Optional.of(sparse)));
+        when(fixture.echo().getUserById(new UUID(0, 0))).thenReturn(EchoFuture.completed(Optional.empty()));
+        when(fixture.echo().getUserByUsername("Missing")).thenReturn(EchoFuture.completed(Optional.empty()));
 
         fixture.commands().userInfo(fixture.context(), id.toString()).join();
         fixture.commands().userInfo(fixture.context(), "Sparse").join();
-        fixture.commands().userInfo(fixture.context(), new UUID(0, 0).toString()).join();
+        fixture.commands()
+                .userInfo(fixture.context(), new UUID(0, 0).toString())
+                .join();
         fixture.commands().userInfo(fixture.context(), "Missing").join();
 
         assertThat(fixture.output())
@@ -445,25 +392,18 @@ class EchoCommandsTest {
     void userSendCoversSuccessfulFailedAndExceptionalTransfers() {
         CommandTestSupport.Fixture fixture = fixture();
         User user = mock(User.class);
-        ServerSwitchRequest.PlayerResponse success =
-                new ServerSwitchRequest.PlayerResponse(
-                        true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
-        ServerSwitchRequest.PlayerResponse failure =
-                new ServerSwitchRequest.PlayerResponse(
-                        false,
-                        ServerSwitchRequest.ServerSwitchRequestStatus.TARGET_SERVER_UNAVAILABLE,
-                        null);
-        when(fixture.echo().getUserByUsername("Alice"))
-                .thenReturn(EchoFuture.completed(Optional.of(user)));
+        ServerSwitchRequest.PlayerResponse success = new ServerSwitchRequest.PlayerResponse(
+                true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null);
+        ServerSwitchRequest.PlayerResponse failure = new ServerSwitchRequest.PlayerResponse(
+                false, ServerSwitchRequest.ServerSwitchRequestStatus.TARGET_SERVER_UNAVAILABLE, null);
+        when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
         UUID id = UUID.randomUUID();
         when(user.getId()).thenReturn(id);
         when(fixture.echo().getUserById(id)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(fixture.echo().getServerById(anyString()))
                 .thenReturn(EchoFuture.completed(Optional.of(mock(Server.class))));
-        when(user.tryConnectToServer("one", Duration.ofSeconds(10)))
-                .thenReturn(EchoFuture.completed(success));
-        when(user.tryConnectToServer("two", Duration.ofSeconds(10)))
-                .thenReturn(EchoFuture.completed(failure));
+        when(user.tryConnectToServer("one", Duration.ofSeconds(10))).thenReturn(EchoFuture.completed(success));
+        when(user.tryConnectToServer("two", Duration.ofSeconds(10))).thenReturn(EchoFuture.completed(failure));
         when(user.tryConnectToServer("three", Duration.ofSeconds(10)))
                 .thenReturn(echoFailed(new IllegalStateException("transfer broke")));
 
@@ -488,17 +428,19 @@ class EchoCommandsTest {
         when(user.getId()).thenReturn(id);
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy")));
         when(user.getSessionId()).thenReturn(EchoFuture.completed(Optional.of("session")));
-        when(fixture.echo().getUserByUsername("Alice"))
-                .thenReturn(EchoFuture.completed(Optional.of(user)));
+        when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
 
         fixture.commands()
                 .userDisconnect(fixture.context(), "Alice", "bad \"actor\" path", false)
                 .join();
-        disconnectResponse(
-                fixture, true, UserDisconnectRequest.Status.DISCONNECTED, "Disconnected");
-        fixture.commands().userDisconnect(fixture.context(), "Alice", "maintenance", true).join();
+        disconnectResponse(fixture, true, UserDisconnectRequest.Status.DISCONNECTED, "Disconnected");
+        fixture.commands()
+                .userDisconnect(fixture.context(), "Alice", "maintenance", true)
+                .join();
         disconnectResponse(fixture, false, UserDisconnectRequest.Status.PLAYER_NOT_FOUND, "Gone");
-        fixture.commands().userDisconnect(fixture.context(), "Alice", "maintenance", true).join();
+        fixture.commands()
+                .userDisconnect(fixture.context(), "Alice", "maintenance", true)
+                .join();
 
         assertThat(fixture.output())
                 .contains(
@@ -529,17 +471,17 @@ class EchoCommandsTest {
         when(user.getId()).thenReturn(UUID.randomUUID());
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy")));
         when(user.getSessionId()).thenReturn(EchoFuture.completed(Optional.of("session")));
-        when(fixture.echo().getUserByUsername("Alice"))
-                .thenReturn(EchoFuture.completed(Optional.of(user)));
+        when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
         for (UserDisconnectRequest.Status status : UserDisconnectRequest.Status.values()) {
             disconnectResponse(fixture, false, status, "sensitive disconnect detail");
             fixture.commands()
                     .userDisconnect(fixture.context(), "Alice", "maintenance", true)
                     .join();
         }
-        disconnectResponse(
-                fixture, true, UserDisconnectRequest.Status.INVALID_REQUEST, "inconsistent");
-        fixture.commands().userDisconnect(fixture.context(), "Alice", "maintenance", true).join();
+        disconnectResponse(fixture, true, UserDisconnectRequest.Status.INVALID_REQUEST, "inconsistent");
+        fixture.commands()
+                .userDisconnect(fixture.context(), "Alice", "maintenance", true)
+                .join();
 
         assertThat(fixture.output())
                 .contains(
@@ -553,10 +495,8 @@ class EchoCommandsTest {
                         "Remote disconnect request reached the wrong target.",
                         "Remote disconnect request timed out.",
                         "Command failed. Reference:")
-                .doesNotContain(
-                        "sensitive control detail", "sensitive disconnect detail", "inconsistent");
-        verify(fixture.logger(), atLeastOnce())
-                .log(eq(Level.SEVERE), anyString(), any(Throwable.class));
+                .doesNotContain("sensitive control detail", "sensitive disconnect detail", "inconsistent");
+        verify(fixture.logger(), atLeastOnce()).log(eq(Level.SEVERE), anyString(), any(Throwable.class));
     }
 
     @Test
@@ -591,8 +531,7 @@ class EchoCommandsTest {
 
         when(fixture.echo().getServers()).thenReturn(echoFailed(new IllegalStateException("down")));
         when(fixture.echo().getProxies()).thenReturn(echoFailed(new IllegalStateException("down")));
-        when(fixture.echo().getAllUsers())
-                .thenReturn(echoFailed(new IllegalStateException("down")));
+        when(fixture.echo().getAllUsers()).thenReturn(echoFailed(new IllegalStateException("down")));
         assertThat(fixture.commands().serverSuggestions().join()).isEmpty();
         assertThat(fixture.commands().proxySuggestions().join()).isEmpty();
         assertThat(fixture.commands().userSuggestions().join()).isEmpty();
@@ -602,11 +541,8 @@ class EchoCommandsTest {
     void commandErrorsUnwrapBothWrapperTypesAndHandleBlankMessages() {
         CommandTestSupport.Fixture fixture = fixture();
         when(fixture.echo().getServers())
-                .thenReturn(
-                        echoFailed(
-                                new CompletionException(
-                                        new ExecutionException(
-                                                new IllegalStateException("Redis unavailable")))));
+                .thenReturn(echoFailed(new CompletionException(
+                        new ExecutionException(new IllegalStateException("Redis unavailable")))));
         when(fixture.echo().getProxies()).thenReturn(EchoFuture.completed(Map.of()));
         when(fixture.echo().getAllUsers()).thenReturn(EchoFuture.completed(Map.of()));
         fixture.commands().status(fixture.context()).join();
@@ -614,12 +550,10 @@ class EchoCommandsTest {
         when(fixture.echo().getServers()).thenReturn(echoFailed(new IllegalStateException(" ")));
         fixture.commands().status(fixture.context()).join();
 
-        when(fixture.echo().getServers())
-                .thenReturn(echoFailed(new IllegalStateException((String) null)));
+        when(fixture.echo().getServers()).thenReturn(echoFailed(new IllegalStateException((String) null)));
         fixture.commands().status(fixture.context()).join();
 
-        when(fixture.echo().getServers())
-                .thenReturn(echoFailed(new CompletionException((Throwable) null)));
+        when(fixture.echo().getServers()).thenReturn(echoFailed(new CompletionException((Throwable) null)));
         fixture.commands().status(fixture.context()).join();
 
         when(fixture.echo().getServers()).thenReturn(null);
@@ -627,11 +561,7 @@ class EchoCommandsTest {
 
         assertThat(fixture.output())
                 .contains("ERROR: Command failed. Reference:")
-                .doesNotContain(
-                        "Redis unavailable",
-                        "IllegalStateException",
-                        "CompletionException",
-                        "Cannot invoke");
+                .doesNotContain("Redis unavailable", "IllegalStateException", "CompletionException", "Cannot invoke");
         verify(fixture.logger(), times(5)).log(eq(Level.SEVERE), anyString(), any(Throwable.class));
     }
 
@@ -640,20 +570,14 @@ class EchoCommandsTest {
         CommandTestSupport.Fixture fixture = fixture();
         controlResponse(fixture, true, ResourceControlRequest.Status.ACCEPTED, "accepted");
         User user = mock(User.class);
-        when(fixture.echo().getUserByUsername("Alice"))
-                .thenReturn(EchoFuture.completed(Optional.of(user)));
+        when(fixture.echo().getUserByUsername("Alice")).thenReturn(EchoFuture.completed(Optional.of(user)));
         UUID id = UUID.randomUUID();
         when(user.getId()).thenReturn(id);
         when(fixture.echo().getUserById(id)).thenReturn(EchoFuture.completed(Optional.of(user)));
-        when(fixture.echo().getServerById("game-2"))
-                .thenReturn(EchoFuture.completed(Optional.of(mock(Server.class))));
+        when(fixture.echo().getServerById("game-2")).thenReturn(EchoFuture.completed(Optional.of(mock(Server.class))));
         when(user.tryConnectToServer("game-2", Duration.ofSeconds(10)))
-                .thenReturn(
-                        EchoFuture.completed(
-                                new ServerSwitchRequest.PlayerResponse(
-                                        true,
-                                        ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS,
-                                        null)));
+                .thenReturn(EchoFuture.completed(new ServerSwitchRequest.PlayerResponse(
+                        true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS, null)));
 
         fixture.commands().serverDrain(fixture.context(), "game-1", 30, true).join();
         fixture.commands().proxyDrain(fixture.context(), "proxy-1", 15, true).join();
@@ -662,15 +586,16 @@ class EchoCommandsTest {
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<Supplier> entries = ArgumentCaptor.forClass(Supplier.class);
         verify(fixture.logger(), times(3)).info(entries.capture());
-        assertThat(entries.getAllValues().stream().map(entry -> (String) entry.get()).toList())
+        assertThat(entries.getAllValues().stream()
+                        .map(entry -> (String) entry.get())
+                        .toList())
                 .contains(
                         "echo_audit sender=audit_console_user action=server.drain target=server/game-1_duration=30m outcome=ACCEPTED",
                         "echo_audit sender=audit_console_user action=proxy.drain target=proxy/proxy-1_duration=15m outcome=ACCEPTED",
                         "echo_audit sender=audit_console_user action=user.send target=Alice->game-2_proxy=all outcome=transferred=1_already_connected=0_failed=0");
     }
 
-    private static User user(
-            UUID id, Optional<String> username, Optional<String> proxy, Optional<String> server) {
+    private static User user(UUID id, Optional<String> username, Optional<String> proxy, Optional<String> server) {
         User user = mock(User.class);
         when(user.getId()).thenReturn(id);
         when(user.getUsername()).thenReturn(EchoFuture.completed(username));

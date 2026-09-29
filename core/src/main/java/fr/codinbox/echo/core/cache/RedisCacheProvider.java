@@ -47,8 +47,7 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull <T> CompletableFuture<Void> setObject(
-            final @NotNull String key, final @NotNull T value) {
+    public @NotNull <T> CompletableFuture<Void> setObject(final @NotNull String key, final @NotNull T value) {
         final RBucket<T> bucket = client().getBucket(key);
         return bucket.setAsync(value).toCompletableFuture();
     }
@@ -63,8 +62,7 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull CompletableFuture<Boolean> expireObject(
-            final @NotNull String key, final @NotNull Instant instant) {
+    public @NotNull CompletableFuture<Boolean> expireObject(final @NotNull String key, final @NotNull Instant instant) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.expireAsync(instant).toCompletableFuture();
     }
@@ -83,8 +81,7 @@ public class RedisCacheProvider implements CacheProvider {
     }
 
     @Override
-    public @NotNull CompletableFuture<Long> getObjectRemainingTimeToLive(
-            final @NotNull String key) {
+    public @NotNull CompletableFuture<Long> getObjectRemainingTimeToLive(final @NotNull String key) {
         final RBucket<Object> bucket = client().getBucket(key);
         return bucket.remainTimeToLiveAsync().toCompletableFuture();
     }
@@ -101,12 +98,9 @@ public class RedisCacheProvider implements CacheProvider {
 
     @Override
     public @NotNull CompletableFuture<@NotNull Set<String>> getKeys(final @NotNull String pattern) {
-        return CompletableFuture.supplyAsync(
-                () ->
-                        StreamSupport.stream(
-                                        client().getKeys().getKeysByPattern(pattern).spliterator(),
-                                        true)
-                                .collect(Collectors.toSet()));
+        return CompletableFuture.supplyAsync(() -> StreamSupport.stream(
+                        client().getKeys().getKeysByPattern(pattern).spliterator(), true)
+                .collect(Collectors.toSet()));
     }
 
     @Override
@@ -121,9 +115,7 @@ public class RedisCacheProvider implements CacheProvider {
                     final RLock lock = client().getLock(key);
                     try {
                         final boolean acquired =
-                                leaseTime > 0
-                                        ? lock.tryLock(waitTime, leaseTime, unit)
-                                        : lock.tryLock(waitTime, unit);
+                                leaseTime > 0 ? lock.tryLock(waitTime, leaseTime, unit) : lock.tryLock(waitTime, unit);
                         if (!acquired) return false;
                         try {
                             action.get().join();

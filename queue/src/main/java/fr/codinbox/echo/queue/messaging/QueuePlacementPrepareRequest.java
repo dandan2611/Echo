@@ -91,11 +91,7 @@ public final class QueuePlacementPrepareRequest extends EchoMessage {
 
         public Response() {}
 
-        public Response(
-                @NotNull UUID placementId,
-                long runVersion,
-                boolean accepted,
-                @Nullable String reason) {
+        public Response(@NotNull UUID placementId, long runVersion, boolean accepted, @Nullable String reason) {
             this.placementId = placementId;
             this.runVersion = runVersion;
             this.accepted = accepted;

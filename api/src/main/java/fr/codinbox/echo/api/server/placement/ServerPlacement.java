@@ -19,28 +19,23 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Selects an eligible server and atomically leases seats for one indivisible group.
  *
- * <p>A reservation protects capacity while a caller prepares and transfers its members. It does not
- * move players and cannot make several Minecraft connections physically atomic. Callers must either
- * renew the reservation while handoff is pending or release it when the handoff fails.
+ * <p>A reservation protects capacity while a caller prepares and transfers its members. It does not move players and
+ * cannot make several Minecraft connections physically atomic. Callers must either renew the reservation while handoff
+ * is pending or release it when the handoff fails.
  */
 public interface ServerPlacement {
 
-    /**
-     * Public non-staff capacity on admission-enabled servers; legacy participant capacity
-     * otherwise.
-     */
-    @NotNull PropertyKey<Integer> PROPERTY_CAPACITY = new PropertyKey<>("placement_capacity");
+    /** Public non-staff capacity on admission-enabled servers; legacy participant capacity otherwise. */
+    @NotNull
+    PropertyKey<Integer> PROPERTY_CAPACITY = new PropertyKey<>("placement_capacity");
 
-    /**
-     * Physical capacity for everyone. Setting this requires fresh destination admission telemetry.
-     */
+    /** Physical capacity for everyone. Setting this requires fresh destination admission telemetry. */
     @NotNull
     PropertyKey<Integer> PROPERTY_HARD_CAPACITY = new PropertyKey<>("placement_hard_capacity");
 
     /**
-     * Selects an eligible server and atomically reserves capacity for every request member.
-     * Replaying an active request with the same ID and payload returns the same reservation;
-     * reusing that ID with a different payload fails.
+     * Selects an eligible server and atomically reserves capacity for every request member. Replaying an active request
+     * with the same ID and payload returns the same reservation; reusing that ID with a different payload fails.
      *
      * @param request placement criteria, members, policy, and lease duration
      * @return the reservation, or empty when no eligible server can fit the whole group
@@ -56,8 +51,7 @@ public interface ServerPlacement {
      * @return the renewed reservation, or empty when it expired or its token is no longer current
      */
     @NotNull
-    EchoFuture<@NotNull Optional<Reservation>> renew(
-            @NotNull Reservation reservation, @NotNull Duration lease);
+    EchoFuture<@NotNull Optional<Reservation>> renew(@NotNull Reservation reservation, @NotNull Duration lease);
 
     /**
      * Releases an active reservation immediately.
@@ -97,8 +91,7 @@ public interface ServerPlacement {
      * @return current status, or empty when the server is not registered
      * @throws UnsupportedOperationException asynchronously when monitoring is not supported
      */
-    default @NotNull EchoFuture<@NotNull Optional<ServerStatus>> inspectServer(
-            final @NotNull String serverId) {
+    default @NotNull EchoFuture<@NotNull Optional<ServerStatus>> inspectServer(final @NotNull String serverId) {
         return unsupportedMonitoring();
     }
 
@@ -114,10 +107,8 @@ public interface ServerPlacement {
     }
 
     private static <T> EchoFuture<T> unsupportedMonitoring() {
-        return EchoFuture.of(
-                CompletableFuture.failedFuture(
-                        new UnsupportedOperationException(
-                                "Placement monitoring is not supported")));
+        return EchoFuture.of(CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Placement monitoring is not supported")));
     }
 
     /** Built-in ranking policies applied after eligibility and capacity checks. */
@@ -183,12 +174,7 @@ public interface ServerPlacement {
             @NotNull Duration lease) {
 
         private static final Set<String> RESERVED_FILTERS =
-                Set.of(
-                        "availability",
-                        "load",
-                        "admission",
-                        PROPERTY_CAPACITY.key(),
-                        PROPERTY_HARD_CAPACITY.key());
+                Set.of("availability", "load", "admission", PROPERTY_CAPACITY.key(), PROPERTY_HARD_CAPACITY.key());
 
         /** Validates and snapshots all request collections. */
         public Request {
@@ -196,26 +182,18 @@ public interface ServerPlacement {
                 throw new IllegalArgumentException("requestId must not be blank");
             members = Set.copyOf(Objects.requireNonNull(members, "members"));
             if (members.isEmpty()) throw new IllegalArgumentException("members must not be empty");
-            candidateServerIds =
-                    Set.copyOf(Objects.requireNonNull(candidateServerIds, "candidateServerIds"));
+            candidateServerIds = Set.copyOf(Objects.requireNonNull(candidateServerIds, "candidateServerIds"));
             if (candidateServerIds.stream().anyMatch(String::isBlank))
                 throw new IllegalArgumentException("candidate server IDs must not be blank");
 
             final Map<PropertyKey<?>, Object> properties = new LinkedHashMap<>();
-            Objects.requireNonNull(exactProperties, "exactProperties")
-                    .forEach(
-                            (key, value) -> {
-                                final String name =
-                                        Objects.requireNonNull(key, "property key").key();
-                                if (name.isBlank())
-                                    throw new IllegalArgumentException(
-                                            "property key must not be blank");
-                                if (RESERVED_FILTERS.contains(name))
-                                    throw new IllegalArgumentException(
-                                            "Property is controlled by placement: " + name);
-                                properties.put(
-                                        key, Objects.requireNonNull(value, "property value"));
-                            });
+            Objects.requireNonNull(exactProperties, "exactProperties").forEach((key, value) -> {
+                final String name = Objects.requireNonNull(key, "property key").key();
+                if (name.isBlank()) throw new IllegalArgumentException("property key must not be blank");
+                if (RESERVED_FILTERS.contains(name))
+                    throw new IllegalArgumentException("Property is controlled by placement: " + name);
+                properties.put(key, Objects.requireNonNull(value, "property value"));
+            });
             exactProperties = Map.copyOf(properties);
             Objects.requireNonNull(policy, "policy");
             Objects.requireNonNull(lease, "lease");
@@ -227,10 +205,10 @@ public interface ServerPlacement {
     /**
      * An expiring capacity lease returned by {@link #reserve(Request)}.
      *
-     * <p>The token is an opaque ownership generation used by {@link #renew(Reservation, Duration)}
-     * and {@link #release(Reservation)} to prevent a stale caller from modifying a newer lease.
-     * Once {@code expiresAt} is reached, the seats are no longer protected and the caller must not
-     * transfer members unless it successfully renews or reserves again.
+     * <p>The token is an opaque ownership generation used by {@link #renew(Reservation, Duration)} and
+     * {@link #release(Reservation)} to prevent a stale caller from modifying a newer lease. Once {@code expiresAt} is
+     * reached, the seats are no longer protected and the caller must not transfer members unless it successfully renews
+     * or reserves again.
      *
      * @param requestId idempotency key of the originating request
      * @param token opaque ownership generation; callers must preserve it unchanged
@@ -287,21 +265,19 @@ public interface ServerPlacement {
     }
 
     /**
-     * Current inputs used to decide whether a server can accept another placement. Missing or
-     * malformed numeric properties are represented by empty optionals.
+     * Current inputs used to decide whether a server can accept another placement. Missing or malformed numeric
+     * properties are represented by empty optionals.
      *
      * @param serverId Echo server ID
      * @param heartbeatAlive whether the server heartbeat is live
      * @param availability interpreted availability property
      * @param participantLoad reported participant count, if the load is valid
-     * @param reservedSlots unarrived seats held by active reservations, excluding online/pending
-     *     members
+     * @param reservedSlots unarrived seats held by active reservations, excluding online/pending members
      * @param capacity positive public capacity (legacy servers: participant capacity), if valid
      * @param freeSlots non-staff headroom constrained by both limits, if inputs are valid
      * @param loadFresh whether the load snapshot has not reached its validity deadline
      * @param acceptingQueueAssignments whether the reported load accepts queue assignments
-     * @param admission destination physical counts and pending joins, independent of
-     *     participantLoad
+     * @param admission destination physical counts and pending joins, independent of participantLoad
      * @param reservedNonStaffSlots non-staff portion of reservedSlots
      * @param hardFreeSlots physical headroom for staff; not an admission authorization
      */
@@ -357,8 +333,7 @@ public interface ServerPlacement {
             Objects.requireNonNull(hardFreeSlots, "hardFreeSlots");
             if (participantLoad.isPresent() && participantLoad.getAsInt() < 0)
                 throw new IllegalArgumentException("participantLoad must not be negative");
-            if (reservedSlots < 0)
-                throw new IllegalArgumentException("reservedSlots must not be negative");
+            if (reservedSlots < 0) throw new IllegalArgumentException("reservedSlots must not be negative");
             if (capacity.isPresent() && capacity.getAsInt() <= 0)
                 throw new IllegalArgumentException("capacity must be positive");
             if (freeSlots.isPresent() && freeSlots.getAsLong() < 0)
@@ -376,8 +351,8 @@ public interface ServerPlacement {
      * @param serverId candidate Echo server ID
      * @param status server status, or empty when the candidate is not registered
      * @param rejectionReason explicit eligibility result
-     * @param effectiveLoad physical online/pending/reserved union for admission-enabled servers;
-     *     participant load plus reservations for legacy servers
+     * @param effectiveLoad physical online/pending/reserved union for admission-enabled servers; participant load plus
+     *     reservations for legacy servers
      */
     record CandidateEvaluation(
             @NotNull String serverId,
@@ -418,13 +393,9 @@ public interface ServerPlacement {
             final String selected = selectedServerId.orElse(null);
             if (selected != null
                     && candidates.stream()
-                            .noneMatch(
-                                    candidate ->
-                                            candidate.serverId().equals(selected)
-                                                    && candidate.rejectionReason()
-                                                            == RejectionReason.NONE))
-                throw new IllegalArgumentException(
-                        "selectedServerId must identify an eligible candidate");
+                            .noneMatch(candidate -> candidate.serverId().equals(selected)
+                                    && candidate.rejectionReason() == RejectionReason.NONE))
+                throw new IllegalArgumentException("selectedServerId must identify an eligible candidate");
         }
     }
 }
