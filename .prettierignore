@@ -1,0 +1,17 @@
+**/.git/**
+**/.gradle/**
+**/.venv/**
+**/.terraform/**
+**/build/**
+**/bin/**
+**/dist/**
+**/node_modules/**
+/server/
+/run/
+/logs/
+**/__pycache__/**
+**/.build/**
+**/.tools/**
+*.lock
+*.tfstate*
+*.pivot.json

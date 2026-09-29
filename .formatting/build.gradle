@@ -1,0 +1,34 @@
+plugins {
+    id 'com.diffplug.spotless' version '8.10.3'
+}
+
+repositories { mavenCentral() }
+
+def sources = { String pattern ->
+    fileTree('.') {
+        include pattern
+        exclude '**/.git/**', '**/.gradle/**', '**/build/**', '**/bin/**',
+                '**/node_modules/**', 'server/**', 'run/**', 'logs/**', '**/.formatting/**'
+    }
+}
+
+spotless {
+    enforceCheck = false
+    lineEndings = com.diffplug.spotless.LineEnding.UNIX
+    java {
+        target sources('**/*.java')
+        googleJavaFormat('1.36.1').aosp()
+    }
+    kotlinGradle {
+        target sources('**/*.gradle.kts')
+        ktfmt('0.64').kotlinlangStyle()
+    }
+    groovyGradle {
+        target sources('**/*.gradle')
+        greclipse('4.40').configProperties(
+            'org.eclipse.jdt.core.formatter.tabulation.char=space',
+            'org.eclipse.jdt.core.formatter.tabulation.size=4',
+            'org.eclipse.jdt.core.formatter.indentation.size=4'
+        )
+    }
+}

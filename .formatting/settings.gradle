@@ -1,0 +1,5 @@
+rootProject.name = 'formatting'
+rootProject.buildFileName = 'empty.gradle'
+include 'sources'
+project(':sources').projectDir = file('..')
+project(':sources').buildFileName = '.formatting/build.gradle'
