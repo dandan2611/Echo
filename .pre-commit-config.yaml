@@ -11,6 +11,13 @@ repos:
         files: '\.java$|\.gradle(\.kts)?$'
         exclude: '^\.formatting/'
         require_serial: true
+      - id: java-policy
+        name: JetBrains nullability and explicit this
+        language: python
+        entry: python .formatting/java_policy.py
+        files: '\.java$'
+        exclude: '^\.formatting/'
+        require_serial: true
       - id: prettier
         name: Prettier (YAML, JSON, Markdown)
         language: node

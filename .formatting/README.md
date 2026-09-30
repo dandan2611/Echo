@@ -73,3 +73,45 @@ The first command also includes untracked Java/Gradle sources. Prefer the
 pre-commit command above when you only want tracked files.
 `spotlessCheck` is available manually through `./gradlew -p .formatting
 spotlessCheck`; it is never attached to the application build or CI.
+
+## IntelliJ: nullability and explicit `this`
+
+Close the project in IntelliJ, then install the shared settings and reopen it:
+
+```sh
+python .formatting/intellij.py
+```
+
+The installer merges local `.idea` settings and backs up previous files under
+`.formatting/build/idea-backup-*`. The `GG2 Java` inspection profile highlights
+unqualified instance members and nullability problems. Actions on Save uses
+the separate `GG2 Cleanup` profile: its only enabled inspections add `this.`
+to instance field accesses and method calls (including `Outer.this` where
+appropriate). Static members and local variables are not qualified with `this`.
+Use **Code > Code Cleanup**, profile **GG2 Cleanup**, to apply this to a scope.
+
+For nullability, use **Code > Analyze Code > Infer Nullity** (Find Action also
+finds it), review the proposed contracts and complete any unresolved declarations.
+JetBrains `org.jetbrains.annotations.Nullable` and `NotNull` are the preferred
+annotations. Inference is a deliberate IDE action, not a formatter operation or
+an automatic `@NotNull` default.
+
+The local `java-policy` pre-commit hook uses Checkstyle **14.3.0**, downloaded
+with a pinned SHA-256 into `.formatting/build`. It requires exactly one JetBrains
+`@Nullable` or `@NotNull` on reference fields (including static fields), method
+returns, method/constructor parameters and record components. Reference arrays
+and varargs count; primitives, `void`, locals, lambda parameters and implicit
+record members do not. Element annotations such as `List<@NotNull String>` do
+not describe the list itself. It also requires explicit instance qualifiers
+where Checkstyle can resolve the member within the file; IntelliJ resolves
+inherited members using the full project.
+
+```sh
+pre-commit run java-policy --files src/main/java/example/MyClass.java
+python .formatting/java_policy.py  # audit all tracked Java sources
+```
+
+This check does not infer contracts or rewrite code. Existing sources have not
+been mass-migrated: a Java commit can be rejected locally until the selected
+files comply. The hook does not run in CI or the application build. Palantir
+still controls formatting at 120 columns; no `super` policy is added.

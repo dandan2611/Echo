@@ -1,0 +1,13 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="GG2 Java" />
+    <inspection_tool class="UnqualifiedFieldAccess" enabled="true" level="ERROR" enabled_by_default="true" />
+    <inspection_tool class="UnqualifiedMethodAccess" enabled="true" level="ERROR" enabled_by_default="true" />
+    <inspection_tool class="NullableProblems" enabled="true" level="ERROR" enabled_by_default="true">
+      <option name="REPORT_NOT_ANNOTATED_METHOD_OVERRIDES_NOTNULL" value="true" />
+      <option name="REPORT_NOT_ANNOTATED_GETTER" value="true" />
+      <option name="REPORT_NULLS_PASSED_TO_NOT_NULL_PARAMETER" value="true" />
+    </inspection_tool>
+    <inspection_tool class="ConstantConditions" enabled="true" level="WARNING" enabled_by_default="true" />
+  </profile>
+</component>
