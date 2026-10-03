@@ -70,7 +70,7 @@ import org.jetbrains.annotations.NotNull;
 @Plugin(
         id = "echo",
         name = "Echo",
-        version = "7.3.1",
+        version = "7.4.0",
         authors = {"dandan2611"},
         dependencies = {@Dependency(id = "connector", optional = false)})
 public class EchoPlugin {
