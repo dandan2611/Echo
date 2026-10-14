@@ -37,9 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
+import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -279,8 +281,21 @@ class EchoPaperTest {
     }
 
     @Test
+    void activationIsRejectedBeforeServerStartup() throws Exception {
+        Fixture fixture = fixture(List.of());
+        when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.ACTIVE))
+                .thenReturn(EchoFuture.completed(null));
+
+        var activated = fixture.plugin.activate();
+
+        assertThat(activated).isCompletedWithValue(false);
+        verify(fixture.echoClient, never()).setLocalServerAvailability(ServerAvailability.ACTIVE);
+    }
+
+    @Test
     void activationThatRacesWithDrainRestoresDrainingAvailability() throws Exception {
         Fixture fixture = fixture(List.of());
+        setField(fixture.plugin, "serverStarted", new AtomicBoolean(true));
         EchoFuture<Void> activation = new EchoFuture<>();
         when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.ACTIVE))
                 .thenReturn(activation);
@@ -291,6 +306,41 @@ class EchoPaperTest {
 
         assertThat(activated).isCompletedWithValue(false);
         verify(fixture.echoClient).setLocalServerAvailability(ServerAvailability.DRAINING);
+    }
+
+    @Test
+    void startupWaitsForTheFirstScheduledTaskBeforeAllowingActivation() throws Exception {
+        Fixture fixture = fixture(List.of());
+        when(fixture.echoClient.setLocalServerAvailability(ServerAvailability.ACTIVE))
+                .thenReturn(EchoFuture.completed(null));
+
+        fixture.plugin.onServerLoad(serverLoadEvent(ServerLoadEvent.LoadType.STARTUP));
+
+        assertThat(fixture.plugin.activate()).isCompletedWithValue(false);
+        runMainThreadTask(fixture);
+        assertThat(fixture.plugin.activate()).isCompletedWithValue(true);
+    }
+
+    @Test
+    void reloadDoesNotOpenTheStartupGate() throws Exception {
+        Fixture fixture = fixture(List.of());
+
+        fixture.plugin.onServerLoad(serverLoadEvent(ServerLoadEvent.LoadType.RELOAD));
+
+        assertThat(fixture.plugin.activate()).isCompletedWithValue(false);
+        verifyNoInteractions(fixture.scheduler);
+    }
+
+    @Test
+    void shutdownBeforeTheFirstTickDoesNotAllowActivation() throws Exception {
+        Fixture fixture = fixture(List.of());
+        fixture.plugin.onServerLoad(serverLoadEvent(ServerLoadEvent.LoadType.STARTUP));
+
+        setField(fixture.plugin, "stopping", new AtomicBoolean(true));
+        runMainThreadTask(fixture);
+
+        assertThat(fixture.plugin.activate()).isCompletedWithValue(false);
+        verify(fixture.echoClient, never()).setLocalServerAvailability(ServerAvailability.ACTIVE);
     }
 
     @Test
@@ -323,7 +373,7 @@ class EchoPaperTest {
         assertThat(refreshed).isCompletedWithValue(snapshot);
     }
 
-    private static Fixture fixture(List<Player>... onlinePlayers) throws Exception {
+    private static @NotNull Fixture fixture(@NotNull List<Player>... onlinePlayers) throws Exception {
         EchoPaper plugin = mock(EchoPaper.class, CALLS_REAL_METHODS);
         Server server = mock(Server.class);
         BukkitScheduler scheduler = mock(BukkitScheduler.class);
@@ -339,59 +389,68 @@ class EchoPaperTest {
                 .getOnlinePlayers();
         setStopping(plugin);
         setField(plugin, "draining", new AtomicBoolean());
+        setField(plugin, "serverStarted", new AtomicBoolean());
+        setField(plugin, "serverStartup", new CompletableFuture<Void>());
         setField(plugin, "echoClient", echoClient);
         MutableClock clock = new MutableClock(Instant.parse("2026-09-03T12:00:00Z"));
         setField(plugin, "clock", clock);
         return new Fixture(plugin, server, scheduler, pluginManager, echoClient, clock);
     }
 
-    private static void runMainThreadTask(Fixture fixture) {
+    private static @NotNull ServerLoadEvent serverLoadEvent(@NotNull ServerLoadEvent.LoadType type) {
+        ServerLoadEvent event = mock(ServerLoadEvent.class);
+        when(event.getType()).thenReturn(type);
+        return event;
+    }
+
+    private static void runMainThreadTask(@NotNull Fixture fixture) {
         ArgumentCaptor<Runnable> mainThread = ArgumentCaptor.forClass(Runnable.class);
         verify(fixture.scheduler).runTask(eq(fixture.plugin), mainThread.capture());
         mainThread.getValue().run();
     }
 
-    private static void setStopping(EchoPaper plugin) throws Exception {
+    private static void setStopping(@NotNull EchoPaper plugin) throws Exception {
         setField(plugin, "stopping", new AtomicBoolean());
     }
 
-    private static void setField(EchoPaper plugin, String name, Object value) throws Exception {
+    private static void setField(@NotNull EchoPaper plugin, @NotNull String name, @NotNull Object value)
+            throws Exception {
         Field field = EchoPaper.class.getDeclaredField(name);
         field.setAccessible(true);
         field.set(plugin, value);
     }
 
     private record Fixture(
-            EchoPaper plugin,
-            Server server,
-            BukkitScheduler scheduler,
-            PluginManager pluginManager,
-            EchoClient echoClient,
-            MutableClock clock) {}
+            @NotNull EchoPaper plugin,
+            @NotNull Server server,
+            @NotNull BukkitScheduler scheduler,
+            @NotNull PluginManager pluginManager,
+            @NotNull EchoClient echoClient,
+            @NotNull MutableClock clock) {}
 
     private static final class MutableClock extends Clock {
-        private Instant instant;
+        private @NotNull Instant instant;
 
-        private MutableClock(Instant instant) {
+        private MutableClock(@NotNull Instant instant) {
             this.instant = instant;
         }
 
-        void advance(Duration duration) {
+        void advance(@NotNull Duration duration) {
             this.instant = this.instant.plus(duration);
         }
 
         @Override
-        public ZoneId getZone() {
+        public @NotNull ZoneId getZone() {
             return ZoneId.of("UTC");
         }
 
         @Override
-        public Clock withZone(ZoneId zone) {
+        public @NotNull Clock withZone(@NotNull ZoneId zone) {
             return this;
         }
 
         @Override
-        public Instant instant() {
+        public @NotNull Instant instant() {
             return this.instant;
         }
     }
