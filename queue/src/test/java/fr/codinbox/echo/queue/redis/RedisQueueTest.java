@@ -40,19 +40,21 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @Tag("unit")
 class RedisQueueTest {
 
-    private static final QueueId QUEUE_ID = new QueueId("survival:classic");
-    private static final QueueDefinition DEFINITION = new QueueDefinition(
+    private static final @NotNull QueueId QUEUE_ID = new QueueId("survival:classic");
+    private static final @NotNull QueueDefinition DEFINITION = new QueueDefinition(
             QUEUE_ID,
             "survival",
             Map.of(new PropertyKey<>("mode"), "classic"),
             ServerPlacement.Policy.FILL_MOST_LOADED);
-    private static final QueueOptions OPTIONS = new QueueOptions(
+    private static final @NotNull QueueOptions OPTIONS = new QueueOptions(
             Duration.ofHours(1),
             Duration.ofSeconds(30),
             Duration.ofHours(3),
@@ -968,8 +970,11 @@ class RedisQueueTest {
         verify(onDemand, never()).terminate(any());
     }
 
-    @Test
-    void retryableTransferWaitsForTheNextPollBeforeRetrying() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.MethodSource("transferOutcomes")
+    void transferOutcomePreservesOnlyRetryableRequests(
+            @NotNull ServerSwitchRequest.PlayerResponse response, @NotNull QueueRequestStatus.State expectedState)
+            throws Exception {
         InMemoryQueueStore store = new InMemoryQueueStore();
         EchoClient echo = mock(EchoClient.class);
         MessagingProvider messaging = mock(MessagingProvider.class);
@@ -995,11 +1000,10 @@ class RedisQueueTest {
         stubMessaging(echo, messaging);
         when(echo.getUserById(member)).thenReturn(EchoFuture.completed(Optional.of(user)));
         when(user.getCurrentProxyId()).thenReturn(EchoFuture.completed(Optional.of("proxy-1")));
+        when(user.getCurrentServerId()).thenReturn(EchoFuture.completed(Optional.of("lobby-1")));
         when(messaging.request(
                         anyString(), any(ServerSwitchRequest.class), eq(ServerSwitchRequest.Response.class), any()))
-                .thenReturn(EchoFuture.completed(new ServerSwitchRequest.Response(Map.of(
-                        member,
-                        playerResponse(false, ServerSwitchRequest.ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS)))));
+                .thenReturn(EchoFuture.completed(new ServerSwitchRequest.Response(Map.of(member, response))));
 
         try (RedisQueue queue = new RedisQueue(
                 store,
@@ -1012,11 +1016,57 @@ class RedisQueueTest {
             queue.start().join();
             store.awaitRelease();
 
-            assertThat(store.status(request.requestId()).state()).isEqualTo(QueueRequestStatus.State.TRANSFERRING);
+            assertThat(store.status(request.requestId()).state()).isEqualTo(expectedState);
             verify(messaging, times(1))
                     .request(
                             anyString(), any(ServerSwitchRequest.class), eq(ServerSwitchRequest.Response.class), any());
         }
+
+        when(messaging.request(
+                        anyString(), any(ServerSwitchRequest.class), eq(ServerSwitchRequest.Response.class), any()))
+                .thenReturn(EchoFuture.completed(new ServerSwitchRequest.Response(
+                        Map.of(member, playerResponse(true, ServerSwitchRequest.ServerSwitchRequestStatus.SUCCESS)))));
+        try (RedisQueue restarted = new RedisQueue(
+                store,
+                echo,
+                mock(OnDemandServers.class),
+                mock(ServerPlacement.class),
+                List.of(DEFINITION),
+                OPTIONS,
+                Clock.systemUTC())) {
+            restarted.start().join();
+            store.awaitRelease();
+
+            assertThat(store.status(request.requestId()).state())
+                    .isEqualTo(
+                            expectedState == QueueRequestStatus.State.TRANSFERRING
+                                    ? QueueRequestStatus.State.COMPLETED
+                                    : expectedState);
+        }
+    }
+
+    @NotNull
+    private static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> transferOutcomes() {
+        var retry = QueueRequestStatus.State.TRANSFERRING;
+        var failed = QueueRequestStatus.State.FAILED;
+        var disconnected = ServerSwitchRequest.ServerSwitchRequestStatus.SERVER_DISCONNECTED;
+        return java.util.stream.Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of(
+                        playerResponse(false, ServerSwitchRequest.ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS),
+                        retry),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        new ServerSwitchRequest.PlayerResponse(
+                                false, disconnected, "\"Server instance has not been initialized yet\""),
+                        retry),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        new ServerSwitchRequest.PlayerResponse(
+                                false, disconnected, "{\"text\":\"Server instance has not been initialized yet\"}"),
+                        retry),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        new ServerSwitchRequest.PlayerResponse(false, disconnected, "\"You are banned\""), failed),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        new ServerSwitchRequest.PlayerResponse(false, disconnected, "not JSON"), failed),
+                org.junit.jupiter.params.provider.Arguments.of(playerResponse(false, disconnected), failed));
     }
 
     @Test
@@ -1416,8 +1466,11 @@ class RedisQueueTest {
                         argThat(timeout -> timeout.toMillis() <= 2_000));
     }
 
-    private static QueueRequestStatus awaitState(
-            InMemoryQueueStore store, RedisQueue queue, String requestId, QueueRequestStatus.State state)
+    private static @NotNull QueueRequestStatus awaitState(
+            @NotNull InMemoryQueueStore store,
+            @NotNull RedisQueue queue,
+            @NotNull String requestId,
+            @NotNull QueueRequestStatus.State state)
             throws InterruptedException {
         store.awaitState(requestId, state);
         QueueRequestStatus status = queue.get(QUEUE_ID, requestId).join().orElseThrow();
@@ -1425,41 +1478,45 @@ class RedisQueueTest {
         return status;
     }
 
-    private static void stubMessaging(EchoClient echo, MessagingProvider messaging) {
+    private static void stubMessaging(@NotNull EchoClient echo, @NotNull MessagingProvider messaging) {
         when(echo.getLocalTopic()).thenReturn("server:coordinator");
         when(echo.getMessagingProvider()).thenReturn(messaging);
     }
 
-    private static ServerPlacement.Reservation reservation(ServerPlacement.Request request, String serverId) {
+    @NotNull
+    private static ServerPlacement.Reservation reservation(
+            @NotNull ServerPlacement.Request request, @NotNull String serverId) {
         return new ServerPlacement.Reservation(
                 request.requestId(), "token", serverId, request.members(), Instant.parse("2026-09-03T12:01:00Z"));
     }
 
+    @NotNull
     private static ServerSwitchRequest.PlayerResponse playerResponse(
-            boolean successful, ServerSwitchRequest.ServerSwitchRequestStatus status) {
+            boolean successful, @NotNull ServerSwitchRequest.ServerSwitchRequestStatus status) {
         return new ServerSwitchRequest.PlayerResponse(successful, status, null);
     }
 
     private static final class InMemoryQueueStore implements QueueStore {
-        private final Map<QueueId, QueueState> states = new LinkedHashMap<>();
-        private final List<String> abortFailures = new java.util.ArrayList<>();
-        private final Semaphore releases = new Semaphore(0);
-        private final Semaphore renewals = new Semaphore(0);
-        private final AtomicInteger renewalCount = new AtomicInteger();
-        private final Clock clock;
-        private String claimToken;
+        private final @NotNull Map<QueueId, QueueState> states = new LinkedHashMap<>();
+        private final @NotNull List<String> abortFailures = new java.util.ArrayList<>();
+        private final @NotNull Semaphore releases = new Semaphore(0);
+        private final @NotNull Semaphore renewals = new Semaphore(0);
+        private final @NotNull AtomicInteger renewalCount = new AtomicInteger();
+        private final @NotNull Clock clock;
+        private @Nullable String claimToken;
 
         private InMemoryQueueStore() {
             this(Clock.systemUTC());
         }
 
-        private InMemoryQueueStore(Clock clock) {
+        private InMemoryQueueStore(@NotNull Clock clock) {
             this.clock = clock;
         }
 
         @Override
-        public synchronized QueueRequestStatus enqueue(QueueDefinition definition, QueueRequest request) {
-            QueueState state = states.getOrDefault(definition.id(), QueueState.empty());
+        public synchronized @NotNull QueueRequestStatus enqueue(
+                @NotNull QueueDefinition definition, @NotNull QueueRequest request) {
+            QueueState state = this.states.getOrDefault(definition.id(), QueueState.empty());
             StoredRequest existing = state.requests().get(request.requestId());
             if (existing != null) {
                 if (!existing.samePayload(request))
@@ -1474,26 +1531,28 @@ class RedisQueueTest {
             Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
             requests.put(request.requestId(), added);
             RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
-            states.put(definition.id(), state.withContent(state.nextSequence() + 1, requests, run));
+            this.states.put(definition.id(), state.withContent(state.nextSequence() + 1, requests, run));
             this.notifyAll();
             return added.toStatus();
         }
 
         @Override
-        public synchronized Optional<QueueRequestStatus> get(QueueId queueId, String requestId) {
-            QueueState state = states.get(queueId);
+        public synchronized @NotNull Optional<QueueRequestStatus> get(
+                @NotNull QueueId queueId, @NotNull String requestId) {
+            QueueState state = this.states.get(queueId);
             return state == null
                     ? Optional.empty()
                     : Optional.ofNullable(state.requests().get(requestId)).map(StoredRequest::toStatus);
         }
 
-        QueueRequestStatus status(String requestId) {
-            return get(QUEUE_ID, requestId).orElseThrow();
+        @NotNull
+        QueueRequestStatus status(@NotNull String requestId) {
+            return this.get(QUEUE_ID, requestId).orElseThrow();
         }
 
         @Override
-        public synchronized boolean cancel(QueueId queueId, String requestId) {
-            QueueState state = states.get(queueId);
+        public synchronized boolean cancel(@NotNull QueueId queueId, @NotNull String requestId) {
+            QueueState state = this.states.get(queueId);
             if (state == null
                     || !state.requests().containsKey(requestId)
                     || state.requests().get(requestId).state() != QueueRequestStatus.State.QUEUED) return false;
@@ -1503,14 +1562,14 @@ class RedisQueueTest {
                     .withUpdatedAt(this.clock.millis());
             Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
             requests.put(requestId, cancelled);
-            states.put(queueId, state.withContent(state.nextSequence(), requests, state.run()));
+            this.states.put(queueId, state.withContent(state.nextSequence(), requests, state.run()));
             this.notifyAll();
             return true;
         }
 
         @Override
-        public synchronized QueueSnapshot snapshot(QueueId queueId) {
-            QueueState state = states.getOrDefault(queueId, QueueState.empty());
+        public synchronized @NotNull QueueSnapshot snapshot(@NotNull QueueId queueId) {
+            QueueState state = this.states.getOrDefault(queueId, QueueState.empty());
             return new QueueSnapshot(
                     state.paused(),
                     state.pauseReason(),
@@ -1519,29 +1578,29 @@ class RedisQueueTest {
         }
 
         @Override
-        public synchronized boolean paused(QueueId queueId) {
-            return states.getOrDefault(queueId, QueueState.empty()).paused();
+        public synchronized boolean paused(@NotNull QueueId queueId) {
+            return this.states.getOrDefault(queueId, QueueState.empty()).paused();
         }
 
         @Override
-        public synchronized boolean pause(QueueId queueId, String reason) {
-            QueueState state = states.getOrDefault(queueId, QueueState.empty());
+        public synchronized boolean pause(@NotNull QueueId queueId, @NotNull String reason) {
+            QueueState state = this.states.getOrDefault(queueId, QueueState.empty());
             if (state.paused() && reason.equals(state.pauseReason())) return false;
-            states.put(queueId, state.withPause(true, reason));
+            this.states.put(queueId, state.withPause(true, reason));
             return true;
         }
 
         @Override
-        public synchronized boolean resume(QueueId queueId) {
-            QueueState state = states.getOrDefault(queueId, QueueState.empty());
+        public synchronized boolean resume(@NotNull QueueId queueId) {
+            QueueState state = this.states.getOrDefault(queueId, QueueState.empty());
             if (!state.paused()) return false;
-            states.put(queueId, state.withPause(false, null));
+            this.states.put(queueId, state.withPause(false, null));
             return true;
         }
 
         @Override
-        public synchronized boolean retry(QueueId queueId, String requestId) {
-            QueueState state = states.getOrDefault(queueId, QueueState.empty());
+        public synchronized boolean retry(@NotNull QueueId queueId, @NotNull String requestId) {
+            QueueState state = this.states.getOrDefault(queueId, QueueState.empty());
             StoredRequest request = state.requests().get(requestId);
             if (request == null
                     || request.state() != QueueRequestStatus.State.FAILED
@@ -1556,14 +1615,14 @@ class RedisQueueTest {
             Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
             requests.put(requestId, request.requeued(state.nextSequence(), this.clock.millis()));
             RunRecord run = state.run() == null ? RunRecord.allocating() : state.run();
-            states.put(queueId, state.withContent(state.nextSequence() + 1, requests, run));
+            this.states.put(queueId, state.withContent(state.nextSequence() + 1, requests, run));
             this.notifyAll();
             return true;
         }
 
         @Override
-        public synchronized int purgeTerminal(QueueId queueId, Instant cutoff) {
-            QueueState state = states.getOrDefault(queueId, QueueState.empty());
+        public synchronized int purgeTerminal(@NotNull QueueId queueId, @NotNull Instant cutoff) {
+            QueueState state = this.states.getOrDefault(queueId, QueueState.empty());
             String activeRequestId = state.run() == null ? null : state.run().activeRequestId();
             Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
             int before = requests.size();
@@ -1573,14 +1632,15 @@ class RedisQueueTest {
                             && request.updatedAtEpochMillis() < cutoff.toEpochMilli()
                             && !request.requestId().equals(activeRequestId));
             if (requests.size() != before)
-                states.put(queueId, state.withContent(state.nextSequence(), requests, state.run()));
+                this.states.put(queueId, state.withContent(state.nextSequence(), requests, state.run()));
             return before - requests.size();
         }
 
         @Override
-        public synchronized Optional<QueueClaim> claim(QueueDefinition definition, String workerId, Duration ttl) {
-            if (claimToken != null) return Optional.empty();
-            QueueState state = states.getOrDefault(definition.id(), QueueState.empty());
+        public synchronized @NotNull Optional<QueueClaim> claim(
+                @NotNull QueueDefinition definition, @NotNull String workerId, @NotNull Duration ttl) {
+            if (this.claimToken != null) return Optional.empty();
+            QueueState state = this.states.getOrDefault(definition.id(), QueueState.empty());
             if (state.paused()) return Optional.empty();
             if (state.run() == null
                     && state.requests().values().stream()
@@ -1588,34 +1648,34 @@ class RedisQueueTest {
                 return Optional.empty();
             if (state.run() == null)
                 state = state.withContent(state.nextSequence(), state.requests(), RunRecord.allocating());
-            states.put(definition.id(), state);
-            claimToken = UUID.randomUUID().toString();
+            this.states.put(definition.id(), state);
+            this.claimToken = UUID.randomUUID().toString();
             return Optional.of(new QueueClaim(
                     definition.id(),
-                    claimToken,
+                    this.claimToken,
                     state.run(),
                     List.copyOf(state.requests().values())));
         }
 
         @Override
-        public synchronized Optional<QueueClaim> commit(
-                QueueClaim claim, RunRecord next, Collection<StoredRequest> updates) {
-            QueueState state = states.get(claim.queueId());
-            if (!claim.token().equals(claimToken)
+        public synchronized @NotNull Optional<QueueClaim> commit(
+                @NotNull QueueClaim claim, @Nullable RunRecord next, @NotNull Collection<StoredRequest> updates) {
+            QueueState state = this.states.get(claim.queueId());
+            if (!claim.token().equals(this.claimToken)
                     || state == null
                     || state.run() == null
                     || state.run().revision() != claim.run().revision()
                     || !state.run().placementId().equals(claim.run().placementId())) return Optional.empty();
             Map<String, StoredRequest> requests = new LinkedHashMap<>(state.requests());
             updates.forEach(update -> requests.put(update.requestId(), update.withUpdatedAt(this.clock.millis())));
-            states.put(claim.queueId(), state.withContent(state.nextSequence(), requests, next));
+            this.states.put(claim.queueId(), state.withContent(state.nextSequence(), requests, next));
             if (next != null && next.state() == RunState.ABORTING) this.abortFailures.add(next.abortFailure());
             this.notifyAll();
             return Optional.of(new QueueClaim(claim.queueId(), claim.token(), next, List.copyOf(requests.values())));
         }
 
         @Override
-        public synchronized boolean renew(QueueClaim claim, Duration ttl) {
+        public synchronized boolean renew(@NotNull QueueClaim claim, @NotNull Duration ttl) {
             boolean owned = claim.token().equals(this.claimToken);
             if (owned) {
                 this.renewalCount.incrementAndGet();
@@ -1625,22 +1685,22 @@ class RedisQueueTest {
         }
 
         @Override
-        public synchronized void release(QueueClaim claim) {
-            if (claim.token().equals(claimToken)) claimToken = null;
+        public synchronized void release(@NotNull QueueClaim claim) {
+            if (claim.token().equals(this.claimToken)) this.claimToken = null;
             this.releases.release();
         }
 
-        synchronized void seed(QueueState state) {
+        synchronized void seed(@NotNull QueueState state) {
             this.states.put(QUEUE_ID, state);
             this.notifyAll();
         }
 
-        synchronized RunRecord run() {
+        synchronized @Nullable RunRecord run() {
             QueueState state = this.states.get(QUEUE_ID);
             return state == null ? null : state.run();
         }
 
-        synchronized List<String> abortFailures() {
+        synchronized @NotNull List<String> abortFailures() {
             return List.copyOf(this.abortFailures);
         }
 
@@ -1656,8 +1716,8 @@ class RedisQueueTest {
             return this.renewalCount.get();
         }
 
-        synchronized QueueRequestStatus awaitState(String requestId, QueueRequestStatus.State expected)
-                throws InterruptedException {
+        synchronized @NotNull QueueRequestStatus awaitState(
+                @NotNull String requestId, @NotNull QueueRequestStatus.State expected) throws InterruptedException {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (true) {
                 QueueState state = this.states.get(QUEUE_ID);
@@ -1675,28 +1735,28 @@ class RedisQueueTest {
     }
 
     private static final class MutableClock extends Clock {
-        private final AtomicReference<Instant> now;
+        private final @NotNull AtomicReference<Instant> now;
 
-        private MutableClock(Instant now) {
+        private MutableClock(@NotNull Instant now) {
             this.now = new AtomicReference<>(now);
         }
 
-        private void advance(Duration duration) {
+        private void advance(@NotNull Duration duration) {
             this.now.updateAndGet(current -> current.plus(duration));
         }
 
         @Override
-        public ZoneId getZone() {
+        public @NotNull ZoneId getZone() {
             return ZoneId.of("UTC");
         }
 
         @Override
-        public Clock withZone(ZoneId zone) {
+        public @NotNull Clock withZone(@NotNull ZoneId zone) {
             return this;
         }
 
         @Override
-        public Instant instant() {
+        public @NotNull Instant instant() {
             return this.now.get();
         }
     }

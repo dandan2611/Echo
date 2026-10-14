@@ -127,7 +127,9 @@ implementation; proxies cannot configure a load provider.
 
 ### Server availability
 
-Servers are `ACTIVE` by default. Marking a server `DRAINING` keeps it in Echo for heartbeat and
+Library servers are `ACTIVE` by default. The Paper plugin starts `DRAINING` and rejects queue
+assignments until the first scheduled task after Paper's startup event. With Agones enabled, it also
+waits for allocation before becoming `ACTIVE`. Marking a server `DRAINING` keeps it in Echo for heartbeat and
 player tracking, but immediately removes it from every Velocity proxy as a destination:
 
 ```java

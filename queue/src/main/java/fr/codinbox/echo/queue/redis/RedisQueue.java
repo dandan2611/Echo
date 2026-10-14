@@ -1,5 +1,8 @@
 package fr.codinbox.echo.queue.redis;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.codinbox.connector.commons.redis.RedisConnection;
 import fr.codinbox.echo.api.EchoClient;
 import fr.codinbox.echo.api.messaging.MessageTarget;
@@ -47,17 +50,19 @@ import org.jetbrains.annotations.NotNull;
 /** Redis-backed queue coordinator. Queue state is durable; Redis pub/sub only carries bounded handoff messages. */
 public final class RedisQueue implements QueueService, QueueAdministration {
 
-    private final QueueStore store;
-    private final EchoClient echo;
-    private final OnDemandServers onDemand;
-    private final ServerPlacement placement;
-    private final Map<QueueId, QueueDefinition> definitions;
-    private final QueueOptions options;
-    private final Clock clock;
-    private final String workerId = UUID.randomUUID().toString();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+    private static final @NotNull ObjectMapper DISCONNECT_REASONS = new ObjectMapper();
+    private static final @NotNull String SERVER_NOT_INITIALIZED = "Server instance has not been initialized yet";
+    private final @NotNull QueueStore store;
+    private final @NotNull EchoClient echo;
+    private final @NotNull OnDemandServers onDemand;
+    private final @NotNull ServerPlacement placement;
+    private final @NotNull Map<QueueId, QueueDefinition> definitions;
+    private final @NotNull QueueOptions options;
+    private final @NotNull Clock clock;
+    private final @NotNull String workerId = UUID.randomUUID().toString();
+    private final @NotNull ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             Thread.ofVirtual().name("echo-queue-poller").factory());
-    private final AtomicBoolean started = new AtomicBoolean();
+    private final @NotNull AtomicBoolean started = new AtomicBoolean();
 
     public RedisQueue(
             @NotNull RedisConnection connection,
@@ -70,13 +75,13 @@ public final class RedisQueue implements QueueService, QueueAdministration {
     }
 
     RedisQueue(
-            QueueStore store,
-            EchoClient echo,
-            OnDemandServers onDemand,
-            ServerPlacement placement,
-            Collection<QueueDefinition> definitions,
-            QueueOptions options,
-            Clock clock) {
+            @NotNull QueueStore store,
+            @NotNull EchoClient echo,
+            @NotNull OnDemandServers onDemand,
+            @NotNull ServerPlacement placement,
+            @NotNull Collection<QueueDefinition> definitions,
+            @NotNull QueueOptions options,
+            @NotNull Clock clock) {
         this.store = Objects.requireNonNull(store, "store");
         this.echo = Objects.requireNonNull(echo, "echo");
         this.onDemand = Objects.requireNonNull(onDemand, "onDemand");
@@ -217,13 +222,13 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         this.store.close();
     }
 
-    private QueueDefinition definition(QueueId id) {
+    private @NotNull QueueDefinition definition(@NotNull QueueId id) {
         QueueDefinition definition = this.definitions.get(Objects.requireNonNull(id, "queueId"));
         if (definition == null) throw new IllegalArgumentException("Unknown queue: " + id);
         return definition;
     }
 
-    private QueueOverview overview(QueueDefinition definition) {
+    private @NotNull QueueOverview overview(@NotNull QueueDefinition definition) {
         QueueSnapshot snapshot = this.store.snapshot(definition.id());
         Map<QueueRequestStatus.State, Long> counts = new EnumMap<>(QueueRequestStatus.State.class);
         for (QueueRequestStatus.State state : QueueRequestStatus.State.values()) counts.put(state, 0L);
@@ -243,11 +248,11 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         this.definitions.values().forEach(this::wake);
     }
 
-    private void wake(QueueDefinition definition) {
+    private void wake(@NotNull QueueDefinition definition) {
         if (this.started.get()) Thread.startVirtualThread(() -> this.process(definition));
     }
 
-    private void process(QueueDefinition definition) {
+    private void process(@NotNull QueueDefinition definition) {
         Optional<QueueClaim> claimed;
         try {
             claimed = this.store.claim(definition, this.workerId, this.options.claimTtl());
@@ -296,7 +301,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         }
     }
 
-    private Optional<QueueClaim> allocate(QueueDefinition definition, QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> allocate(@NotNull QueueDefinition definition, @NotNull QueueClaim claim) {
         if (this.queued(claim).isEmpty()) return this.store.commit(claim, null, List.of());
         try {
             ServerHandle server = this.onDemand
@@ -315,7 +320,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         }
     }
 
-    private Optional<QueueClaim> reserve(QueueDefinition definition, QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> reserve(@NotNull QueueDefinition definition, @NotNull QueueClaim claim) {
         Optional<StoredRequest> queued = this.queued(claim);
         if (queued.isEmpty()) {
             if (claim.run().handedOff()) return Optional.empty();
@@ -379,7 +384,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         }
     }
 
-    private Optional<QueueClaim> prepare(QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> prepare(@NotNull QueueClaim claim) {
         StoredRequest request = this.active(claim);
         ServerPlacement.Reservation reservation = claim.run().reservation().toReservation();
         try {
@@ -445,7 +450,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         }
     }
 
-    private Optional<QueueClaim> beginAbort(QueueClaim claim, String reason) {
+    private @NotNull Optional<QueueClaim> beginAbort(@NotNull QueueClaim claim, @NotNull String reason) {
         return this.store.commit(
                 claim,
                 claim.run()
@@ -461,7 +466,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 List.of());
     }
 
-    private Optional<QueueClaim> startTransfer(QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> startTransfer(@NotNull QueueClaim claim) {
         StoredRequest request = this.active(claim);
         try {
             Optional<ServerPlacement.Reservation> renewed = this.placement
@@ -495,7 +500,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         }
     }
 
-    private Optional<QueueClaim> transfer(QueueDefinition definition, QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> transfer(@NotNull QueueDefinition definition, @NotNull QueueClaim claim) {
         StoredRequest request = this.active(claim);
         Map<UUID, ServerSwitchRequest.PlayerResponse> responses =
                 new LinkedHashMap<>(request.toStatus().responses());
@@ -577,7 +582,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 proxy.getValue().forEach(member -> {
                     ServerSwitchRequest.PlayerResponse player =
                             reply.getResponses().get(member);
-                    if (player != null && !retryable(player.getStatus())) responses.put(member, player);
+                    if (player != null && !retryable(player)) responses.put(member, player);
                 });
             } catch (RuntimeException ignored) {
                 // Polling and the durable TRANSFERRING state provide replay.
@@ -640,14 +645,16 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 List.of(pending));
     }
 
-    private <T> T joinBeforeDeadline(CompletableFuture<T> future, long deadlineEpochMillis) {
+    private <T> @NotNull T joinBeforeDeadline(@NotNull CompletableFuture<T> future, long deadlineEpochMillis) {
         long remainingMillis = deadlineEpochMillis - this.clock.millis();
         if (remainingMillis <= 0) throw new CompletionException(new TimeoutException("Transfer deadline expired"));
         return future.copy().orTimeout(remainingMillis, TimeUnit.MILLISECONDS).join();
     }
 
     private void reconcileTransferredMembers(
-            StoredRequest request, String serverId, Map<UUID, ServerSwitchRequest.PlayerResponse> responses) {
+            @NotNull StoredRequest request,
+            @NotNull String serverId,
+            @NotNull Map<UUID, ServerSwitchRequest.PlayerResponse> responses) {
         Map<UUID, CompletableFuture<Boolean>> checks = new LinkedHashMap<>();
         request.members().stream()
                 .filter(member -> {
@@ -682,7 +689,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         });
     }
 
-    private Optional<QueueClaim> releaseReservation(QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> releaseReservation(@NotNull QueueClaim claim) {
         StoredRequest request = this.active(claim);
         boolean transferred = request.toStatus().responses().values().stream()
                 .anyMatch(ServerSwitchRequest.PlayerResponse::isSuccessful);
@@ -701,7 +708,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 List.of());
     }
 
-    private Optional<QueueClaim> abort(QueueClaim claim) {
+    private @NotNull Optional<QueueClaim> abort(@NotNull QueueClaim claim) {
         try {
             if (claim.run().reservation() != null)
                 this.placement
@@ -728,14 +735,15 @@ public final class RedisQueue implements QueueService, QueueAdministration {
         return this.store.commit(claim, null, updates);
     }
 
-    private Optional<StoredRequest> queued(QueueClaim claim) {
+    private @NotNull Optional<StoredRequest> queued(@NotNull QueueClaim claim) {
         return claim.requests().stream()
                 .filter(request -> request.state() == QueueRequestStatus.State.QUEUED)
                 .min(Comparator.comparingLong(StoredRequest::sequence));
     }
 
+    @NotNull
     private ServerPlacement.Request placementRequest(
-            QueueDefinition definition, StoredRequest request, String serverId) {
+            @NotNull QueueDefinition definition, @NotNull StoredRequest request, @NotNull String serverId) {
         Map<PropertyKey<?>, Object> filters = new LinkedHashMap<>();
         definition.serverProperties().forEach((key, value) -> {
             if (!Set.of(
@@ -755,20 +763,34 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 this.options.reservationTtl());
     }
 
-    private StoredRequest active(QueueClaim claim) {
+    private @NotNull StoredRequest active(@NotNull QueueClaim claim) {
         return claim.requests().stream()
                 .filter(request -> request.requestId().equals(claim.run().activeRequestId()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Queue run references a missing request"));
     }
 
-    private static String only(MessageTarget target) {
+    private static @NotNull String only(@NotNull MessageTarget target) {
         if (target.getTargets().size() != 1)
             throw new IllegalStateException("Queue handoff requires exactly one messaging topic");
         return target.getTargets().iterator().next();
     }
 
-    private static boolean retryable(ServerSwitchRequest.ServerSwitchRequestStatus status) {
+    private static boolean retryable(@NotNull ServerSwitchRequest.PlayerResponse response) {
+        if (response.getStatus() == ServerSwitchRequest.ServerSwitchRequestStatus.SERVER_DISCONNECTED) {
+            if (response.getSerializedReason() == null) return false;
+            try {
+                JsonNode reason = DISCONNECT_REASONS.readTree(response.getSerializedReason());
+                return reason != null
+                        && SERVER_NOT_INITIALIZED.equals(
+                                reason.isTextual()
+                                        ? reason.textValue()
+                                        : reason.path("text").textValue());
+            } catch (JsonProcessingException ignored) {
+                return false;
+            }
+        }
+        var status = response.getStatus();
         return status == ServerSwitchRequest.ServerSwitchRequestStatus.CONNECTION_IN_PROGRESS
                 || status == ServerSwitchRequest.ServerSwitchRequestStatus.TARGET_SERVER_NOT_REGISTERED
                 || status == ServerSwitchRequest.ServerSwitchRequestStatus.PLAYER_NOT_CONNECTED
@@ -776,17 +798,18 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                 || status == ServerSwitchRequest.ServerSwitchRequestStatus.INTERNAL_ERROR;
     }
 
+    @NotNull
     private static ServerSwitchRequest.PlayerResponse response(
-            boolean successful, ServerSwitchRequest.ServerSwitchRequestStatus status) {
+            boolean successful, @NotNull ServerSwitchRequest.ServerSwitchRequestStatus status) {
         return new ServerSwitchRequest.PlayerResponse(successful, status, null);
     }
 
-    private static String message(Throwable error) {
+    private static @NotNull String message(@NotNull Throwable error) {
         Throwable cause = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
         return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
     }
 
-    private <T> CompletableFuture<T> async(Supplier<T> operation) {
+    private <T> @NotNull CompletableFuture<T> async(@NotNull Supplier<T> operation) {
         return CompletableFuture.supplyAsync(operation, Thread::startVirtualThread);
     }
 }

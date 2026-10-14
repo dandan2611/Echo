@@ -38,6 +38,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -45,19 +49,22 @@ import org.incendo.cloud.annotations.AnnotationParser;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public class EchoPaper extends JavaPlugin {
+public class EchoPaper extends JavaPlugin implements Listener {
 
     public static final @NotNull String ECHO_CONNECTOR_CONNECTION_NAME = "ECHO";
-    static final String COMMAND_ROOT = "echo|echoserver";
-    private static final Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
+    static final @NotNull String COMMAND_ROOT = "echo|echoserver";
+    private static final @NotNull Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
     private static final long DRAIN_CHECK_PERIOD_TICKS = 20L;
-    private EchoClient echoClient;
-    private AdmissionListener admission;
-    private AgonesGameServerLifecycle agonesLifecycle;
-    private final AtomicBoolean stopping = new AtomicBoolean();
-    private final AtomicBoolean draining = new AtomicBoolean();
-    private Clock clock = Clock.systemUTC();
+    private @Nullable EchoClient echoClient;
+    private @Nullable AdmissionListener admission;
+    private @Nullable AgonesGameServerLifecycle agonesLifecycle;
+    private final @NotNull AtomicBoolean stopping = new AtomicBoolean();
+    private final @NotNull AtomicBoolean draining = new AtomicBoolean();
+    private final @NotNull AtomicBoolean serverStarted = new AtomicBoolean();
+    private final @NotNull CompletableFuture<Void> serverStartup = new CompletableFuture<>();
+    private @NotNull Clock clock = Clock.systemUTC();
 
     @Override
     public void onEnable() {
@@ -84,26 +91,27 @@ public class EchoPaper extends JavaPlugin {
                     .resourceType(EchoResourceType.SERVER)
                     .resourceId(Objects.requireNonNull(EnvUtils.getResourceId()))
                     .initialProperties(properties)
-                    .serverLoadProvider(() ->
-                            new ServerLoad(this.getServer().getOnlinePlayers().size(), true))
+                    .serverLoadProvider(() -> new ServerLoad(
+                            this.getServer().getOnlinePlayers().size(),
+                            this.serverStarted.get() && !this.stopping.get() && !this.draining.get()))
                     .build();
             final boolean agonesEnabled = Boolean.parseBoolean(System.getenv("ECHO_AGONES_ENABLED"));
-            this.echoClient = EchoClientImpl.autoInit(
-                    config, agonesEnabled ? ServerAvailability.DRAINING : ServerAvailability.ACTIVE);
+            this.echoClient = EchoClientImpl.autoInit(config, ServerAvailability.DRAINING);
 
             final ServerLoadManager serverLoadManager = this.echoClient.getServerLoadManager();
 
             // Register listeners
             final PluginManager pluginManager = super.getServer().getPluginManager();
+            pluginManager.registerEvents(this, this);
             this.admission = new AdmissionListener(
                     this,
                     placement,
                     config.getResourceId(),
                     (Integer) properties.get(ServerPlacement.PROPERTY_CAPACITY),
                     (Integer) properties.get(ServerPlacement.PROPERTY_HARD_CAPACITY));
-            pluginManager.registerEvents(admission, this);
-            admission.refresh();
-            this.getServer().getScheduler().runTaskTimer(this, admission::refresh, 20L, 20L);
+            pluginManager.registerEvents(this.admission, this);
+            this.admission.refresh();
+            this.getServer().getScheduler().runTaskTimer(this, this.admission::refresh, 20L, 20L);
             pluginManager.registerEvents(new JoinListener(this, serverLoadManager), this);
             this.echoClient
                     .getMessagingProvider()
@@ -165,6 +173,7 @@ public class EchoPaper extends JavaPlugin {
                 this.agonesLifecycle
                         .start()
                         .thenCompose(ignored -> this.agonesLifecycle.watchForDrainRequests())
+                        .thenCombine(this.serverStartup, (drainRequested, ignored) -> drainRequested)
                         .thenCompose(drainRequested -> this.stopping.get() || drainRequested
                                 ? CompletableFuture.completedFuture(null)
                                 : this.activate().thenApply(ignored -> null))
@@ -173,6 +182,12 @@ public class EchoPaper extends JavaPlugin {
                             getServer().shutdown();
                             return null;
                         });
+            } else {
+                this.serverStartup.thenCompose(ignored -> this.activate()).exceptionally(error -> {
+                    getLogger().log(Level.SEVERE, "Failed to activate Echo server after startup", error);
+                    this.requestShutdown();
+                    return false;
+                });
             }
         } catch (Exception e) {
             super.getLogger().log(Level.SEVERE, "Failed to initialize Echo client", e);
@@ -181,7 +196,8 @@ public class EchoPaper extends JavaPlugin {
         }
     }
 
-    static Map<PropertyKey<?>, Object> initialProperties(Map<? extends PropertyKey<?>, ?> configured, int capacity) {
+    static @NotNull Map<PropertyKey<?>, Object> initialProperties(
+            @NotNull Map<? extends PropertyKey<?>, ?> configured, int capacity) {
         if (capacity <= 0) throw new IllegalArgumentException("placement capacity must be positive");
         final Map<PropertyKey<?>, Object> properties = new HashMap<>();
         configured.forEach(properties::put);
@@ -197,20 +213,21 @@ public class EchoPaper extends JavaPlugin {
         return Map.copyOf(properties);
     }
 
-    static CommandAudience<CommandSourceStack> commandAudience() {
+    static @NotNull CommandAudience<CommandSourceStack> commandAudience() {
         return new CommandAudience<>() {
             @Override
-            public void send(CommandSourceStack source, net.kyori.adventure.text.Component message) {
+            public void send(@NotNull CommandSourceStack source, @NotNull net.kyori.adventure.text.Component message) {
                 source.getSender().sendMessage(message);
             }
 
             @Override
-            public String identity(CommandSourceStack source) {
+            public @NotNull String identity(@NotNull CommandSourceStack source) {
                 return source.getSender().getName();
             }
 
             @Override
-            public java.util.Optional<java.util.UUID> playerId(CommandSourceStack source) {
+            @NotNull
+            public java.util.Optional<java.util.UUID> playerId(@NotNull CommandSourceStack source) {
                 return source.getSender() instanceof org.bukkit.entity.Player player
                         ? java.util.Optional.of(player.getUniqueId())
                         : java.util.Optional.empty();
@@ -218,7 +235,7 @@ public class EchoPaper extends JavaPlugin {
         };
     }
 
-    public CompletableFuture<Void> beginDrain() {
+    public @NotNull CompletableFuture<Void> beginDrain() {
         return this.beginDrain(this.clock.instant().plus(DRAIN_TIMEOUT));
     }
 
@@ -226,7 +243,7 @@ public class EchoPaper extends JavaPlugin {
         return this.draining.get();
     }
 
-    public CompletableFuture<Void> beginDrain(final @NotNull Instant deadline) {
+    public @NotNull CompletableFuture<Void> beginDrain(final @NotNull Instant deadline) {
         Objects.requireNonNull(deadline, "deadline");
         if (this.stopping.get()) return CompletableFuture.failedFuture(new IllegalStateException("Server is stopping"));
         if (!this.draining.compareAndSet(false, true)) return CompletableFuture.completedFuture(null);
@@ -254,7 +271,7 @@ public class EchoPaper extends JavaPlugin {
                 });
     }
 
-    public CompletableFuture<ServerLoadSnapshot> refreshLoad() {
+    public @NotNull CompletableFuture<ServerLoadSnapshot> refreshLoad() {
         CompletableFuture<ServerLoadSnapshot> refreshed = new CompletableFuture<>();
         try {
             this.getServer().getScheduler().runTask(this, () -> {
@@ -287,8 +304,19 @@ public class EchoPaper extends JavaPlugin {
                     });
     }
 
-    public CompletableFuture<Boolean> activate() {
-        if (this.stopping.get() || this.draining.get()) return CompletableFuture.completedFuture(false);
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onServerLoad(@NotNull ServerLoadEvent event) {
+        if (event.getType() != ServerLoadEvent.LoadType.STARTUP || this.stopping.get()) return;
+        this.getServer().getScheduler().runTask(this, () -> {
+            if (this.stopping.get()) return;
+            this.serverStarted.set(true);
+            this.serverStartup.complete(null);
+        });
+    }
+
+    public @NotNull CompletableFuture<Boolean> activate() {
+        if (!this.serverStarted.get() || this.stopping.get() || this.draining.get())
+            return CompletableFuture.completedFuture(false);
         return this.echoClient
                 .setLocalServerAvailability(ServerAvailability.ACTIVE)
                 .thenCompose(ignored -> this.stopping.get() || this.draining.get()
@@ -309,7 +337,7 @@ public class EchoPaper extends JavaPlugin {
         }
     }
 
-    private void scheduleDrainShutdown(final Instant deadline) {
+    private void scheduleDrainShutdown(final @NotNull Instant deadline) {
         final Runnable shutdown = () -> {
             if (this.stopping.compareAndSet(false, true)) this.getServer().shutdown();
         };
@@ -338,6 +366,7 @@ public class EchoPaper extends JavaPlugin {
     public void onDisable() {
         this.stopping.set(true);
         this.draining.set(true);
+        this.serverStartup.complete(null);
         if (this.admission != null) this.admission.close();
         if (this.echoClient != null && this.agonesLifecycle != null) {
             try {
