@@ -16,6 +16,7 @@ dependencies {
         exclude(group = "io.fabric8")
     }
     implementation(project(":queue"))
+    implementation(project(":metrics"))
     implementation("org.incendo:cloud-paper:2.0.0")
     compileOnlyApi("fr.codinbox.connector:paper:6.0.0")
 
@@ -48,6 +49,7 @@ tasks {
         exclude("com/fasterxml/jackson/**")
         relocate("org.incendo.cloud", "fr.codinbox.echo.paper.libs.cloud")
         relocate("io.leangen.geantyref", "fr.codinbox.echo.paper.libs.geantyref")
+        relocate("io.prometheus", "fr.codinbox.echo.paper.libs.prometheus")
         mergeServiceFiles()
         filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
         doLast {

@@ -14,6 +14,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 - **On-demand servers** - Acquire and terminate disposable servers without exposing the orchestrator
 - **Atomic placement and queues** - Reserve whole groups and coordinate recoverable Redis-backed handoffs
 - **Async-first API** - Core operations use `EchoFuture`; orchestration modules use `CompletableFuture`
+- **Prometheus metrics** - Optional `/metrics` endpoint with platform, network-wide and queue metrics
 - **Platform integrations** - Ready-to-use plugins for [Paper](https://papermc.io/) and [Velocity](https://velocitypowered.com/)
 
 ## Requirements
@@ -32,6 +33,7 @@ Echo provides a unified API to track players, servers, and proxies across your e
 | `agones`   | Agones allocation and game-server lifecycle adapter                      |
 | `queue`    | Redis-backed group queues, placement, and recoverable player handoff     |
 | `commands` | Shared Cloud Annotations administration commands for servers and proxies |
+| `metrics`  | Prometheus exporter: JVM, platform, network-wide and queue metrics       |
 | `paper`    | Paper server plugin - auto-registers players and servers                 |
 | `velocity` | Velocity proxy plugin - handles server switching and player routing      |
 
@@ -331,6 +333,37 @@ Request states are `QUEUED`, `CLAIMED`, `PREPARED`, `TRANSFERRING`, `COMPLETED`,
 requests. Its administration API lists queues/tickets and supports pause, resume, wake, retry, and
 terminal-record purging. Paper discovers a custom `QueuePlacementPreparer` through Bukkit's
 services manager; return `Decision.accept()` or `Decision.reject(reason)` before transfer.
+
+### Metrics
+
+Paper and Velocity serve Prometheus metrics when `ECHO_METRICS_ENABLED=true`:
+
+| Variable                        | Description                                               | Default       |
+| ------------------------------- | --------------------------------------------------------- | ------------- |
+| `ECHO_METRICS_ENABLED`          | Serve `/metrics` over HTTP                                | `false`       |
+| `ECHO_METRICS_PORT`             | HTTP port                                                 | `9225`        |
+| `ECHO_METRICS_NETWORK`          | Also export the network-wide view read from Redis         | `false`       |
+| `ECHO_METRICS_NETWORK_INTERVAL` | Network and queue collection period, in seconds           | `15`          |
+| `ECHO_METRICS_GROUP_PROPERTY`   | Server property used as the `group` label (the game mode) | `server_type` |
+
+A failure to bind the port is logged and never stops the server. Exported families:
+
+| Node                     | Metrics                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every node               | `jvm_*`, `process_*`, `echo_resource_info{resource_type,resource_id,group}`                                                                                                                                                                                                                                            |
+| Paper                    | `minecraft_tps{window}`, `minecraft_tick_duration_milliseconds{stat}`, `minecraft_players_online`, `minecraft_players_max`, `minecraft_player_ping_milliseconds{stat}`, `minecraft_world_{entities,loaded_chunks,players}{world}`, `minecraft_player_{joins,quits}_total`, `minecraft_player_session_duration_seconds` |
+| Velocity                 | `minecraft_players_online`, `minecraft_player_ping_milliseconds{stat}`, `velocity_logins_total{result}`, `velocity_disconnects_total{status}`, `velocity_server_connections_total{group}`, `velocity_session_duration_seconds`, `velocity_players_by_brand{brand}`, `velocity_players_by_version{version}`             |
+| `ECHO_METRICS_NETWORK`   | `echo_network_players`, `echo_network_group_players{group}`, `echo_network_servers{group,availability}`, `echo_network_server_players{server,group}`, `echo_network_proxies`, `echo_network_proxy_players{proxy}`                                                                                                      |
+| Host of a `QueueService` | `echo_queue_requests{queue,state}`, `echo_queue_waiting_players{queue}`, `echo_queue_oldest_waiting_seconds{queue}`, `echo_queue_paused{queue}`                                                                                                                                                                        |
+
+`{stat}` series are `avg`, `p50`, `p95` and `max`. Every node with `ECHO_METRICS_NETWORK` (and every
+queue host) reports the same Redis state: aggregate those series with `max`, not `sum`. Collection
+health is exported as `echo_metrics_collection_failures_total{source}`,
+`echo_metrics_collection_duration_seconds{source}` and
+`echo_metrics_last_collection_timestamp_seconds{source}`; a failed network collection removes the
+`echo_network_*` series until the next success. Client brands are reduced to a fixed set
+(`vanilla`, `fabric`, `forge`, `neoforge`, `quilt`, `lunarclient`, `badlion`, `feather`, `labymod`,
+`essential`, `optifine`, `other`, `unknown`).
 
 ## Usage
 
