@@ -20,14 +20,17 @@ import fr.codinbox.echo.commands.EchoCommands;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import fr.codinbox.echo.metrics.EchoMetrics;
 import fr.codinbox.echo.paper.event.ServerDrainEvent;
 import fr.codinbox.echo.paper.listener.AdmissionListener;
 import fr.codinbox.echo.paper.listener.JoinListener;
 import fr.codinbox.echo.paper.messaging.QueuePlacementPrepareRequestHandler;
 import fr.codinbox.echo.paper.messaging.ResourceControlRequestHandler;
+import fr.codinbox.echo.paper.metrics.PaperMetrics;
 import fr.codinbox.echo.queue.QueuePlacementPreparer;
 import fr.codinbox.echo.queue.messaging.QueuePlacementPrepareRequest;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,6 +63,7 @@ public class EchoPaper extends JavaPlugin implements Listener {
     private @Nullable EchoClient echoClient;
     private @Nullable AdmissionListener admission;
     private @Nullable AgonesGameServerLifecycle agonesLifecycle;
+    private @Nullable EchoMetrics metrics;
     private final @NotNull AtomicBoolean stopping = new AtomicBoolean();
     private final @NotNull AtomicBoolean draining = new AtomicBoolean();
     private final @NotNull AtomicBoolean serverStarted = new AtomicBoolean();
@@ -113,6 +117,7 @@ public class EchoPaper extends JavaPlugin implements Listener {
             this.admission.refresh();
             this.getServer().getScheduler().runTaskTimer(this, this.admission::refresh, 20L, 20L);
             pluginManager.registerEvents(new JoinListener(this, serverLoadManager), this);
+            this.startMetrics(this.echoClient, pluginManager);
             this.echoClient
                     .getMessagingProvider()
                     .subscribe(
@@ -194,6 +199,21 @@ public class EchoPaper extends JavaPlugin implements Listener {
             super.getServer().shutdown();
             return;
         }
+    }
+
+    private void startMetrics(final @NotNull EchoClient client, final @NotNull PluginManager pluginManager) {
+        try {
+            this.metrics =
+                    EchoMetrics.startFromEnvironment(client, this.getLogger()).orElse(null);
+        } catch (IOException | RuntimeException error) {
+            // Metrics must never prevent the server from serving players.
+            this.getLogger().log(Level.WARNING, "Failed to start Echo metrics", error);
+            return;
+        }
+        if (this.metrics == null) return;
+        final PaperMetrics paperMetrics = new PaperMetrics(this.getServer(), this.metrics.registry());
+        pluginManager.registerEvents(paperMetrics, this);
+        this.getServer().getScheduler().runTaskTimer(this, paperMetrics::sample, 20L, PaperMetrics.SAMPLE_PERIOD_TICKS);
     }
 
     static @NotNull Map<PropertyKey<?>, Object> initialProperties(
@@ -367,6 +387,7 @@ public class EchoPaper extends JavaPlugin implements Listener {
         this.stopping.set(true);
         this.draining.set(true);
         this.serverStartup.complete(null);
+        if (this.metrics != null) this.metrics.close();
         if (this.admission != null) this.admission.close();
         if (this.echoClient != null && this.agonesLifecycle != null) {
             try {

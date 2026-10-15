@@ -37,6 +37,7 @@ import fr.codinbox.echo.commands.EchoCommands;
 import fr.codinbox.echo.core.EchoClientImpl;
 import fr.codinbox.echo.core.RedisProviderFactory;
 import fr.codinbox.echo.core.server.placement.RedisServerPlacement;
+import fr.codinbox.echo.metrics.EchoMetrics;
 import fr.codinbox.echo.velocity.listener.AdmissionPermissionListener;
 import fr.codinbox.echo.velocity.listener.JoinListener;
 import fr.codinbox.echo.velocity.messaging.ProxySwitchRequestHandler;
@@ -45,7 +46,9 @@ import fr.codinbox.echo.velocity.messaging.ServerAvailabilityNotificationHandler
 import fr.codinbox.echo.velocity.messaging.ServerStatusNotificationHandler;
 import fr.codinbox.echo.velocity.messaging.ServerSwitchRequestHandler;
 import fr.codinbox.echo.velocity.messaging.UserDisconnectRequestHandler;
+import fr.codinbox.echo.velocity.metrics.VelocityMetrics;
 import fr.codinbox.echo.velocity.utils.ProxyUtils;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,36 +69,38 @@ import org.incendo.cloud.annotations.AnnotationParser;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.velocity.VelocityCommandManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @Plugin(
         id = "echo",
         name = "Echo",
-        version = "7.4.0",
+        version = "7.5.0",
         authors = {"dandan2611"},
         dependencies = {@Dependency(id = "connector", optional = false)})
 public class EchoPlugin {
 
     public static final @NotNull String ECHO_CONNECTOR_CONNECTION_NAME = "ECHO";
-    static final String COMMAND_ROOT = "echo|echoproxy";
-    private static final Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
-    private static final Duration DRAIN_CHECK_PERIOD = Duration.ofSeconds(1);
+    static final @NotNull String COMMAND_ROOT = "echo|echoproxy";
+    private static final @NotNull Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
+    private static final @NotNull Duration DRAIN_CHECK_PERIOD = Duration.ofSeconds(1);
 
     @Inject
-    private Logger logger;
+    private @NotNull Logger logger;
 
     @Inject
-    private ProxyServer proxy;
+    private @NotNull ProxyServer proxy;
 
     @Inject
-    private PluginContainer pluginContainer;
+    private @NotNull PluginContainer pluginContainer;
 
-    private EchoClient echoClient;
-    private AgonesGameServerLifecycle agonesLifecycle;
-    private final AtomicBoolean stopping = new AtomicBoolean();
-    private final AtomicBoolean draining = new AtomicBoolean();
-    private final AtomicBoolean acceptingLogins = new AtomicBoolean();
-    private final ConcurrentMap<UUID, String> userSessions = new ConcurrentHashMap<>();
-    private Clock clock = Clock.systemUTC();
+    private @Nullable EchoClient echoClient;
+    private @Nullable AgonesGameServerLifecycle agonesLifecycle;
+    private @Nullable EchoMetrics metrics;
+    private final @NotNull AtomicBoolean stopping = new AtomicBoolean();
+    private final @NotNull AtomicBoolean draining = new AtomicBoolean();
+    private final @NotNull AtomicBoolean acceptingLogins = new AtomicBoolean();
+    private final @NotNull ConcurrentMap<UUID, String> userSessions = new ConcurrentHashMap<>();
+    private @NotNull Clock clock = Clock.systemUTC();
 
     @Subscribe
     private void onProxyInit(final @NotNull ProxyInitializeEvent event) {
@@ -228,6 +233,7 @@ public class EchoPlugin {
                     new JoinListener(
                             () -> this.acceptingLogins.get() && !this.stopping.get() && !this.draining.get(),
                             this.userSessions));
+            this.startMetrics(client, eventManager);
 
             if (!this.stopping.get() && !this.draining.get()) {
                 this.acceptingLogins.set(true);
@@ -241,7 +247,25 @@ public class EchoPlugin {
         }
     }
 
-    static void configureCommands(VelocityCommandManager<CommandSource> manager) {
+    private void startMetrics(final @NotNull EchoClient client, final @NotNull EventManager eventManager) {
+        try {
+            this.metrics = EchoMetrics.startFromEnvironment(client, this.logger).orElse(null);
+        } catch (IOException | RuntimeException error) {
+            // Metrics must never prevent the proxy from accepting players.
+            this.logger.log(Level.WARNING, "Failed to start Echo metrics", error);
+            return;
+        }
+        if (this.metrics == null) return;
+        eventManager.register(
+                this,
+                new VelocityMetrics(
+                        this.proxy,
+                        client,
+                        this.metrics.registry(),
+                        this.metrics.settings().groupProperty()));
+    }
+
+    static void configureCommands(final @NotNull VelocityCommandManager<CommandSource> manager) {
         // Let Cloud parse resource IDs (notably server:<id>) and report incomplete command usage.
         manager.brigadierManager().settings().set(org.incendo.cloud.brigadier.BrigadierSetting.FORCE_EXECUTABLE, true);
         manager.brigadierManager()
@@ -252,20 +276,20 @@ public class EchoPlugin {
                                 .cloudSuggestions());
     }
 
-    static CommandAudience<CommandSource> commandAudience() {
+    static @NotNull CommandAudience<CommandSource> commandAudience() {
         return new CommandAudience<>() {
             @Override
-            public void send(CommandSource source, Component message) {
+            public void send(final @NotNull CommandSource source, final @NotNull Component message) {
                 source.sendMessage(message);
             }
 
             @Override
-            public String identity(CommandSource source) {
+            public @NotNull String identity(final @NotNull CommandSource source) {
                 return source instanceof Player player ? player.getUsername() : "CONSOLE";
             }
 
             @Override
-            public java.util.Optional<java.util.UUID> playerId(CommandSource source) {
+            public @NotNull java.util.Optional<java.util.UUID> playerId(final @NotNull CommandSource source) {
                 return source instanceof Player player
                         ? java.util.Optional.of(player.getUniqueId())
                         : java.util.Optional.empty();
@@ -287,6 +311,7 @@ public class EchoPlugin {
         return this.beginDrain(this.clock.instant().plus(DRAIN_TIMEOUT));
     }
 
+    @NotNull
     CompletableFuture<Void> onAgonesDrain() {
         this.beginDrain();
         return CompletableFuture.completedFuture(null);
@@ -332,24 +357,27 @@ public class EchoPlugin {
         }
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(@NotNull UUID userId, @NotNull String reason) {
+    public @NotNull CompletableFuture<Boolean> disconnectPlayer(@NotNull UUID userId, @NotNull String reason) {
         return this.scheduleDisconnect(userId, reason, null, Long.MAX_VALUE);
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(
+    public @NotNull CompletableFuture<Boolean> disconnectPlayer(
             @NotNull UUID userId, @NotNull String reason, @NotNull String expectedSessionId) {
         java.util.Objects.requireNonNull(expectedSessionId, "expectedSessionId");
         return this.scheduleDisconnect(userId, reason, expectedSessionId, Long.MAX_VALUE);
     }
 
-    public CompletableFuture<Boolean> disconnectPlayer(
+    public @NotNull CompletableFuture<Boolean> disconnectPlayer(
             @NotNull UUID userId, @NotNull String reason, @NotNull String expectedSessionId, long deadlineEpochMillis) {
         java.util.Objects.requireNonNull(expectedSessionId, "expectedSessionId");
         return this.scheduleDisconnect(userId, reason, expectedSessionId, deadlineEpochMillis);
     }
 
-    private CompletableFuture<Boolean> scheduleDisconnect(
-            UUID userId, String reason, String expectedSessionId, long deadlineEpochMillis) {
+    private @NotNull CompletableFuture<Boolean> scheduleDisconnect(
+            final @NotNull UUID userId,
+            final @NotNull String reason,
+            final @Nullable String expectedSessionId,
+            final long deadlineEpochMillis) {
         java.util.Objects.requireNonNull(userId, "userId");
         java.util.Objects.requireNonNull(reason, "reason");
         CompletableFuture<Boolean> result = new CompletableFuture<>();
@@ -381,7 +409,7 @@ public class EchoPlugin {
         return result;
     }
 
-    private void scheduleDrainShutdown(Instant deadline) {
+    private void scheduleDrainShutdown(final @NotNull Instant deadline) {
         final Runnable shutdown = () -> {
             if (this.stopping.compareAndSet(false, true)) {
                 this.acceptingLogins.set(false);
@@ -419,6 +447,7 @@ public class EchoPlugin {
         this.stopping.set(true);
         this.draining.set(true);
         this.acceptingLogins.set(false);
+        if (this.metrics != null) this.metrics.close();
         try {
             if (this.echoClient != null) this.echoClient.shutdown();
         } finally {

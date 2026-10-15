@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":agones")) {
         exclude(group = "io.fabric8")
     }
+    implementation(project(":metrics"))
     implementation("org.incendo:cloud-annotations:2.1.0")
     implementation("org.incendo:cloud-velocity:2.0.0")
     compileOnlyApi("fr.codinbox.connector:velocity:6.0.0")
@@ -41,6 +42,7 @@ tasks {
         exclude("com/fasterxml/jackson/**")
         relocate("org.incendo.cloud", "fr.codinbox.echo.velocity.libs.cloud")
         relocate("io.leangen.geantyref", "fr.codinbox.echo.velocity.libs.geantyref")
+        relocate("io.prometheus", "fr.codinbox.echo.velocity.libs.prometheus")
         mergeServiceFiles()
         filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
         doLast {

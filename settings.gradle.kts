@@ -15,3 +15,5 @@ include("agones")
 include("queue")
 
 include("commands")
+
+include("metrics")
