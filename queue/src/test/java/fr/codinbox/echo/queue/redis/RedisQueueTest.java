@@ -457,6 +457,42 @@ class RedisQueueTest {
     }
 
     @Test
+    void freshAllocationRetriesReservationInsteadOfTerminating() throws Exception {
+        InMemoryQueueStore store = new InMemoryQueueStore();
+        EchoClient echo = mock(EchoClient.class);
+        OnDemandServers onDemand = mock(OnDemandServers.class);
+        ServerPlacement placement = mock(ServerPlacement.class);
+        CountDownLatch retried = new CountDownLatch(3);
+
+        when(onDemand.acquire(any())).thenReturn(CompletableFuture.completedFuture(new ServerHandle("game-1")));
+        when(onDemand.terminate(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(placement.reserve(any())).thenAnswer(ignored -> {
+            retried.countDown();
+            return EchoFuture.completed(Optional.empty());
+        });
+
+        QueueOptions polling = new QueueOptions(
+                Duration.ofMillis(20),
+                Duration.ofSeconds(30),
+                Duration.ofHours(3),
+                Duration.ofSeconds(5),
+                Duration.ofHours(2),
+                Duration.ofSeconds(1));
+        try (RedisQueue queue =
+                new RedisQueue(store, echo, onDemand, placement, List.of(DEFINITION), polling, Clock.systemUTC())) {
+            queue.start().join();
+            queue.enqueue(new QueueRequest("ticket-1", QUEUE_ID, Set.of(UUID.randomUUID())))
+                    .join();
+
+            assertThat(retried.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(store.status("ticket-1").state()).isEqualTo(QueueRequestStatus.State.QUEUED);
+        }
+
+        verify(onDemand, times(1)).acquire(any());
+        verify(onDemand, never()).terminate(any());
+    }
+
+    @Test
     void enqueueIsIdempotentAndCancellationOnlyWinsWhileQueued() {
         InMemoryQueueStore store = new InMemoryQueueStore();
         EchoClient echo = mock(EchoClient.class);
@@ -558,8 +594,9 @@ class RedisQueueTest {
             return EchoFuture.completed(Optional.empty());
         });
 
-        try (RedisQueue queue = new RedisQueue(
-                store, echo, onDemand, placement, List.of(filteredDefinition), OPTIONS, Clock.systemUTC())) {
+        MutableClock clock = new MutableClock(Instant.now());
+        try (RedisQueue queue =
+                new RedisQueue(store, echo, onDemand, placement, List.of(filteredDefinition), OPTIONS, clock)) {
             queue.start().join();
             queue.enqueue(request).join();
             store.awaitRelease();
@@ -567,6 +604,7 @@ class RedisQueueTest {
             queue.enqueue(request).join();
             store.awaitRelease();
 
+            clock.advance(RedisQueue.FRESH_SERVER_ADMISSION_GRACE.plusSeconds(1));
             queue.enqueue(request).join();
             terminated.get(5, TimeUnit.SECONDS);
             store.awaitRelease();
