@@ -43,8 +43,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -53,25 +57,25 @@ import org.junit.jupiter.api.io.TempDir;
 @Tag("unit")
 class AgonesOnDemandServersTest {
 
-    private HttpServer server;
-    private KubernetesClient kubernetes;
-    private AgonesOnDemandServers adapter;
+    private @Nullable HttpServer server;
+    private @Nullable KubernetesClient kubernetes;
+    private @Nullable AgonesOnDemandServers adapter;
 
     @TempDir
-    private Path serviceAccountDirectory;
+    private @NotNull Path serviceAccountDirectory;
 
     @AfterEach
     void stopServer() {
-        if (adapter != null) adapter.close();
-        else if (kubernetes != null) kubernetes.close();
-        if (server != null) server.stop(0);
+        if (this.adapter != null) this.adapter.close();
+        else if (this.kubernetes != null) this.kubernetes.close();
+        if (this.server != null) this.server.stop(0);
     }
 
     @Test
     void acquire_allocatesOnceAndReturnsActiveEchoServer() throws Exception {
         AtomicInteger allocations = new AtomicInteger();
         AtomicReference<String> requestBody = new AtomicReference<>();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(
                         exchange,
@@ -88,8 +92,8 @@ class AgonesOnDemandServersTest {
             respond(exchange, 201, "{\"status\":{\"state\":\"Allocated\",\"gameServerName\":\"match-abc\"}}");
         });
 
-        EchoClient echo = activeEchoServer("match-abc");
-        AgonesOnDemandServers servers = adapter(echo, Duration.ofSeconds(1));
+        EchoClient echo = this.activeEchoServer("match-abc");
+        AgonesOnDemandServers servers = this.adapter(echo, Duration.ofSeconds(1));
         ServerRequest request = new ServerRequest("queue-42", "bedwars");
 
         assertThat(servers.acquire(request).join()).isEqualTo(new ServerHandle("match-abc", "queue-42"));
@@ -102,7 +106,7 @@ class AgonesOnDemandServersTest {
 
     @Test
     void acquire_setsRequestedEchoPropertiesBeforeReturning() throws Exception {
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(exchange, 200, "{\"items\":[]}");
                 return;
@@ -110,14 +114,14 @@ class AgonesOnDemandServersTest {
             respond(exchange, 201, "{\"status\":{\"state\":\"Allocated\",\"gameServerName\":\"lobby-owned\"}}");
         });
 
-        EchoClient echo = echoWithCache();
+        EchoClient echo = this.echoWithCache();
         Server active = mock(Server.class);
         PropertyKey<String> owner = new PropertyKey<>("owner");
         when(active.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         when(active.setProperty(owner, "team-a")).thenReturn(EchoFuture.completed(null));
         when(echo.getServerById("lobby-owned")).thenReturn(EchoFuture.completed(Optional.of(active)));
 
-        ServerHandle handle = adapter(echo, Duration.ofSeconds(1))
+        ServerHandle handle = this.adapter(echo, Duration.ofSeconds(1))
                 .acquire(new ServerRequest("queue-owned", "lobby", Map.of(owner, "team-a")))
                 .join();
 
@@ -128,7 +132,7 @@ class AgonesOnDemandServersTest {
     @Test
     void acquire_recoversAllocationCreatedBeforeRedisMapping() throws Exception {
         AtomicInteger allocations = new AtomicInteger();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(exchange, 200, """
                         {"items":[{"metadata":{"name":"match-recovered","annotations":{
@@ -143,7 +147,7 @@ class AgonesOnDemandServersTest {
             }
         });
 
-        ServerHandle handle = adapter(activeEchoServer("match-recovered"), Duration.ofSeconds(1))
+        ServerHandle handle = this.adapter(this.activeEchoServer("match-recovered"), Duration.ofSeconds(1))
                 .acquire(new ServerRequest("queue-recovered", "bedwars"))
                 .join();
 
@@ -154,7 +158,7 @@ class AgonesOnDemandServersTest {
     @Test
     void acquire_doesNotReplayAllocationAfterUnauthorizedResponse() throws Exception {
         AtomicInteger allocations = new AtomicInteger();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(exchange, 200, "{\"apiVersion\":\"agones.dev/v1\",\"kind\":\"GameServerList\",\"items\":[]}");
             } else {
@@ -164,7 +168,7 @@ class AgonesOnDemandServersTest {
         });
 
         Config config = new ConfigBuilder(Config.empty())
-                .withMasterUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                .withMasterUrl("http://127.0.0.1:" + this.server.getAddress().getPort())
                 .withNamespace("games")
                 .withTrustCerts(true)
                 .withRequestTimeout(10_000)
@@ -172,7 +176,7 @@ class AgonesOnDemandServersTest {
                 .build();
         this.kubernetes = AgonesOnDemandServers.kubernetesClient(config, () -> "token");
         this.adapter = new AgonesOnDemandServers(
-                echoWithCache(), this.kubernetes, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
+                this.echoWithCache(), this.kubernetes, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
 
         assertThatThrownBy(() -> this.adapter
                         .acquire(new ServerRequest("queue-401", "bedwars"))
@@ -185,7 +189,7 @@ class AgonesOnDemandServersTest {
     void acquire_afterAmbiguousFailureOnlyRecoversExistingAllocation() throws Exception {
         AtomicInteger allocations = new AtomicInteger();
         AtomicInteger recoveries = new AtomicInteger();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 if (recoveries.incrementAndGet() < 3) {
                     respond(
@@ -206,7 +210,7 @@ class AgonesOnDemandServersTest {
             }
         });
 
-        AgonesOnDemandServers adapter = adapter(activeEchoServer("match-delayed"), Duration.ofSeconds(1));
+        AgonesOnDemandServers adapter = this.adapter(this.activeEchoServer("match-delayed"), Duration.ofSeconds(1));
         ServerRequest request = new ServerRequest("queue-delayed", "bedwars");
         assertThatThrownBy(() -> adapter.acquire(request).join())
                 .hasRootCauseInstanceOf(io.fabric8.kubernetes.client.KubernetesClientException.class);
@@ -216,15 +220,87 @@ class AgonesOnDemandServersTest {
     }
 
     @Test
+    void acquire_keepsRecentPendingAllocationWithoutReplaying() throws Exception {
+        AtomicInteger allocations = new AtomicInteger();
+        this.startEmptyAllocationServer(allocations, "match-replayed");
+        AtomicLong now = new AtomicLong(1_000_000);
+        Map<String, String> requests = new ConcurrentHashMap<>(Map.of("queue-pending", "@pending"));
+        Map<String, String> pendingSince = new ConcurrentHashMap<>(Map.of("queue-pending", Long.toString(now.get())));
+        EchoClient echo = this.activeEchoServer(
+                "match-replayed", this.mapBackedMock(requests), this.mapBackedMock(), this.mapBackedMock(pendingSince));
+        AgonesOnDemandServers adapter = this.adapter(echo, Duration.ofSeconds(1), now::get);
+
+        now.addAndGet(AgonesOnDemandServers.PENDING_ALLOCATION_TIMEOUT.toMillis() - 1);
+        assertThatThrownBy(() -> adapter.acquire(new ServerRequest("queue-pending", "bedwars"))
+                        .join())
+                .hasRootCauseMessage("Allocation outcome is still pending for queue-pending");
+        assertThat(allocations).hasValue(0);
+        assertThat(requests).containsEntry("queue-pending", "@pending");
+    }
+
+    @Test
+    void acquire_replaysPendingAllocationOrphanedPastTimeout() throws Exception {
+        AtomicInteger allocations = new AtomicInteger();
+        this.startEmptyAllocationServer(allocations, "match-replayed");
+        AtomicLong now = new AtomicLong(1_000_000);
+        Map<String, String> requests = new ConcurrentHashMap<>(Map.of("queue-orphan", "@pending"));
+        Map<String, String> pendingSince = new ConcurrentHashMap<>(Map.of("queue-orphan", Long.toString(now.get())));
+        EchoClient echo = this.activeEchoServer(
+                "match-replayed", this.mapBackedMock(requests), this.mapBackedMock(), this.mapBackedMock(pendingSince));
+        AgonesOnDemandServers adapter = this.adapter(echo, Duration.ofSeconds(1), now::get);
+
+        now.addAndGet(AgonesOnDemandServers.PENDING_ALLOCATION_TIMEOUT.toMillis());
+        assertThat(adapter.acquire(new ServerRequest("queue-orphan", "bedwars")).join())
+                .isEqualTo(new ServerHandle("match-replayed", "queue-orphan"));
+        assertThat(allocations).hasValue(1);
+        assertThat(requests).containsEntry("queue-orphan", "match-replayed");
+        assertThat(pendingSince).doesNotContainKey("queue-orphan");
+    }
+
+    @Test
+    void acquire_startsTimeoutForLegacyPendingMarkerThenReplays() throws Exception {
+        AtomicInteger allocations = new AtomicInteger();
+        this.startEmptyAllocationServer(allocations, "match-replayed");
+        AtomicLong now = new AtomicLong(1_000_000);
+        Map<String, String> requests = new ConcurrentHashMap<>(Map.of("queue-legacy", "@pending"));
+        Map<String, String> pendingSince = new ConcurrentHashMap<>();
+        EchoClient echo = this.activeEchoServer(
+                "match-replayed", this.mapBackedMock(requests), this.mapBackedMock(), this.mapBackedMock(pendingSince));
+        AgonesOnDemandServers adapter = this.adapter(echo, Duration.ofSeconds(1), now::get);
+        ServerRequest request = new ServerRequest("queue-legacy", "bedwars");
+
+        assertThatThrownBy(() -> adapter.acquire(request).join())
+                .hasRootCauseMessage("Allocation outcome is still pending for queue-legacy");
+        assertThat(pendingSince).containsEntry("queue-legacy", "1000000");
+        assertThat(allocations).hasValue(0);
+
+        now.addAndGet(AgonesOnDemandServers.PENDING_ALLOCATION_TIMEOUT.toMillis());
+        assertThat(adapter.acquire(request).join()).isEqualTo(new ServerHandle("match-replayed", "queue-legacy"));
+        assertThat(allocations).hasValue(1);
+    }
+
+    private void startEmptyAllocationServer(@NotNull AtomicInteger allocations, @NotNull String serverName)
+            throws Exception {
+        this.startServer(exchange -> {
+            if (exchange.getRequestMethod().equals("GET")) {
+                respond(exchange, 200, "{\"apiVersion\":\"agones.dev/v1\",\"kind\":\"GameServerList\",\"items\":[]}");
+                return;
+            }
+            allocations.incrementAndGet();
+            respond(exchange, 201, "{\"status\":{\"state\":\"Allocated\",\"gameServerName\":\"" + serverName + "\"}}");
+        });
+    }
+
+    @Test
     void inClusterConfig_usesOnlyServiceAccountAndRefreshesToken() throws Exception {
-        Files.writeString(serviceAccountDirectory.resolve("namespace"), "games\n");
-        Files.writeString(serviceAccountDirectory.resolve("ca.crt"), "certificate");
-        Path token = serviceAccountDirectory.resolve("token");
+        Files.writeString(this.serviceAccountDirectory.resolve("namespace"), "games\n");
+        Files.writeString(this.serviceAccountDirectory.resolve("ca.crt"), "certificate");
+        Path token = this.serviceAccountDirectory.resolve("token");
         Files.writeString(token, "first-token\n");
 
         Config config = AgonesOnDemandServers.inClusterConfig(
                 Map.of("KUBERNETES_SERVICE_HOST", "10.0.0.1", "KUBERNETES_SERVICE_PORT_HTTPS", "6443"),
-                serviceAccountDirectory);
+                this.serviceAccountDirectory);
 
         assertThat(config.getMasterUrl()).isEqualTo("https://10.0.0.1:6443/");
         assertThat(config.getNamespace()).isEqualTo("games");
@@ -239,19 +315,19 @@ class AgonesOnDemandServersTest {
 
     @Test
     void acquire_repairsMissingReverseMapping() throws Exception {
-        startServer(exchange -> respond(exchange, 200, """
+        this.startServer(exchange -> respond(exchange, 200, """
                 {"apiVersion":"agones.dev/v1","kind":"GameServer","metadata":{
                 "name":"match-partial","annotations":{"echo.codinbox.fr/request-id":"queue-partial"},
                 "labels":{"echo.codinbox.fr/server-type":"bedwars"}}}
                 """));
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-partial", "match-partial"));
         Map<String, String> serverValues = new ConcurrentHashMap<>();
-        EchoClient echo = echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues));
+        EchoClient echo = this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues));
         Server active = mock(Server.class);
         when(active.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         when(echo.getServerById("match-partial")).thenReturn(EchoFuture.completed(Optional.of(active)));
 
-        ServerHandle handle = adapter(echo, Duration.ofSeconds(1))
+        ServerHandle handle = this.adapter(echo, Duration.ofSeconds(1))
                 .acquire(new ServerRequest("queue-partial", "bedwars"))
                 .join();
 
@@ -263,7 +339,7 @@ class AgonesOnDemandServersTest {
     void acquire_withoutEchoRegistration_keepsAllocationForRetry() throws Exception {
         AtomicInteger deletions = new AtomicInteger();
         AtomicBoolean active = new AtomicBoolean();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(
                         exchange,
@@ -285,13 +361,13 @@ class AgonesOnDemandServersTest {
 
         Map<String, String> requestValues = new ConcurrentHashMap<>();
         Map<String, String> serverValues = new ConcurrentHashMap<>();
-        EchoClient echo = echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues));
+        EchoClient echo = this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues));
         Server activeServer = mock(Server.class);
         when(activeServer.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         when(echo.getServerById("match-timeout"))
                 .thenAnswer(
                         ignored -> EchoFuture.completed(active.get() ? Optional.of(activeServer) : Optional.empty()));
-        AgonesOnDemandServers servers = adapter(echo, Duration.ofMillis(20));
+        AgonesOnDemandServers servers = this.adapter(echo, Duration.ofMillis(20));
         ServerRequest request = new ServerRequest("queue-timeout", "bedwars");
 
         assertThatThrownBy(() -> servers.acquire(request).join())
@@ -307,19 +383,19 @@ class AgonesOnDemandServersTest {
 
     @Test
     void acquire_retriesTransientEchoLookupFailure() throws Exception {
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET"))
                 respond(exchange, 200, "{\"apiVersion\":\"agones.dev/v1\",\"kind\":\"GameServerList\",\"items\":[]}");
             else respond(exchange, 201, "{\"status\":{\"state\":\"Allocated\",\"gameServerName\":\"match-retry\"}}");
         });
-        EchoClient echo = echoWithCache();
+        EchoClient echo = this.echoWithCache();
         Server active = mock(Server.class);
         when(active.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         EchoFuture<Optional<Server>> failedLookup = new EchoFuture<>();
         failedLookup.completeExceptionally(new IllegalStateException("Redis unavailable"));
         when(echo.getServerById("match-retry")).thenReturn(failedLookup, EchoFuture.completed(Optional.of(active)));
 
-        assertThat(adapter(echo, Duration.ofSeconds(1))
+        assertThat(this.adapter(echo, Duration.ofSeconds(1))
                         .acquire(new ServerRequest("queue-retry", "bedwars"))
                         .join())
                 .isEqualTo(new ServerHandle("match-retry", "queue-retry"));
@@ -328,7 +404,7 @@ class AgonesOnDemandServersTest {
     @Test
     void acquire_whenIdempotencyMappingFails_terminatesAllocationAndCleansMappings() throws Exception {
         AtomicInteger deletions = new AtomicInteger();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("GET")) {
                 respond(
                         exchange,
@@ -348,14 +424,14 @@ class AgonesOnDemandServersTest {
             }
         });
 
-        CacheMap<String, String> requests = mapBackedMock();
-        CacheMap<String, String> servers = mapBackedMock();
+        CacheMap<String, String> requests = this.mapBackedMock();
+        CacheMap<String, String> servers = this.mapBackedMock();
         doReturn(CompletableFuture.failedFuture(new IllegalStateException("Redis unavailable")))
                 .when(requests)
                 .putAsync("queue-mapping", "match-mapping");
-        EchoClient echo = echoWithCache(requests, servers);
+        EchoClient echo = this.echoWithCache(requests, servers);
 
-        assertThatThrownBy(() -> adapter(echo, Duration.ofSeconds(1))
+        assertThatThrownBy(() -> this.adapter(echo, Duration.ofSeconds(1))
                         .acquire(new ServerRequest("queue-mapping", "bedwars"))
                         .join())
                 .hasRootCauseMessage("Redis unavailable");
@@ -368,7 +444,7 @@ class AgonesOnDemandServersTest {
     void terminate_keepsReverseMappingUntilRequestMappingIsRemoved() throws Exception {
         AtomicBoolean deleted = new AtomicBoolean();
         AtomicInteger deletions = new AtomicInteger();
-        startServer(exchange -> {
+        this.startServer(exchange -> {
             if (exchange.getRequestMethod().equals("DELETE")) {
                 deleted.set(true);
                 deletions.incrementAndGet();
@@ -385,15 +461,15 @@ class AgonesOnDemandServersTest {
         });
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-terminate", "match-terminate"));
         Map<String, String> serverValues = new ConcurrentHashMap<>(Map.of("match-terminate", "queue-terminate"));
-        CacheMap<String, String> requests = mapBackedMock(requestValues);
-        CacheMap<String, String> servers = mapBackedMock(serverValues);
+        CacheMap<String, String> requests = this.mapBackedMock(requestValues);
+        CacheMap<String, String> servers = this.mapBackedMock(serverValues);
         AtomicInteger removals = new AtomicInteger();
         org.mockito.Mockito.doAnswer(invocation -> removals.incrementAndGet() == 1
                         ? CompletableFuture.failedFuture(new IllegalStateException("Redis unavailable"))
                         : CompletableFuture.completedFuture(requestValues.remove("queue-terminate")))
                 .when(requests)
                 .removeAsync("queue-terminate");
-        AgonesOnDemandServers adapter = adapter(echoWithCache(requests, servers), Duration.ofSeconds(1));
+        AgonesOnDemandServers adapter = this.adapter(this.echoWithCache(requests, servers), Duration.ofSeconds(1));
         ServerHandle handle = new ServerHandle("match-terminate", "queue-terminate");
 
         assertThatThrownBy(() -> adapter.terminate(handle).join()).hasRootCauseMessage("Redis unavailable");
@@ -408,12 +484,12 @@ class AgonesOnDemandServersTest {
     @Test
     void terminate_doesNotRemoveAReplacementAllocation() {
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-reused", "match-new"));
-        CacheMap<String, String> requests = mapBackedMock(requestValues);
-        CacheMap<String, String> servers = mapBackedMock();
+        CacheMap<String, String> requests = this.mapBackedMock(requestValues);
+        CacheMap<String, String> servers = this.mapBackedMock();
         when(servers.getAsync("match-old"))
                 .thenReturn(CompletableFuture.completedFuture("queue-reused"), CompletableFuture.completedFuture(null));
 
-        adapter(echoWithCache(requests, servers), mock(KubernetesClient.class))
+        this.adapter(this.echoWithCache(requests, servers), mock(KubernetesClient.class))
                 .terminate(new ServerHandle("match-old", "queue-reused"))
                 .join();
 
@@ -423,8 +499,8 @@ class AgonesOnDemandServersTest {
     @Test
     void terminate_arbitraryHandleIsIdempotentNoOp() {
         AtomicInteger deletions = new AtomicInteger();
-        KubernetesClient kubernetes = gameServerClient("untrusted-name", "other-request", "bedwars", deletions);
-        AgonesOnDemandServers adapter = adapter(echoWithCache(), kubernetes);
+        KubernetesClient kubernetes = this.gameServerClient("untrusted-name", "other-request", "bedwars", deletions);
+        AgonesOnDemandServers adapter = this.adapter(this.echoWithCache(), kubernetes);
 
         adapter.terminate(new ServerHandle("untrusted-name")).join();
         adapter.terminate(new ServerHandle("untrusted-name")).join();
@@ -438,8 +514,8 @@ class AgonesOnDemandServersTest {
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-new", "match-reused"));
         Map<String, String> serverValues = new ConcurrentHashMap<>(Map.of("match-reused", "queue-new"));
         KubernetesClient kubernetes = mock(KubernetesClient.class);
-        AgonesOnDemandServers adapter =
-                adapter(echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues)), kubernetes);
+        AgonesOnDemandServers adapter = this.adapter(
+                this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues)), kubernetes);
 
         adapter.terminate(new ServerHandle("match-reused", "queue-old")).join();
 
@@ -452,9 +528,9 @@ class AgonesOnDemandServersTest {
     void terminate_missingReverseMappingDoesNotDeleteKnownAllocation() {
         AtomicInteger deletions = new AtomicInteger();
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-known", "match-known"));
-        KubernetesClient kubernetes = gameServerClient("match-known", "queue-known", "bedwars", deletions);
+        KubernetesClient kubernetes = this.gameServerClient("match-known", "queue-known", "bedwars", deletions);
         AgonesOnDemandServers adapter =
-                adapter(echoWithCache(mapBackedMock(requestValues), mapBackedMock()), kubernetes);
+                this.adapter(this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock()), kubernetes);
 
         adapter.terminate(new ServerHandle("match-known", "queue-known")).join();
 
@@ -468,9 +544,9 @@ class AgonesOnDemandServersTest {
         AtomicInteger deletions = new AtomicInteger();
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-old", "match-recycled"));
         Map<String, String> serverValues = new ConcurrentHashMap<>(Map.of("match-recycled", "queue-old"));
-        AgonesOnDemandServers adapter = adapter(
-                echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues)),
-                gameServerClient("match-recycled", "queue-new", "bedwars", deletions));
+        AgonesOnDemandServers adapter = this.adapter(
+                this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues)),
+                this.gameServerClient("match-recycled", "queue-new", "bedwars", deletions));
 
         assertThatThrownBy(() -> adapter.terminate(new ServerHandle("match-recycled", "queue-old"))
                         .join())
@@ -484,12 +560,12 @@ class AgonesOnDemandServersTest {
     void acquire_rejectsServerTypeMismatchWithoutRepairingReverseMapping() {
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-owned", "match-recycled"));
         Map<String, String> serverValues = new ConcurrentHashMap<>();
-        EchoClient echo = echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues));
+        EchoClient echo = this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues));
         Server active = mock(Server.class);
         when(active.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         when(echo.getServerById("match-recycled")).thenReturn(EchoFuture.completed(Optional.of(active)));
-        AgonesOnDemandServers adapter =
-                adapter(echo, gameServerClient("match-recycled", "queue-owned", "skywars", new AtomicInteger()));
+        AgonesOnDemandServers adapter = this.adapter(
+                echo, this.gameServerClient("match-recycled", "queue-owned", "skywars", new AtomicInteger()));
 
         assertThatThrownBy(() -> adapter.acquire(new ServerRequest("queue-owned", "bedwars"))
                         .join())
@@ -502,9 +578,9 @@ class AgonesOnDemandServersTest {
         AtomicInteger deletions = new AtomicInteger();
         Map<String, String> requestValues = new ConcurrentHashMap<>(Map.of("queue-owned", "match-owned"));
         Map<String, String> serverValues = new ConcurrentHashMap<>(Map.of("match-owned", "queue-owned"));
-        AgonesOnDemandServers adapter = adapter(
-                echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues)),
-                gameServerClient("match-owned", "queue-owned", "bedwars", deletions));
+        AgonesOnDemandServers adapter = this.adapter(
+                this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues)),
+                this.gameServerClient("match-owned", "queue-owned", "bedwars", deletions));
 
         adapter.terminate(new ServerHandle("match-owned", "queue-owned")).join();
 
@@ -519,11 +595,11 @@ class AgonesOnDemandServersTest {
         KubernetesClient rejectedClient = mock(KubernetesClient.class);
         KubernetesClient replacementClient = mock(KubernetesClient.class);
         this.adapter = new AgonesOnDemandServers(
-                echoWithCache(), firstClient, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
+                this.echoWithCache(), firstClient, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
 
         assertThat(OnDemandServers.load()).isSameAs(this.adapter);
         assertThatThrownBy(() -> new AgonesOnDemandServers(
-                        echoWithCache(),
+                        this.echoWithCache(),
                         rejectedClient,
                         "games",
                         Map.of(),
@@ -536,7 +612,12 @@ class AgonesOnDemandServersTest {
         AgonesOnDemandServers first = this.adapter;
         first.close();
         this.adapter = new AgonesOnDemandServers(
-                echoWithCache(), replacementClient, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
+                this.echoWithCache(),
+                replacementClient,
+                "games",
+                Map.of(),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(2));
         first.close();
         assertThat(OnDemandServers.load()).isSameAs(this.adapter);
         verify(firstClient, org.mockito.Mockito.times(2)).close();
@@ -551,7 +632,7 @@ class AgonesOnDemandServersTest {
                 "queue-pending", "@pending",
                 "queue-a", "match-a"));
         this.adapter = new AgonesOnDemandServers(
-                echoWithCache(mapBackedMock(requestValues), mapBackedMock()),
+                this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock()),
                 mock(KubernetesClient.class),
                 "games",
                 Map.of(),
@@ -602,7 +683,7 @@ class AgonesOnDemandServersTest {
         when(namespaced.withName("match-good")).thenReturn(resource);
         when(resource.get()).thenReturn(gameServer("match-good", "queue-good", "bedwars"));
         this.adapter = new AgonesOnDemandServers(
-                echoWithCache(mapBackedMock(requestValues), mapBackedMock(serverValues)),
+                this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock(serverValues)),
                 kubernetes,
                 "games",
                 Map.of(),
@@ -633,7 +714,7 @@ class AgonesOnDemandServersTest {
                 "queue-dead", "match-dead",
                 "queue-gone", "match-gone",
                 "queue-pending", "@pending"));
-        EchoClient echo = echoWithCache(mapBackedMock(requestValues), mapBackedMock());
+        EchoClient echo = this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock());
         Server active = echoServer(true, ServerAvailability.ACTIVE);
         Server draining = echoServer(true, ServerAvailability.DRAINING);
         Server dead = echoServer(false, null);
@@ -674,7 +755,7 @@ class AgonesOnDemandServersTest {
                 "queue-lookup", "match-lookup",
                 "queue-liveness", "match-liveness",
                 "queue-availability", "match-availability"));
-        EchoClient echo = echoWithCache(mapBackedMock(requestValues), mapBackedMock());
+        EchoClient echo = this.echoWithCache(this.mapBackedMock(requestValues), this.mapBackedMock());
         Server livenessFailure = mock(Server.class);
         Server availabilityFailure = mock(Server.class);
         when(echo.getServerById("match-lookup")).thenReturn(failedEchoFuture("lookup failed"));
@@ -694,9 +775,14 @@ class AgonesOnDemandServersTest {
                 .hasRootCauseMessage("availability failed");
     }
 
-    private AgonesOnDemandServers adapter(EchoClient echo, Duration timeout) {
+    private @NotNull AgonesOnDemandServers adapter(@NotNull EchoClient echo, @NotNull Duration timeout) {
+        return this.adapter(echo, timeout, System::currentTimeMillis);
+    }
+
+    private @NotNull AgonesOnDemandServers adapter(
+            @NotNull EchoClient echo, @NotNull Duration timeout, @NotNull LongSupplier clock) {
         Config config = new ConfigBuilder(Config.empty())
-                .withMasterUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                .withMasterUrl("http://127.0.0.1:" + this.server.getAddress().getPort())
                 .withNamespace("games")
                 .withTrustCerts(true)
                 .withRequestTimeout(10_000)
@@ -709,11 +795,12 @@ class AgonesOnDemandServersTest {
                 "games",
                 Map.of("echo.codinbox.fr/role", "game-server"),
                 timeout,
-                Duration.ofMillis(2));
+                Duration.ofMillis(2),
+                clock);
         return this.adapter;
     }
 
-    private AgonesOnDemandServers adapter(EchoClient echo, KubernetesClient kubernetes) {
+    private @NotNull AgonesOnDemandServers adapter(@NotNull EchoClient echo, @NotNull KubernetesClient kubernetes) {
         this.kubernetes = kubernetes;
         this.adapter = new AgonesOnDemandServers(
                 echo, kubernetes, "games", Map.of(), Duration.ofSeconds(1), Duration.ofMillis(2));
@@ -721,7 +808,8 @@ class AgonesOnDemandServersTest {
     }
 
     @SuppressWarnings("unchecked")
-    private KubernetesClient gameServerClient(String name, String requestId, String type, AtomicInteger deletions) {
+    private @NotNull KubernetesClient gameServerClient(
+            @NotNull String name, @NotNull String requestId, @NotNull String type, @NotNull AtomicInteger deletions) {
         KubernetesClient kubernetes = mock(KubernetesClient.class);
         MixedOperation<GenericKubernetesResource, GenericKubernetesResourceList, Resource<GenericKubernetesResource>>
                 resources = mock(MixedOperation.class);
@@ -750,7 +838,8 @@ class AgonesOnDemandServersTest {
         return kubernetes;
     }
 
-    private static GenericKubernetesResource gameServer(String name, String requestId, String type) {
+    private static @NotNull GenericKubernetesResource gameServer(
+            @NotNull String name, @NotNull String requestId, @NotNull String type) {
         GenericKubernetesResource gameServer = new GenericKubernetesResource();
         ObjectMeta metadata = new ObjectMeta();
         metadata.setName(name);
@@ -760,41 +849,59 @@ class AgonesOnDemandServersTest {
         return gameServer;
     }
 
-    private EchoClient activeEchoServer(String id) {
-        EchoClient echo = echoWithCache();
+    private @NotNull EchoClient activeEchoServer(@NotNull String id) {
+        return this.activeEchoServer(id, this.mapBackedMock(), this.mapBackedMock(), this.mapBackedMock());
+    }
+
+    private @NotNull EchoClient activeEchoServer(
+            @NotNull String id,
+            @NotNull CacheMap<String, String> requests,
+            @NotNull CacheMap<String, String> servers,
+            @NotNull CacheMap<String, String> pendingSince) {
+        EchoClient echo = this.echoWithCache(requests, servers, pendingSince);
         Server active = mock(Server.class);
         when(active.getAvailability()).thenReturn(EchoFuture.completed(ServerAvailability.ACTIVE));
         when(echo.getServerById(id)).thenReturn(EchoFuture.completed(Optional.of(active)));
         return echo;
     }
 
-    private static Server echoServer(boolean live, ServerAvailability availability) {
+    private static @NotNull Server echoServer(boolean live, @NotNull ServerAvailability availability) {
         Server server = mock(Server.class);
         when(server.stillExists()).thenReturn(EchoFuture.completed(live));
         if (availability != null) when(server.getAvailability()).thenReturn(EchoFuture.completed(availability));
         return server;
     }
 
-    private static <T> EchoFuture<T> failedEchoFuture(String message) {
+    private static <T> @NotNull EchoFuture<T> failedEchoFuture(@NotNull String message) {
         EchoFuture<T> future = new EchoFuture<>();
         future.completeExceptionally(new IllegalStateException(message));
         return future;
     }
 
     @SuppressWarnings("unchecked")
-    private EchoClient echoWithCache() {
-        CacheMap<String, String> requests = mapBackedMock();
-        CacheMap<String, String> servers = mapBackedMock();
-        return echoWithCache(requests, servers);
+    private @NotNull EchoClient echoWithCache() {
+        CacheMap<String, String> requests = this.mapBackedMock();
+        CacheMap<String, String> servers = this.mapBackedMock();
+        return this.echoWithCache(requests, servers);
     }
 
     @SuppressWarnings("unchecked")
-    private EchoClient echoWithCache(CacheMap<String, String> requests, CacheMap<String, String> servers) {
+    private @NotNull EchoClient echoWithCache(
+            @NotNull CacheMap<String, String> requests, @NotNull CacheMap<String, String> servers) {
+        return this.echoWithCache(requests, servers, this.mapBackedMock());
+    }
+
+    @SuppressWarnings("unchecked")
+    private @NotNull EchoClient echoWithCache(
+            @NotNull CacheMap<String, String> requests,
+            @NotNull CacheMap<String, String> servers,
+            @NotNull CacheMap<String, String> pendingSince) {
         EchoClient echo = mock(EchoClient.class);
         CacheProvider cache = mock(CacheProvider.class);
         when(echo.getCacheProvider()).thenReturn(cache);
         when(cache.<String, String>getMap("ondemand:agones:requests")).thenReturn(requests);
         when(cache.<String, String>getMap("ondemand:agones:servers")).thenReturn(servers);
+        when(cache.<String, String>getMap("ondemand:agones:pending-since")).thenReturn(pendingSince);
         when(cache.withLock(anyString(), anyLong(), anyLong(), any(TimeUnit.class), any()))
                 .thenAnswer(invocation -> ((Supplier<CompletableFuture<Void>>) invocation.getArgument(4))
                         .get()
@@ -803,12 +910,12 @@ class AgonesOnDemandServersTest {
     }
 
     @SuppressWarnings("unchecked")
-    private CacheMap<String, String> mapBackedMock() {
-        return mapBackedMock(new ConcurrentHashMap<>());
+    private @NotNull CacheMap<String, String> mapBackedMock() {
+        return this.mapBackedMock(new ConcurrentHashMap<>());
     }
 
     @SuppressWarnings("unchecked")
-    private CacheMap<String, String> mapBackedMock(Map<String, String> values) {
+    private @NotNull CacheMap<String, String> mapBackedMock(@NotNull Map<String, String> values) {
         CacheMap<String, String> map = mock(CacheMap.class);
         when(map.readAllAsync()).thenAnswer(i -> CompletableFuture.completedFuture(Map.copyOf(values)));
         when(map.getAsync(anyString()))
@@ -820,13 +927,13 @@ class AgonesOnDemandServersTest {
         return map;
     }
 
-    private void startServer(com.sun.net.httpserver.HttpHandler handler) throws Exception {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", handler);
-        server.start();
+    private void startServer(com.sun.net.httpserver.@NotNull HttpHandler handler) throws Exception {
+        this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        this.server.createContext("/", handler);
+        this.server.start();
     }
 
-    private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body)
+    private static void respond(com.sun.net.httpserver.@NotNull HttpExchange exchange, int status, @NotNull String body)
             throws java.io.IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(status, bytes.length);
