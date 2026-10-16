@@ -52,6 +52,9 @@ public final class RedisQueue implements QueueService, QueueAdministration {
 
     private static final @NotNull ObjectMapper DISCONNECT_REASONS = new ObjectMapper();
     private static final @NotNull String SERVER_NOT_INITIALIZED = "Server instance has not been initialized yet";
+    /** A freshly allocated server may still be publishing its first load and admission snapshots. */
+    static final @NotNull Duration FRESH_SERVER_ADMISSION_GRACE = Duration.ofSeconds(60);
+
     private final @NotNull QueueStore store;
     private final @NotNull EchoClient echo;
     private final @NotNull OnDemandServers onDemand;
@@ -313,8 +316,12 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                             definition.serverType(),
                             definition.serverProperties()))
                     .join();
+            long admissionDeadline =
+                    this.clock.instant().plus(FRESH_SERVER_ADMISSION_GRACE).toEpochMilli();
             return this.store.commit(
-                    claim, claim.run().next(RunState.READY, server.id(), null, null, false, 0, false, null), List.of());
+                    claim,
+                    claim.run().next(RunState.READY, server.id(), null, null, false, admissionDeadline, false, null),
+                    List.of());
         } catch (RuntimeException error) {
             return Optional.empty();
         }
@@ -345,7 +352,10 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                     .reserve(this.placementRequest(
                             definition, request, claim.run().serverId()))
                     .join();
-            if (reserved.isEmpty())
+            if (reserved.isEmpty()) {
+                // Retry a fresh allocation on the next poll until its first snapshots are admissible.
+                if (!claim.run().handedOff()
+                        && this.clock.millis() < claim.run().transferDeadlineEpochMillis()) return Optional.empty();
                 return this.store.commit(
                         claim,
                         claim.run()
@@ -357,8 +367,13 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                                         claim.run().handedOff(),
                                         0,
                                         !claim.run().handedOff(),
-                                        "Allocated server cannot accept the queued group"),
+                                        "Allocated server cannot accept the queued group: "
+                                                + this.rejection(
+                                                        definition,
+                                                        request,
+                                                        claim.run().serverId())),
                         List.of());
+            }
 
             ServerPlacement.Reservation reservation = reserved.get();
             StoredRequest claimed = request.withState(
@@ -381,6 +396,22 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                     List.of(claimed));
         } catch (RuntimeException error) {
             return Optional.empty();
+        }
+    }
+
+    private @NotNull String rejection(
+            @NotNull QueueDefinition definition, @NotNull StoredRequest request, @NotNull String serverId) {
+        try {
+            return this.placement
+                    .explain(this.placementRequest(definition, request, serverId))
+                    .join()
+                    .candidates()
+                    .stream()
+                    .map(candidate -> candidate.rejectionReason().name())
+                    .findFirst()
+                    .orElse("SERVER_NOT_REGISTERED");
+        } catch (RuntimeException error) {
+            return "UNKNOWN";
         }
     }
 
