@@ -107,6 +107,32 @@ class EchoPaperTest {
     }
 
     @Test
+    void drainTimeoutDefaultsToThirtyMinutesAndAcceptsPositiveSeconds() {
+        assertThat(EchoPaper.drainTimeout(null)).isEqualTo(Duration.ofMinutes(30));
+        assertThat(EchoPaper.drainTimeout("900")).isEqualTo(Duration.ofMinutes(15));
+        for (String invalid : List.of("", "0", "-1", "15m", " 900")) {
+            assertThatThrownBy(() -> EchoPaper.drainTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("ECHO_DRAIN_TIMEOUT_SECONDS");
+        }
+    }
+
+    @Test
+    void drainUsesTheConfiguredTimeout() throws Exception {
+        Fixture fixture = fixture(List.of(mock(Player.class)));
+        setField(fixture.plugin, "drainTimeout", Duration.ofMinutes(15));
+        Instant beforeDrain = fixture.clock.instant();
+
+        fixture.plugin.beginDrain();
+        runMainThreadTask(fixture);
+
+        ArgumentCaptor<ServerDrainEvent> event = ArgumentCaptor.forClass(ServerDrainEvent.class);
+        verify(fixture.pluginManager).callEvent(event.capture());
+        assertThat(event.getValue().getDeadline()).isEqualTo(beforeDrain.plus(Duration.ofMinutes(15)));
+        verify(fixture.scheduler).runTaskLater(eq(fixture.plugin), any(Runnable.class), eq(15L * 60L * 20L));
+    }
+
+    @Test
     void drainNotifiesGamePluginsOnTheMainThread() throws Exception {
         Fixture fixture = fixture(List.of(mock(Player.class)));
         Instant beforeDrain = fixture.clock.instant();
@@ -394,6 +420,7 @@ class EchoPaperTest {
         setField(plugin, "echoClient", echoClient);
         MutableClock clock = new MutableClock(Instant.parse("2026-09-03T12:00:00Z"));
         setField(plugin, "clock", clock);
+        setField(plugin, "drainTimeout", EchoPaper.DEFAULT_DRAIN_TIMEOUT);
         return new Fixture(plugin, server, scheduler, pluginManager, echoClient, clock);
     }
 

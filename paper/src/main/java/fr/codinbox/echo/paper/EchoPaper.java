@@ -58,7 +58,7 @@ public class EchoPaper extends JavaPlugin implements Listener {
 
     public static final @NotNull String ECHO_CONNECTOR_CONNECTION_NAME = "ECHO";
     static final @NotNull String COMMAND_ROOT = "echo|echoserver";
-    private static final @NotNull Duration DRAIN_TIMEOUT = Duration.ofMinutes(30);
+    static final @NotNull Duration DEFAULT_DRAIN_TIMEOUT = Duration.ofMinutes(30);
     private static final long DRAIN_CHECK_PERIOD_TICKS = 20L;
     private @Nullable EchoClient echoClient;
     private @Nullable AdmissionListener admission;
@@ -69,10 +69,12 @@ public class EchoPaper extends JavaPlugin implements Listener {
     private final @NotNull AtomicBoolean serverStarted = new AtomicBoolean();
     private final @NotNull CompletableFuture<Void> serverStartup = new CompletableFuture<>();
     private @NotNull Clock clock = Clock.systemUTC();
+    private @NotNull Duration drainTimeout = DEFAULT_DRAIN_TIMEOUT;
 
     @Override
     public void onEnable() {
         try {
+            this.drainTimeout = drainTimeout(System.getenv("ECHO_DRAIN_TIMEOUT_SECONDS"));
             final RedisConnectorService redisConnectorService =
                     Objects.requireNonNull(this.getServer().getServicesManager().load(RedisConnectorService.class));
             final Optional<RedisConnection> echoConnection =
@@ -255,8 +257,21 @@ public class EchoPaper extends JavaPlugin implements Listener {
         };
     }
 
+    /** Parses {@code ECHO_DRAIN_TIMEOUT_SECONDS}; an unset value keeps the 30-minute default. */
+    static @NotNull Duration drainTimeout(final @Nullable String seconds) {
+        if (seconds == null) return DEFAULT_DRAIN_TIMEOUT;
+        final long value;
+        try {
+            value = Long.parseLong(seconds);
+        } catch (final NumberFormatException error) {
+            throw new IllegalArgumentException("ECHO_DRAIN_TIMEOUT_SECONDS must be a positive integer", error);
+        }
+        if (value <= 0) throw new IllegalArgumentException("ECHO_DRAIN_TIMEOUT_SECONDS must be a positive integer");
+        return Duration.ofSeconds(value);
+    }
+
     public @NotNull CompletableFuture<Void> beginDrain() {
-        return this.beginDrain(this.clock.instant().plus(DRAIN_TIMEOUT));
+        return this.beginDrain(this.clock.instant().plus(this.drainTimeout));
     }
 
     public boolean isDraining() {

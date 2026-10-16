@@ -108,6 +108,7 @@ Echo reads its configuration from environment variables:
 | `ECHO_AGONES_ENABLED`          | Enable the optional Agones lifecycle                     | `true` (default: `false`)               |
 | `ECHO_AGONES_LONG_LIVED`       | Self-allocate and observe rollout drain requests         | `true` for lobbies, otherwise `false`   |
 | `ECHO_AGONES_DRAIN_ANNOTATION` | Annotation that requests a graceful drain                | `echo.codinbox.fr/draining`             |
+| `ECHO_DRAIN_TIMEOUT_SECONDS`   | Paper: seconds from a drain request to shutdown          | `900` (default: `1800`)                 |
 | `ECHO_RESOURCE_PROPERTY_<key>` | String-valued initial property, applied before discovery | `ECHO_RESOURCE_PROPERTY_region=eu-west` |
 
 A Redis connection named `ECHO` must be registered through the Connector library. Initial-property
