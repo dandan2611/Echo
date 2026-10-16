@@ -44,12 +44,16 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jetbrains.annotations.NotNull;
 
 /** Redis-backed queue coordinator. Queue state is durable; Redis pub/sub only carries bounded handoff messages. */
 public final class RedisQueue implements QueueService, QueueAdministration {
 
+    private static final @NotNull Logger LOGGER = Logger.getLogger("echo");
     private static final @NotNull ObjectMapper DISCONNECT_REASONS = new ObjectMapper();
     private static final @NotNull String SERVER_NOT_INITIALIZED = "Server instance has not been initialized yet";
     /** A freshly allocated server may still be publishing its first load and admission snapshots. */
@@ -66,6 +70,7 @@ public final class RedisQueue implements QueueService, QueueAdministration {
     private final @NotNull ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             Thread.ofVirtual().name("echo-queue-poller").factory());
     private final @NotNull AtomicBoolean started = new AtomicBoolean();
+    private final @NotNull AtomicReference<String> lastAllocationFailure = new AtomicReference<>();
 
     public RedisQueue(
             @NotNull RedisConnection connection,
@@ -323,6 +328,13 @@ public final class RedisQueue implements QueueService, QueueAdministration {
                     claim.run().next(RunState.READY, server.id(), null, null, false, admissionDeadline, false, null),
                     List.of());
         } catch (RuntimeException error) {
+            // Allocation failures retry on every poll: log each distinct failure once per run.
+            String failure = claim.run().placementId() + ": " + message(error);
+            if (!failure.equals(this.lastAllocationFailure.getAndSet(failure)))
+                LOGGER.log(
+                        Level.WARNING,
+                        "Queue " + definition.id().value() + " could not allocate a server for placement " + failure,
+                        error);
             return Optional.empty();
         }
     }
